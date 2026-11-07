@@ -76,6 +76,7 @@ dist/
   "type": "module", "exports": { ".": "./src/index.mjs" },
   "dependencies": { "@croakcode/contracts": "workspace:*" } }
 ```
+> **주의**: 루트 `package.json`에 `devDependencies`로 두 워크스페이스 패키지를 선언해야 한다. 그래야 bun이 루트 `node_modules/@croakcode/*` 심볼릭을 생성해 `tests/`에서 `@croakcode/*` import가 해석된다(검증됨).
 
 - [ ] **Step 3: 설치 (workspace 링크)**
 
