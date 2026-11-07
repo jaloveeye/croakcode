@@ -63,7 +63,7 @@ dist/
 ```json
 { "name": "croakcode", "private": true, "type": "module",
   "workspaces": ["contracts", "control"],
-  "scripts": { "test": "node --test tests", "test:bun": "bun test tests" } }
+  "scripts": { "test": "node --test", "test:bun": "bun test tests" } }
 ```
 `contracts/package.json`:
 ```json
@@ -971,7 +971,7 @@ git commit -m "feat(control): HMAC admin policy integrity (tamper-resistant)"
 
 - [ ] **Step 1: node 러너 전체 실행**
 
-Run: `cd croakcode && node --test tests`
+Run: `cd croakcode && node --test`
 Expected: PASS. 테스트 수: smoke 1 + contracts.conformance 4 + permission-order 6 + security-context 5 + recovery 3 + admin-policy 4 = **23**.
 
 - [ ] **Step 2: bun 러너 전체 실행**
