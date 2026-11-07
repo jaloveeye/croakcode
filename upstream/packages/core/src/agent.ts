@@ -48,7 +48,7 @@ export interface Interface {
   readonly setDefault: (agent: ID) => Effect.Effect<void, NotFoundError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/Agent") {}
+export class Service extends Context.Service<Service, Interface>()("@croakcode/v2/Agent") {}
 
 export const layer = Layer.effect(
   Service,
