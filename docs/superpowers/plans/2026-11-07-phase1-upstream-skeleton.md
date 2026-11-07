@@ -300,12 +300,12 @@ git commit -m "feat(upstream): rebrand-check script for identifier-level brandin
 
 **Files:** 없음(설치/검증만)
 
-- [ ] **Step 1: upstream 의존성 설치**
+- [x] **Step 1: upstream 의존성 설치**
 
 Run: `cd croakcode/.worktrees/phase1-upstream-skeleton/upstream && bun install`
 Expected: 성공. `bunfig.toml`의 `minimumReleaseAge`(3일)에 걸리면 `bun install --ignore-scripts`로 재시도.
 
-- [ ] **Step 2: node-pty 수정 + 타입체크**
+- [x] **Step 2: node-pty 수정 + 타입체크**
 
 Run: `cd upstream/packages/opencode && bun run fix-node-pty && bun run typecheck`
 Expected: 타입 에러 0 (패치 반영 후).
@@ -314,7 +314,7 @@ Expected: 타입 에러 0 (패치 반영 후).
 
 **Files:** 없음(실행 검증만)
 
-- [ ] **Step 1: 버전/도움말**
+- [x] **Step 1: 버전/도움말**
 
 Run: `cd upstream/packages/opencode && bun run --conditions=browser src/index.ts --version`
 Expected: 버전 출력(예: `1.15.12`), 오류 없음.
@@ -322,12 +322,12 @@ Expected: 버전 출력(예: `1.15.12`), 오류 없음.
 Run: `cd upstream/packages/opencode && bun run --conditions=browser src/index.ts --help`
 Expected: `cc` scriptName으로 도움말 출력, `resume` 명령 포함.
 
-- [ ] **Step 2: 헤드리스 단일 프롬프트(모델 설정 없이 도움말 경로만 확인)**
+- [x] **Step 2: 헤드리스 단일 프롬프트(모델 설정 없이 도움말 경로만 확인)**
 
 Run: `cd upstream/packages/opencode && bun run --conditions=browser src/index.ts run --help`
 Expected: `run` 옵션 출력(모델 호출 없음). 실제 LLM 호출은 Task 8(로컬 vLLM/모델 설정 필요)에서.
 
-- [ ] **Step 3: 커밋 (검증 스크립트 추가)**
+- [x] **Step 3: 커밋 (검증 스크립트 추가)**
 
 CLI 구동을 자동 검증하는 스크립트 `scripts/phase1-cli-check.sh`:
 
@@ -357,7 +357,7 @@ git commit -m "test(upstream): automated CLI help/version smoke check"
 
 **Files:** 없음(실행/스크립트 검증)
 
-- [ ] **Step 1: 서버 시작 스크립트**
+- [x] **Step 1: 서버 시작 스크립트**
 
 `scripts/phase1-headless-check.sh`:
 
@@ -397,12 +397,12 @@ echo "PASS: headless server up + session created"
 
 > 헬스 경로는 `/global/health`(검증됨). 서버가 뜨지 않으면 `/tmp/croakcode-serve.log`를 확인한다.
 
-- [ ] **Step 2: 실행**
+- [x] **Step 2: 실행**
 
 Run: `bash scripts/phase1-headless-check.sh`
 Expected: `session id: <id>` + `PASS: headless server up + session created`.
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add scripts/phase1-headless-check.sh
@@ -416,7 +416,7 @@ git commit -m "test(upstream): headless server + session creation smoke"
 
 > 실제 **세션 행**이 DB에 저장됐는지 검증한다(단순 파일 존재가 아님). headless 스크립트가 만든 세션 id를 `/tmp/croakcode-session.json`에서 읽어 `session` 테이블에 존재하는지 확인한다.
 
-- [ ] **Step 1: 테스트 작성**
+- [x] **Step 1: 테스트 작성**
 
 `tests/phase1-session.e2e.test.mjs`:
 
@@ -444,12 +444,12 @@ test("created session row is persisted in croakcode.db", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (headless 스크립트 선행)**
+- [x] **Step 2: 실행 (headless 스크립트 선행)**
 
 Run: `bash scripts/phase1-headless-check.sh && node --test tests/phase1-session.e2e.test.mjs`
 Expected: 1 pass.
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add tests/phase1-session.e2e.test.mjs
@@ -467,7 +467,7 @@ git commit -m "test(phase1): created session row persisted in croakcode.db"
 
 > **검증 한계(리뷰 반영):** `journal_mode`는 파일에 영속된다. `busy_timeout`/`foreign_keys`는 **연결별(per-connection)** 이라 새 `sqlite3` 프로세스에서는 기본값(0)으로 보인다 — 파일 검사로 검증할 수 없다. 따라서 이 테스트는 **파일 영속 pragma(`journal_mode`)만** 검증하고, `busy_timeout`/`foreign_keys`는 **소스 검사**로 확인한다(Step 2).
 
-- [ ] **Step 1: 테스트 작성**
+- [x] **Step 1: 테스트 작성**
 
 ```js
 import test from "node:test";
@@ -488,7 +488,7 @@ test("croakcode DB is in WAL mode (file-persistent pragma)", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 + 소스 검사**
+- [x] **Step 2: 실행 + 소스 검사**
 
 Run: `bash scripts/phase1-headless-check.sh && node --test tests/phase1-sqlite.e2e.test.mjs`
 Expected: 1 pass.
@@ -496,7 +496,7 @@ Expected: 1 pass.
 Run: `grep -n "PRAGMA busy_timeout = 5000\|PRAGMA foreign_keys = ON\|PRAGMA synchronous = NORMAL\|PRAGMA journal_mode = WAL" upstream/packages/opencode/src/storage/db.ts`
 Expected: 네 줄 모두 매치(소스에 계승된 연결별/파일별 pragma가 존재).
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add tests/phase1-sqlite.e2e.test.mjs
@@ -510,7 +510,7 @@ git commit -m "test(phase1): sqlite path + file-persistent pragma on croakcode.d
 
 > `control/src/recovery.mjs`의 2-phase commit 계약은 이미 존재한다(Phase 0a). **검증된 사실:** upstream `part` 테이블은 `data` JSON에 `ToolState`(pending/running/completed/error)를 저장하며 `run_state` 물리 컬럼이 없다. 따라서 Phase 1에서는 **계약 재사용(unknown 해석 + 자동 재실행 금지)** 을 순수 함수 수준으로 검증하고, DB 레벨 상태 매핑(§4.5 unknown ↔ metadata.unknown)은 Phase 2로 미룬다. 이 테스트는 DB를 건드리지 않는다.
 
-- [ ] **Step 1: 테스트 작성**
+- [x] **Step 1: 테스트 작성**
 
 ```js
 import test from "node:test";
@@ -534,12 +534,12 @@ test("unknown auto-reexecutes only side-effect-free + reexecution-safe tools", (
 });
 ```
 
-- [ ] **Step 2: 실행**
+- [x] **Step 2: 실행**
 
 Run: `node --test tests/phase1-recovery.e2e.test.mjs`
 Expected: 3 pass. (upstream `part.data` JSON 상태 매핑은 Phase 2 범위.)
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add tests/phase1-recovery.e2e.test.mjs
@@ -559,7 +559,7 @@ git commit -m "test(phase1): §4.5 unknown recovery contract (pure functions; DB
 
 > §8.2: Phase 1 훅은 스텁(chat.headers/chat.params/tool.execute.before/command.execute.before/event = 인터페이스만, 기본 no-op). 실제 훅 연결은 upstream 플러그인 시스템이 이미 제공 → croakcode는 **descriptor**만 두고, Phase 2에서 실제 어댑터를 구현한다.
 
-- [ ] **Step 1: 스텁 descriptor**
+- [x] **Step 1: 스텁 descriptor**
 
 ```js
 // contracts/src/phase1-hooks.mjs
@@ -582,7 +582,7 @@ export const PHASE1_HOOK_STUBS = Object.freeze({
 });
 ```
 
-- [ ] **Step 2: index + conformance 테스트**
+- [x] **Step 2: index + conformance 테스트**
 
 `contracts/src/index.mjs`에 `export * from "./phase1-hooks.mjs";` 추가.
 `tests/contracts.conformance.test.mjs`에 추가 (기존 파일은 이미 `import * as contracts from "@croakcode/contracts";` 형태이므로 그 바인딩을 그대로 사용):
@@ -595,7 +595,7 @@ test("phase 1 hook stubs are declared no-op", () => {
 });
 ```
 
-- [ ] **Step 3: 실행 + 커밋**
+- [x] **Step 3: 실행 + 커밋**
 
 Run: `node --test tests/contracts.conformance.test.mjs`
 Expected: 5 pass (기존 4 + 1).
@@ -610,18 +610,19 @@ git commit -m "feat(contracts): phase 1 hook stubs (interface only, no-op)"
 **Files:**
 - Create: `docs/superpowers/phase0/phase1-gate.md`
 
-- [ ] **Step 1: upstream 구동 회귀 (DB 생성 선행 — session/sqlite 테스트가 의존)**
+- [x] **Step 1: upstream 구동 회귀 (DB 생성 선행 — session/sqlite 테스트가 의존)**
 
 Run: `bash scripts/phase1-cli-check.sh && bash scripts/phase1-headless-check.sh`
 Expected: 둘 다 PASS. 이 단계가 `croakcode.db`와 `/tmp/croakcode-session.json`을 만든다.
 
-- [ ] **Step 2: croakcode 회귀 (headless 선행 후)**
+- [x] **Step 2: croakcode 회귀 (headless 선행 후)**
 
-Run: `cd croakcode/.worktrees/phase1-upstream-skeleton && node --test && bun test tests`
-Expected: 기존 38 + 신규 session(1) + sqlite(1) + recovery(3) + hook(1) = 44 PASS (node 및 bun 동일).
-> 주의: `tests/phase1-session.e2e.test.mjs`와 `tests/phase1-sqlite.e2e.test.mjs`는 headless 스크립트가 만든 DB에 의존한다. Step 1을 먼저 실행해야 한다. 반복 실행 시 headless 스크립트를 다시 돌려 DB를 재생성한다.
+Run: `cd croakcode/.worktrees/phase1-upstream-skeleton && node --test 'tests/*.test.mjs' && bun test tests`
+Expected: 기존 38 + 신규 session(1) + sqlite(2) + recovery(3) + hook(1) = **45 PASS** (node 및 bun 동일).
+> 주의 1: `node --test`를 인자 없이 실행하면 `upstream/node_modules/.bun/**`의 테스트 파일 1908개까지 수집해 끝나지 않는다. 반드시 `tests/*.test.mjs`로 범위를 한정한다(루트 `package.json`의 `test` 스크립트에 반영됨).
+> 주의 2: `tests/phase1-session.e2e.test.mjs`와 `tests/phase1-sqlite.e2e.test.mjs`는 headless 스크립트가 만든 DB에 의존한다. Step 1을 먼저 실행해야 한다. headless 스크립트는 종료 시 서버를 kill하고 WAL을 checkpoint(TRUNCATE)하므로 확정된 상태를 읽는다.
 
-- [ ] **Step 3: 게이트 문서**
+- [x] **Step 3: 게이트 문서**
 
 `docs/superpowers/phase0/phase1-gate.md`:
 ```md
@@ -641,7 +642,7 @@ Expected: 기존 38 + 신규 session(1) + sqlite(1) + recovery(3) + hook(1) = 44
 Phase 2 approved only when all checks are verified against real runs.
 ```
 
-- [ ] **Step 4: 커밋**
+- [x] **Step 4: 커밋**
 
 ```bash
 git add docs/superpowers/phase0/phase1-gate.md
