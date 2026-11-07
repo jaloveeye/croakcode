@@ -17,3 +17,9 @@ test("Delta kinds separate tool_call phases", () => {
 test("ToolSpec requires side-effect and reexecution flags", () => {
   assert.deepEqual(contracts.TOOL_SPEC_REQUIRED, ["name", "hasSideEffects", "reexecutionSafe"]);
 });
+
+test("server auth stub exposes interface descriptor but no enforcement", () => {
+  assert.equal(typeof contracts.SERVER_AUTH_DESCRIPTOR, "object");
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.phase, 4);
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.implemented, false);
+});
