@@ -23,3 +23,10 @@ test("server auth stub exposes interface descriptor but no enforcement", () => {
   assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.phase, 4);
   assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.implemented, false);
 });
+
+test("phase 1 hook stubs are declared no-op", () => {
+  assert.equal(contracts.PHASE1_HOOK_STUBS.phase, 1);
+  assert.equal(contracts.PHASE1_HOOK_STUBS.implemented, false);
+  assert.equal(contracts.PHASE1_HOOK_STUBS.noop, true);
+  assert.ok(contracts.PHASE1_HOOK_STUBS.hooks.includes("tool.execute.before"));
+});
