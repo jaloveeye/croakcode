@@ -65,7 +65,28 @@ const CORE_PREFIXES = [
   "packages/plugin/",
   "packages/script/",
 ];
+// Phase 4 product surface: croakcode rebuilds these (desktop UI, marketing,
+// stats, enterprise, GitHub Actions, infra, docs) and deliberately does NOT
+// own the upstream service endpoints they reference (e.g. api.opencode.ai
+// GitHub-App exchange, changelog/brand/legal/favicon, deployment domains).
+// Rewriting those non-owned URLs to croakcode.ai would create dead links, so
+// they are documented as DEFERRED instead of rewritten. Phase 2 core must not
+// leak into these prefixes; anything outside CORE + PHASE4 fails closed below.
+const PHASE4_PREFIXES = [
+  ".opencode/",
+  "github/",
+  "infra/",
+  "packages/app/",
+  "packages/desktop/",
+  "packages/docs/",
+  "packages/enterprise/",
+  "packages/slack/",
+  "packages/stats/",
+  "script/",
+  "sdks/",
+];
 const isCore = (rel) => CORE_PREFIXES.some((p) => rel.startsWith(p));
+const isPhase4 = (rel) => PHASE4_PREFIXES.some((p) => rel.startsWith(p));
 
 for (const file of await walk(root)) {
   if (ALLOW.has(path.basename(file))) continue;
@@ -86,17 +107,20 @@ for (const file of await walk(root)) {
     }
   }
   if (!found.length) continue;
-  if (isCore(rel)) bad.push(...found);
+  // fail-closed: 코어도 Phase 4도 아닌 위치의 히트는 위반으로 처리한다.
+  if (isCore(rel) || !isPhase4(rel)) bad.push(...found);
   else deferred.push(...found);
 }
 
 if (bad.length) {
-  console.error("FAIL: disallowed upstream branding in Phase 1 core packages");
+  console.error("FAIL: disallowed upstream branding in core packages (or outside the Phase 4 allowlist)");
   for (const b of bad.slice(0, 50)) console.error(" - " + b);
   if (bad.length > 50) console.error(` ... and ${bad.length - 50} more`);
   process.exit(1);
 }
 if (deferred.length) {
-  console.log(`DEFERRED: ${deferred.length} hits outside Phase 1 core (app/web/console/desktop/github/infra/.opencode fixtures)`);
+  console.log(
+    `DEFERRED: ${deferred.length} hits in Phase 4 product packages (app/desktop/docs/stats/enterprise/github/infra/sdks/script/.opencode) — not owned by croakcode core, deferred to Phase 4`,
+  );
 }
-console.log("PASS: no disallowed upstream branding outside NOTICE/attribution in core packages");
+console.log("PASS: no disallowed upstream branding in core packages; Phase 4 deferred scope is explicit");
