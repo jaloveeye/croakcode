@@ -1,10 +1,10 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { Catalog } from "@opencode-ai/core/catalog"
-import { PluginV2 } from "@opencode-ai/core/plugin"
-import { ProviderPlugins } from "@opencode-ai/core/plugin/provider"
-import { NvidiaPlugin } from "@opencode-ai/core/plugin/provider/nvidia"
-import { ProviderV2 } from "@opencode-ai/core/provider"
+import { Catalog } from "@croakcode/core/catalog"
+import { PluginV2 } from "@croakcode/core/plugin"
+import { ProviderPlugins } from "@croakcode/core/plugin/provider"
+import { NvidiaPlugin } from "@croakcode/core/plugin/provider/nvidia"
+import { ProviderV2 } from "@croakcode/core/provider"
 import { expectPluginRegistered, it, provider } from "./provider-helper"
 
 describe("NvidiaPlugin", () => {

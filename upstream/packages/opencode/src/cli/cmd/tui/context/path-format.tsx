@@ -1,6 +1,6 @@
 import path from "path"
 import { createContext, useContext, type ParentProps } from "solid-js"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@croakcode/core/global"
 
 const context = createContext<{
   path: () => string

@@ -55,4 +55,8 @@ done
 rm -rf upstream/.git
 [[ ! -e upstream/.git ]] || die "임시 리포 제거 실패: upstream/.git"
 
+# 태그 트리에는 있으나 upstream 자체 .gitignore(script/build-*.ts, bun.lock 등)로
+# croakcode 리포가 무시하는 파일이 있다. 이들을 강제로 무시 해제해 커밋되게 한다.
+git add -f upstream 2>/dev/null || true
+
 echo "absorbed tag v1.15.12 tree + $APPLIED patches"

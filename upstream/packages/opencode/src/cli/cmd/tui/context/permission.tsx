@@ -1,4 +1,4 @@
-import type { PermissionRequest } from "@opencode-ai/sdk/v2"
+import type { PermissionRequest } from "@croakcode/sdk/v2"
 import { createSignal, onCleanup } from "solid-js"
 import { togglePermissionMode, type PermissionMode } from "@/cli/permission-mode"
 import { createSimpleContext } from "./helper"
