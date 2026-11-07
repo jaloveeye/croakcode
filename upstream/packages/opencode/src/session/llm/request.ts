@@ -171,7 +171,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
             ...(opencodeProjectID ? { "x-opencode-project": opencodeProjectID } : {}),
             "x-opencode-session": input.sessionID,
             "x-opencode-request": input.user.id,
-            "x-opencode-client": input.flags.client,
+            "x-croakcode-client": input.flags.client,
             "User-Agent": USER_AGENT,
           }
         : {

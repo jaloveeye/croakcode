@@ -33,7 +33,7 @@ export function createTuiResolvedConfig(input: ResolvedInput = {}): TuiConfig.Re
       notifications: true,
       sound: true,
       volume: 0.4,
-      sound_pack: "opencode.default",
+      sound_pack: "croakcode.default",
       sounds: {},
       ...input.attention,
     },

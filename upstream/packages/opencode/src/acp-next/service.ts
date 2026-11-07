@@ -45,7 +45,7 @@ import { ModelID, ProviderID } from "@/provider/schema"
 import { Provider } from "@/provider/provider"
 import type { Command } from "@/command"
 
-export const AuthMethodID = "opencode-login"
+export const AuthMethodID = "croakcode-login"
 const log = Log.create({ service: "acp-next-service" })
 
 export type Error = ACPNextError.Error
@@ -92,17 +92,17 @@ export function make(input: {
   const initialize = Effect.fn("ACPNext.initialize")(function* (params: InitializeRequest) {
     const started = performance.now()
     const authMethod: AuthMethod = {
-      description: "Run `opencode auth login` in the terminal",
-      name: "Login with opencode",
+      description: "Run `cc auth login` in the terminal",
+      name: "Login with croakcode",
       id: AuthMethodID,
     }
 
     if (params.clientCapabilities?._meta?.["terminal-auth"] === true) {
       authMethod._meta = {
         "terminal-auth": {
-          command: "opencode",
+          command: "cc",
           args: ["auth", "login"],
-          label: "OpenCode Login",
+          label: "croakcode Login",
         },
       }
     }

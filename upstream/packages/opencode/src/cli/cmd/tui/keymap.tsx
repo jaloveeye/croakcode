@@ -15,7 +15,7 @@ export const LEADER_TOKEN = "leader"
 export const CROAKCODE_BASE_MODE = "base"
 export const COMMAND_PALETTE_COMMAND = "command.palette.show"
 
-const CROAKCODE_MODE_KEY = "opencode.mode"
+const CROAKCODE_MODE_KEY = "croakcode.mode"
 
 export const OpencodeKeymapProvider = KeymapProvider
 export const useOpencodeKeymap = useKeymap

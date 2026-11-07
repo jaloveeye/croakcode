@@ -8,7 +8,7 @@
 // Configuration flows through opencode's built-in test affordances:
 //   - CROAKCODE_CONFIG_CONTENT      : provider config inline, no files to find
 //   - CROAKCODE_TEST_HOME           : pins os.homedir() → tmpdir
-//   - CROAKCODE_DISABLE_PROJECT_CONFIG : skip walking up for opencode.json
+//   - CROAKCODE_DISABLE_PROJECT_CONFIG : skip walking up for croakcode.json
 //   - CROAKCODE_PURE                : skip external plugin discovery + install
 //   - CROAKCODE_DISABLE_AUTOUPDATE / AUTOCOMPACT / MODELS_FETCH : no background work
 // Plus HOME / XDG_* pointing at the tmpdir for belt-and-suspenders isolation.
@@ -192,7 +192,7 @@ export function withCliFixture<A, E>(
     const configJson = JSON.stringify(testProviderConfig(llm.url))
     const env = isolatedEnv(home, configJson)
 
-    const spawn = Effect.fn("opencode.spawn")(function* (args: string[], opts?: SpawnOpts) {
+    const spawn = Effect.fn("croakcode.spawn")(function* (args: string[], opts?: SpawnOpts) {
       const start = Date.now()
       const timeoutMs = opts?.timeoutMs ?? 30_000
       // stdin: "ignore" so the child doesn't see a piped stdin and block
@@ -248,7 +248,7 @@ export function withCliFixture<A, E>(
       return spawn(argv, opts)
     }
 
-    const serve = Effect.fn("opencode.serve")(function* (opts?: ServeOpts) {
+    const serve = Effect.fn("croakcode.serve")(function* (opts?: ServeOpts) {
       const argv = ["serve"]
       // Default port 0 — let the OS pick a free port, parse the actual one
       // off stdout. Hard-coded ports flake under parallel tests.
@@ -304,7 +304,7 @@ export function withCliFixture<A, E>(
           orElse: () =>
             Effect.fail(
               new Error(
-                `opencode serve did not become ready within ${readyTimeoutMs}ms\n` +
+                `cc serve did not become ready within ${readyTimeoutMs}ms\n` +
                   `stderr (last 2000):\n${stderrChunks.join("").slice(-2000)}`,
               ),
             ),
@@ -322,7 +322,7 @@ export function withCliFixture<A, E>(
       } satisfies ServeHandle
     })
 
-    const acp = Effect.fn("opencode.acp")(function* (opts?: AcpOpts) {
+    const acp = Effect.fn("croakcode.acp")(function* (opts?: AcpOpts) {
       const argv = ["acp"]
       if (opts?.cwd) argv.push("--cwd", opts.cwd)
       if (opts?.extraArgs) argv.push(...opts.extraArgs)

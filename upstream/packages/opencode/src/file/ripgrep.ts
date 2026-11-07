@@ -10,7 +10,7 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
 import { CrossSpawnSpawner } from "@croakcode/core/cross-spawn-spawner"
 import { Global } from "@croakcode/core/global"
 import * as Log from "@croakcode/core/util/log"
-import { sanitizedProcessEnv } from "@croakcode/core/util/opencode-process"
+import { sanitizedProcessEnv } from "@croakcode/core/util/croakcode-process"
 import { which } from "@/util/which"
 import { NonNegativeInt } from "@croakcode/core/schema"
 
@@ -439,7 +439,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | ChildPro
 
         const root: Node = { name: "", children: new Map() }
         for (const file of list) {
-          if (file.includes(".opencode")) continue
+          if (file.includes(".croakcode")) continue
           const parts = file.split(path.sep)
           if (parts.length < 2) continue
           let node = root

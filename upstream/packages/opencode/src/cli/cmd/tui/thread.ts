@@ -19,7 +19,7 @@ import {
   CROAKCODE_RUN_ID,
   ensureRunID,
   sanitizedProcessEnv,
-} from "@croakcode/core/util/opencode-process"
+} from "@croakcode/core/util/croakcode-process"
 import { validateSession } from "./validate-session"
 
 declare global {

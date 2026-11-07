@@ -13348,7 +13348,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Server configuration for opencode serve and web commands"
+        "description": "Server configuration for cc serve and web commands"
       },
       "ReferenceConfigEntry": {
         "anyOf": [

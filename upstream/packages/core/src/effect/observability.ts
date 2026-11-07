@@ -4,7 +4,7 @@ import { OtlpLogger, OtlpSerialization } from "effect/unstable/observability"
 import * as EffectLogger from "./logger"
 import { Flag } from "../flag/flag"
 import { InstallationChannel, InstallationVersion } from "../installation/version"
-import { ensureProcessMetadata } from "../util/opencode-process"
+import { ensureProcessMetadata } from "../util/croakcode-process"
 
 const base = Flag.OTEL_EXPORTER_OTLP_ENDPOINT
 export const enabled = !!base
@@ -45,9 +45,9 @@ export function resource(): { serviceName: string; serviceVersion: string; attri
     attributes: {
       ...attributes,
       "deployment.environment.name": InstallationChannel,
-      "opencode.client": Flag.CROAKCODE_CLIENT,
-      "opencode.process_role": processMetadata.processRole,
-      "opencode.run_id": processMetadata.runID,
+      "croakcode.client": Flag.CROAKCODE_CLIENT,
+      "croakcode.process_role": processMetadata.processRole,
+      "croakcode.run_id": processMetadata.runID,
       "service.instance.id": processID,
     },
   }
