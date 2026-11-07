@@ -151,7 +151,15 @@ Client → Core → {Tools, Permission} → Persistence
   5. **도구 실행** (Tool Executor)
   6. **결과 저장 + 사후 훅** (`tool.execute.after`)
   - **`deny` 최우선**: 어느 단계에서든 deny가 결정되면 즉시 차단하며, 뒤 단계는 실행하지 않는다. ask는 deny 판정이 모두 통과한 뒤에만 사용자에게 제시한다.
-- **검사 우선순위 계약**: 정책 검사(2,3)가 승인(4)보다 **먼저**다. 즉 "승인했더라도 정책이 deny면 실행 불가". 이 순서는 contracts의 실행 파이프라인으로 고정하고 계약 테스트로 검증한다.(Persistence는 Core가 직접 사용하되 contracts 인터페이스로만 접근.)
+  - **검사 우선순위 계약**: 정책 검사(2,3)가 승인(4)보다 **먼저**다. 즉 "승인했더라도 정책이 deny면 실행 불가". 이 순서는 contracts의 실행 파이프라인으로 고정하고 계약 테스트로 검증한다.(Persistence는 Core가 직접 사용하되 contracts 인터페이스로만 접근.)
+- **실행 허용 불변식(fail-closed — 정본)**: 도구 실행은 다음을 **모두** 만족할 때만 허용된다.
+  `Execute = ValidInput ∧ PluginAllow ∧ PolicySatisfied ∧ PermissionAllow`
+  - 판정 입력은 `mode: "gate"|"direct"`, `plugin`, `policy`, `permission` 이며 각 decision은 `"allow"|"deny"|"ask"`(policy는 추가로 Direct에서 `"not_applicable"`).
+  - **미정의/누락/오타 decision 또는 mode 누락은 deny** (`errorCode: "INVALID_DECISION"` 또는 `"INVALID_INPUT"`). 기본값은 **allow가 아니라 deny**다(fail-closed).
+  - **`PolicySatisfied`**: `mode:"gate"`이면 policy가 **명시적 `"allow"`** 여야 한다(누락/`"not_applicable"` → `POLICY_UNAVAILABLE` deny). `mode:"direct"`이면 policy는 **`"not_applicable"`** 이 정상(비적용)이며, `"deny"`가 오면 로컬 정책 훅에 의해 차단된다(`POLICY_DENIED`).
+  - **`ask`는 실행 허가가 아니다**: 실행하지 않고 사용자 승인 대기(`askUser: true`). 승인 후에도 **동일 호출·동일 정책 스냅샷**에 대해서만 유효하다(턴 스냅샷 §5.4).
+  - **errorCode로 원인 구분**(감사/장애 분석용): `INVALID_INPUT` / `INVALID_DECISION` / `PLUGIN_DENIED` / `POLICY_DENIED` / `POLICY_UNAVAILABLE` / `PERMISSION_DENIED`. 사용자에게는 "권한 거부"가 아니라 **내부 판정 오류**로 구분해 전달한다(특히 INVALID_*).
+  - **책임 분리**: `resolveExecutionPlan`은 **이미 계산된 decision 입력의 검증·종합**만 담당한다. 인자 스키마/대상 경로 등 **호출 검증은 상위 계층**(step 1)이 수행한다.
 
 ### 3.5 핵심 설계 결정
 - **코어와 UI 분리**: 코어를 헤드리스로 구동 가능하게 → 이후 관리웹/게이트/CI 연동 기반.
