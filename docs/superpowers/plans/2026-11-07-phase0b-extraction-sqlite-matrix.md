@@ -40,7 +40,7 @@ croakcode/scripts/
 **Files:**
 - Create: `croakcode/docs/superpowers/phase0/package-extraction.md`
 
-- [ ] **Step 1: 문서 초안 작성 (10개 자산 전부 행 포함, 기본값 flat)**
+- [x] **Step 1: 문서 초안 작성 (10개 자산 전부 행 포함, 기본값 flat)**
 
 ```markdown
 # Package Extraction Decisions (Phase 0b)
@@ -65,12 +65,12 @@ Spec §2: 논리 계약 분리와 물리 패키지 분리는 다르다. 기본�
 **결론:** Phase 0 기준 **물리 추출 0개**. Phase 3 이식 후 usage-panel·hwp-read만 재판정.
 ```
 
-- [ ] **Step 2: 근거 검증 (참조 리포 실제 라인 수/의존성 확인)**
+- [x] **Step 2: 근거 검증 (참조 리포 실제 라인 수/의존성 확인)**
 
 Run: `cd /Users/herace/workspace/ideas/codefrog-opencode && wc -l plugins/gate-identity.mjs plugins/stall-recovery.mjs plugins/usage-meter.mjs`
 Expected: 표의 줄 수 서술과 일치. 불일치 시 표 갱신.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/phase0/package-extraction.md
@@ -86,7 +86,7 @@ git commit -m "docs: phase 0b package extraction decisions"
 **Files:**
 - Create: `croakcode/docs/superpowers/phase0/sqlite-plan.md`
 
-- [ ] **Step 1: 문서 작성 (upstream 계승 근거 포함)**
+- [x] **Step 1: 문서 작성 (upstream 계승 근거 포함)**
 
 ```markdown
 # SQLite Plan (Phase 0b)
@@ -150,7 +150,7 @@ A lingering `running` on resume becomes `unknown`; side-effect tools never auto-
 - prompt text never stored
 ```
 
-- [ ] **Step 2: 스키마 문법 점검 (SQLite 파서 — 모든 sql 블록 실행)**
+- [x] **Step 2: 스키마 문법 점검 (SQLite 파서 — 모든 sql 블록 실행)**
 
 먼저 `croakcode/scripts/sql-syntax-check.py` 를 작성한다:
 
@@ -168,7 +168,7 @@ print("schema ok", len(blocks), "blocks")
 Run: `cd croakcode && python3 scripts/sql-syntax-check.py docs/superpowers/phase0/sqlite-plan.md`
 Expected: `schema ok 2 blocks` (PRAGMA + CREATE TABLE 둘 다 실행). 블록 수가 다르면 문서의 sql 블록 수를 확인.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/phase0/sqlite-plan.md scripts/sql-syntax-check.py
@@ -184,7 +184,7 @@ git commit -m "docs: phase 0b sqlite schema and migration plan"
 **Files:**
 - Create: `croakcode/docs/superpowers/phase0/equivalence-matrix.md`
 
-- [ ] **Step 1: 문서 작성 (Phase 0a 인벤토리 기반, 상태=NOT TESTED)**
+- [x] **Step 1: 문서 작성 (Phase 0a 인벤토리 기반, 상태=NOT TESTED)**
 
 ```markdown
 # Equivalence Matrix (Phase 0b draft — Phase 2/3에서 갱신)
@@ -235,12 +235,12 @@ Linux x64 + macOS arm64 required; Windows via WSL (recorded).
 direct=local vLLM; gate=croak-gate (Phase 3+).
 ```
 
-- [ ] **Step 2: 필수 기능 목록 누락 점검**
+- [x] **Step 2: 필수 기능 목록 누락 점검**
 
 Run: `cd croakcode && grep -c 'NOT TESTED' docs/superpowers/phase0/equivalence-matrix.md`
 Expected: 최소 21 (A+B+C 표 행 수 21 + legend 1). 값이 21 미만이면 누락 행 보강.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/phase0/equivalence-matrix.md
@@ -256,21 +256,21 @@ git commit -m "docs: phase 0b equivalence matrix draft + required features"
 **Files:**
 - Create: `croakcode/docs/superpowers/phase0/phase0-gate.md`
 
-- [ ] **Step 1: 게이트 체크리스트 작성 (spec §8.1 완료 조건 1~9)**
+- [x] **Step 1: 게이트 체크리스트 작성 (spec §8.1 완료 조건 1~9)**
 
 ```markdown
 # Phase 0 Decision Gate
 
 - [x] baseline inventory (§8.1 item 1)
-- [ ] contracts 확정 (§8.1 item 2) — Phase 0a
-- [ ] execution order contract test PASSES (item 3) — run `node --test tests/permission-order.test.mjs`
-- [ ] gate trust boundary contract PASSES (item 4) — run `node --test tests/security-context.test.mjs tests/contracts.conformance.test.mjs`
-- [ ] admin policy integrity PASSES (item 5) — run `node --test tests/admin-policy.test.mjs`
+- [x] contracts 확정 (§8.1 item 2) — Phase 0a
+- [x] execution order contract test PASSES (item 3) — run `node --test tests/permission-order.test.mjs`
+- [x] gate trust boundary contract PASSES (item 4) — run `node --test tests/security-context.test.mjs tests/contracts.conformance.test.mjs`
+- [x] admin policy integrity PASSES (item 5) — run `node --test tests/admin-policy.test.mjs`
 - [x] sqlite inheritance/migration plan (item 6) — document exists
-- [ ] recovery 2-phase contract PASSES (item 7) — run `node --test tests/recovery.test.mjs`
+- [x] recovery 2-phase contract PASSES (item 7) — run `node --test tests/recovery.test.mjs`
 - [x] package extraction decisions (item 8)
 - [x] equivalence matrix draft (item 9)
-- [ ] required feature list finalized (item 9)
+- [x] required feature list finalized (item 9)
 
 ## Gate result
 All items must be checked. Phase 1 implementation is approved ONLY when this file shows all checks.
@@ -278,7 +278,7 @@ All items must be checked. Phase 1 implementation is approved ONLY when this fil
 
 > 참고: Phase 0a 테스트 통과 항목은 실제 실행 결과로 체크한다. 이 표의 `[x]`는 "산출물 존재" 기준이며, Phase 0a 테스트 통과 여부는 별도로 확인한다.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/superpowers/phase0/phase0-gate.md
@@ -290,7 +290,7 @@ git commit -m "docs: phase 0 decision gate checklist"
 **Files:**
 - Create: `croakcode/scripts/phase0b-verify.mjs`
 
-- [ ] **Step 1: 실패하는 점검 스크립트 작성 (필수 산출물/행 존재)**
+- [x] **Step 1: 실패하는 점검 스크립트 작성 (필수 산출물/행 존재)**
 
 ```js
 #!/usr/bin/env node
@@ -326,12 +326,12 @@ if (failures.length) {
 console.log("PASS: all phase 0b artifacts present and complete");
 ```
 
-- [ ] **Step 2: 실행 (Task 1~4 완료 후 통과 기대)**
+- [x] **Step 2: 실행 (Task 1~4 완료 후 통과 기대)**
 
 Run: `cd croakcode && node scripts/phase0b-verify.mjs`
 Expected: `PASS: all phase 0b artifacts present and complete`
 
-- [ ] **Step 3: 일부러 누락시켜 실패 확인 (스크립트 신뢰성)**
+- [x] **Step 3: 일부러 누락시켜 실패 확인 (스크립트 신뢰성)**
 
 Run:
 ```bash
@@ -343,7 +343,7 @@ echo "verifier exit=$rc (expected non-zero)"
 ```
 Expected: `FAIL`, `package-extraction.md: MISSING`, `verifier exit=1 (expected non-zero)`. 파일은 항상 원복된다.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/phase0b-verify.mjs
