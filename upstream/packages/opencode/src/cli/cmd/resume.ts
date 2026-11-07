@@ -19,7 +19,7 @@ export const ResumeCommand = cmd({
     withNetworkOptions(yargs)
       .positional("project", {
         type: "string",
-        describe: "path to start opencode in",
+        describe: "path to start croakcode in",
       })
       .option("last", {
         alias: ["l"],

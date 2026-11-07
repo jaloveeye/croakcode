@@ -60,7 +60,7 @@ scripts/
 - Create: `scripts/absorb-upstream.sh`
 - Create: `upstream/` (스크립트로 생성)
 
-- [ ] **Step 1: 흡수 스크립트 작성**
+- [x] **Step 1: 흡수 스크립트 작성**
 
 `scripts/absorb-upstream.sh`:
 
@@ -115,17 +115,17 @@ done
 echo "absorbed tag v1.15.12 tree + $APPLIED patches"
 ```
 
-- [ ] **Step 2: 실행**
+- [x] **Step 2: 실행**
 
 Run: `cd croakcode/.worktrees/phase1-upstream-skeleton && bash scripts/absorb-upstream.sh`
 Expected: `applying 0001..0008` 로그, `absorbed tag v1.15.12 tree + 8 patches`. 실패 시 어느 패치가 왜 실패했는지 명시하고 중단.
 
-- [ ] **Step 3: 패치 반영 검증 (패치가 추가한 파일 존재 확인)**
+- [x] **Step 3: 패치 반영 검증 (패치가 추가한 파일 존재 확인)**
 
 Run: `test -f upstream/packages/opencode/src/cli/permission-mode.ts && echo ok-permission-mode; test -f upstream/packages/opencode/test/provider/stream-timeout.test.ts && echo ok-stream-timeout; test -f upstream/packages/opencode/test/cli/resume.test.ts && echo ok-resume-test`
 Expected: 세 줄 모두 `ok-...`.
 
-- [ ] **Step 4: 커밋 (흡수 자체를 새 이력으로)**
+- [x] **Step 4: 커밋 (흡수 자체를 새 이력으로)**
 
 ```bash
 git add upstream scripts/absorb-upstream.sh
@@ -145,7 +145,7 @@ git commit -m "feat(upstream): absorb opencode v1.15.12 tree with 8 fork patches
 - Modify: `upstream/package.json` (name)
 - Create: `upstream/NOTICE`
 
-- [ ] **Step 1: global app 상수 변경**
+- [x] **Step 1: global app 상수 변경**
 
 `upstream/packages/core/src/global.ts`의 `const app = "opencode"` (라인 9):
 ```ts
@@ -153,7 +153,7 @@ const app = "croakcode"
 ```
 (이 한 줄이 `~/.local/share/croakcode`, `~/.config/croakcode`, `~/.cache/croakcode`, `~/.local/state/croakcode` 경로를 만든다.)
 
-- [ ] **Step 2: package 메타데이터 변경**
+- [x] **Step 2: package 메타데이터 변경**
 
 `upstream/packages/opencode/package.json`:
 ```json
@@ -162,7 +162,7 @@ const app = "croakcode"
 ```
 `upstream/package.json`: `"name": "croakcode"` (루트).
 
-- [ ] **Step 3: bin 스크립트 리브랜딩**
+- [x] **Step 3: bin 스크립트 리브랜딩**
 
 `upstream/packages/opencode/bin/opencode`에서:
 - `process.env.OPENCODE_BIN_PATH` → `CROAKCODE_BIN_PATH` (env 접두어는 `CROAKCODE_*`로 통일)
@@ -172,7 +172,7 @@ const app = "croakcode"
 
 > Phase 1은 단일 바이너리 배포를 하지 않으므로 이 스크립트는 `bun run` 경로에서만 참조된다. 정확성은 `rebrand-check.mjs`로 검증한다.
 
-- [ ] **Step 4: CLI index 리브랜딩**
+- [x] **Step 4: CLI index 리브랜딩**
 
 `upstream/packages/opencode/src/index.ts`:
 - `.scriptName("opencode")` → `.scriptName("cc")`
@@ -183,7 +183,7 @@ const app = "croakcode"
 
 > 환경변수 접두어 일괄 치환은 `packages/core/src/flag/flag.ts` 등에도 적용한다 (Step 5).
 
-- [ ] **Step 5: 환경변수 접두어 일괄 치환 + DB 파일명 명시 리브랜딩**
+- [x] **Step 5: 환경변수 접두어 일괄 치환 + DB 파일명 명시 리브랜딩**
 
 Run: `cd upstream && grep -rl "OPENCODE_" packages --include='*.ts' | xargs perl -pi -e 's/OPENCODE_/CROAKCODE_/g'`
 
@@ -201,7 +201,7 @@ Expected: 매치 0건.
 Run: `bash scripts/rebrand-check.mjs upstream` (Task 3에서 스크립트 작성)
 Expected: `PASS` (허용 목록 외 잔여 0건).
 
-- [ ] **Step 6: NOTICE 작성**
+- [x] **Step 6: NOTICE 작성**
 
 `upstream/NOTICE`:
 ```
@@ -212,7 +212,7 @@ The "opencode" and "anomalyco" names/marks are used only in this attribution and
 are not used as croakcode branding.
 ```
 
-- [ ] **Step 7: 리브랜딩 검증 + 커밋**
+- [x] **Step 7: 리브랜딩 검증 + 커밋**
 
 Run: `bash scripts/rebrand-check.mjs upstream`
 Expected: `PASS: no disallowed upstream branding outside NOTICE/attribution`
@@ -229,7 +229,7 @@ git commit -m "feat(upstream): rebrand to croakcode/cc (paths, bin, CLI, env pre
 
 > 설계 의도: upstream 코드에는 주석/문자열에 "opencode"가 다수 존재한다. **완전 제거는 목표가 아니다**(상표 미사용 = 제품명/명령/경로/배포물). 이 스크립트는 **식별자/경로/명령/package name**만 엄격 검사한다. 주석 잔여는 허용.
 
-- [ ] **Step 1: 스크립트 작성 (금지 패턴 기반)**
+- [x] **Step 1: 스크립트 작성 (금지 패턴 기반)**
 
 ```js
 #!/usr/bin/env node
@@ -280,12 +280,12 @@ if (bad.length) {
 console.log("PASS: no disallowed upstream branding outside NOTICE/attribution");
 ```
 
-- [ ] **Step 2: 실행**
+- [x] **Step 2: 실행**
 
 Run: `bash scripts/rebrand-check.mjs upstream`
 Expected: `PASS: no disallowed upstream branding outside NOTICE/attribution`. (FAIL이면 Task 2 Step 5로 돌아가 잔여 식별자를 수정한다.)
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add scripts/rebrand-check.mjs upstream
