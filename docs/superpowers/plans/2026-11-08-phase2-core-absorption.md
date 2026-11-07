@@ -75,10 +75,14 @@ Expected: 스냅샷 불일치로 실패(최소 1 fail). 실패가 없으면 이�
 Run: `cd upstream/packages/opencode && bun test test/cli/help/help-snapshots.test.ts -u 2>&1 | tail -10`
 Expected: `-u`로 갱신 후 마지막에 0 fail.
 
-- [ ] **Step 3: 잔여 브랜딩 검사**
+- [ ] **Step 3: 잔여 브랜딩 검사 (사용자 노출 help 본문 기준)**
 
-Run: `grep -c 'opencode' upstream/packages/opencode/test/cli/help/__snapshots__/help-snapshots.test.ts.snap`
-Expected: `0`. 0이 아니면 `cc` 리브랜딩이 help 출력에서 빠진 것이므로 `src/index.ts`의 명령 등록을 재확인한다.
+> **주의:** `grep -c 'opencode' <snap>`는 **스냅샷 키 이름**(테스트 제목 `opencode CLI help-text snapshots … opencode acp --help`)까지 세므로 0이 나오지 않는다. 검사는 **사용자 노출 help 본문**(스냅샷 값, `^"`로 시작하는 줄)에 한정한다.
+
+Run: `grep -c '^".*opencode.*"' upstream/packages/opencode/test/cli/help/__snapshots__/help-snapshots.test.ts.snap`
+Expected: `0` — help 본문은 `cc`로 시작한다(예: `"cc acp …"`). 0이 아니면 `src/index.ts`의 `scriptName("cc")` 적용을 재확인한다.
+
+> 스냅샷 **키**의 `opencode` 문자열은 테스트 제목/`toMatchSnapshot` 라벨에서 오며 사용자 노출이 아니다. 이들을 `cc`로 정리하는 것은 테스트 fixture(`cliIt`의 `opencode` spawner) 리네이밍이 필요한 별도 작업이므로 Phase 3 정리 대상으로 둔다(현재 `rebrand-check.mjs`도 이 파일을 위반으로 잡지 않음).
 
 - [ ] **Step 4: 커밋**
 
