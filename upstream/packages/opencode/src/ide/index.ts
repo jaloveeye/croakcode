@@ -47,24 +47,9 @@ export async function install(ide: (typeof SUPPORTED_IDES)[number]["name"]) {
   const cmd = SUPPORTED_IDES.find((i) => i.name === ide)?.cmd
   if (!cmd) throw new Error(`Unknown IDE: ${ide}`)
 
-  const p = await Process.run([cmd, "--install-extension", "sst-dev.croakcode"], {
-    nothrow: true,
-  })
-  const stdout = p.stdout.toString()
-  const stderr = p.stderr.toString()
-
-  log.info("installed", {
-    ide,
-    stdout,
-    stderr,
-  })
-
-  if (p.code !== 0) {
-    throw new InstallFailedError({ stderr })
-  }
-  if (stdout.includes("already installed")) {
-    throw new AlreadyInstalledError({})
-  }
+  // croakcode는 아직 전용 IDE 확장을 배포하지 않는다. upstream 확장 ID를 그대로 설치하면
+  // 사용자 IDE에 무관한 타사 확장이 설치되므로 명시적으로 실패시킨다(Phase 2에서 자체 확장 도입 시 교체).
+  throw new InstallFailedError({ stderr: "croakcode IDE extension is not published yet" })
 }
 
 export * as Ide from "."

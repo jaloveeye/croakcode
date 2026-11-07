@@ -46,6 +46,10 @@ const FORBIDDEN = [
   [/opencode-debug|opencode-cli|opencode-clipboard/, "opencode internal id string"],
   // telemetry attribute keys
   [/"opencode\./, "telemetry attribute key opencode.*"],
+  // outbound identity strings
+  [/`opencode\//, "User-Agent prefix opencode/"],
+  [/"User-Agent":\s*"opencode"/, 'User-Agent "opencode"'],
+  [/sst-dev\.opencode/, "upstream VSCode extension id"],
   // plugin config file base name
   [/patchName\(kind: Kind\): "opencode"/, "plugin config kind opencode"],
 ];
