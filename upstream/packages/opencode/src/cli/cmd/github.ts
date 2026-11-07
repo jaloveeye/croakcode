@@ -1130,9 +1130,9 @@ export const GithubRunCommand = effectCmd({
           .join("")
         if (type === "schedule" || type === "dispatch") {
           const hex = crypto.randomUUID().slice(0, 6)
-          return `opencode/${type}-${hex}-${timestamp}`
+          return `croakcode/${type}-${hex}-${timestamp}`
         }
-        return `opencode/${type}${issueId}-${timestamp}`
+        return `croakcode/${type}${issueId}-${timestamp}`
       }
 
       async function pushToNewBranch(summary: string, branch: string, commit: boolean, isSchedule: boolean) {

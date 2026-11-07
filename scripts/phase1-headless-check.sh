@@ -29,4 +29,12 @@ curl -sf "http://127.0.0.1:$PORT/session" -X POST -H 'content-type: application/
 SID="$(node -e 'const j=require("/tmp/croakcode-session.json"); if(!j.id) process.exit(2); process.stdout.write(j.id)')" \
   || { echo "FAIL: no session id in response"; cat /tmp/croakcode-session.json; exit 1; }
 echo "session id: $SID"
+
+# 서버를 정상 종료시키고 WAL을 체크포인트해, 뒤따르는 sqlite 테스트가 확정된 상태를 읽도록 한다.
+kill "$PID" 2>/dev/null || true
+wait "$PID" 2>/dev/null || true
+DB="$HOME/.local/share/croakcode/croakcode.db"
+if [[ -f "$DB" ]]; then
+  sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+fi
 echo "PASS: headless server up + session created"

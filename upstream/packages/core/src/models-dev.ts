@@ -12,7 +12,7 @@ import { EventV2 } from "./event"
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
-const USER_AGENT = `opencode/${InstallationChannel}/${InstallationVersion}/${Flag.CROAKCODE_CLIENT}`
+const USER_AGENT = `croakcode/${InstallationChannel}/${InstallationVersion}/${Flag.CROAKCODE_CLIENT}`
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,
