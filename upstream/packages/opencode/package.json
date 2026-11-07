@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "version": "1.15.12",
-  "name": "croakcode",
+  "name": "opencode",
   "type": "module",
   "license": "MIT",
   "private": true,
