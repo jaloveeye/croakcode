@@ -1,11 +1,13 @@
 # croakcode — AI 에이전트 코어 설계
 
 - 날짜: 2026-11-07
-- 개정: 2026-11-07 (외부 리뷰 P0/P1 반영, Phase 0 추가)
-- 상태: 조건부 승인 반영 — Phase 0 계약 확정 후 구현 승인
+- 개정: 2026-11-07 (1차 외부 리뷰 반영, Phase 0 추가) / 2026-11-07 (2차 외부 리뷰 P0/P1 반영)
+- 상태: 조건부 승인 반영 — Phase 0 계약 확정 후 Phase 1 구현 승인
 - 범위: Phase 0~3 (AI 에이전트 코어). 게이트·관리웹(Phase 4)은 설계 범위 외.
 
 ## 0. 리뷰 반영 및 코드 검증 요약
+
+### 0.1 1차 리뷰 반영 (코드 검증 포함)
 
 외부 리뷰(P0 3건, P1 3건, 추가 10건)를 **실제 코드로 검증**한 뒤 반영했다. 검증 결과 일부 리뷰 전제는 사실과 달라 정정한다.
 
@@ -21,12 +23,26 @@
 
 **핵심 정정**: 리뷰의 "opencode가 해결한 복잡한 기능을 다시 구현할 위험"은 방향으로는 타당하나, opencode는 이미 SQLite/WAL/transaction, tool state 영속화, interrupted orphan 처리, partial tool-call 스트리밍을 갖고 있다. 따라서 croakcode는 **재구현이 아니라 검증된 코어 유지 + 제어 경계 확립**을 원칙으로 한다 (리뷰 최종 권고와 일치).
 
+### 0.2 2차 리뷰 반영 (계약 일관성 4건 — P0 2건 포함)
+
+2차 리뷰는 코드 검증 결과의 반박을 수용하고, "Approved, P0 잔여 없음"에는 동의하지 않았다. 남은 4건은 새 아키텍처가 아니라 **기존 계약의 일관성** 문제로 판단해 모두 반영했다.
+
+| 2차 지적 | 처리 | 위치 |
+|---|---|---|
+| **P0-1** 도구 권한 검사 순서가 잘못 기술됨(실행 후 정책 차단 위험) | 실행 전 검사 순서를 **정본화**: 호출 검증 → `tool.execute.before` → `policyHook` → Permission 승인 → 실행 → `tool.execute.after`. **deny 최우선**, 정책(2,3)이 승인(4)보다 먼저. §4.3도 정본 참조로 통일 | §3.4, §4.3 |
+| **P0-2** Gate 서버측 강제 범위 불명확 | Gate는 **LLM 요청만 경유**, 로컬 도구는 croakcode가 직접 실행 → **로컬 정책 강제**(정상 클라이언트 기준)와 **서버 실행 허가**(Phase 4)로 분리. Phase 0에서 신뢰 경계·인터페이스 초안만 확정 | §5.4, §8.4 |
+| **P1-1** 복구 트랜잭션 표현 모순 | 실행 전체 단일 트랜잭션 불가 → **2-phase commit**: (T1)running 커밋 → 실행 → (T2)결과 커밋, 중간 종료 시 `unknown` 해석. `hasSideEffects`와 `reexecutionSafe` **분리** | §4.5 |
+| **P1-2** Phase 간 슬롯 소유권 충돌 | **3단계 구분**: Phase 1 upstream 슬롯 API 사용·최소 실행 확인 / Phase 2 contracts로 API 계약 확정 / Phase 3 콘텐츠 이식 | §8.2, §8.3, §8.4, §8.6 |
+| 추가 제안: 물리 패키지 분리 vs 논리 계약 | **논리 계약 우선 + 점진적 추출**. upstream 구조 유지, 추출 조건 만족 시에만 패키지 승격. Phase 0에서 추출 판정 표 | §2 |
+
+**판정**: Phase 0 착수 가능(계약 테스트 포함). **Phase 1 구현은 Phase 0에서 위 4건 계약 테스트 통과 후 승인.**
+
 ## 1. 배경과 목표
 
 ### 제품 비전 (장기)
 거버넌스 에이전트 + 게이트 + 관리웹(운영 콘솔)을 묶은 상업 제품. 배포는 하이브리드(온프레미스 설치형 + SaaS).
 
-### 이번 설계의 범위 (Phase 1~3): AI 에이전트 코어만
+### 이번 설계의 범위 (Phase 0~3): AI 에이전트 코어만
 - 게이트 연동은 어댑터 지점만 확보(no-op), 관리웹은 명시적 연기.
 
 ### 추진 이유
@@ -49,35 +65,43 @@
 
 ## 2. 리포 레이아웃
 
+**원칙(P1-2 반영)**: **논리적 계약 분리**와 **물리적 패키지 분리**는 다르다. 처음부터 7개+ 독립 패키지로 쪼개지 않는다. upstream 구조를 최대한 유지하고, 필요한 경계에 **어댑터/contracts**를 둔다. 다음 조건을 만족하는 부분만 **점진적으로 별도 패키지로 추출**한다: (a) 독립적 변경 주기, (b) 독립 테스트 가능, (c) 독립 배포/버전관리 필요.
+
 ```
 codefrog/
-└── croakcode/                 ← 새 제품 리포 (monorepo)
-    ├── packages/
-    │   ├── core/              ← Runtime Core (세션·스트리밍·오케스트레이션)
-    │   ├── tools/             ← Tool Executor (파일/셸/검색)
-    │   ├── permission/        ← Permission Engine (ask/deny/allow, mode)
-    │   ├── persistence/       ← SessionStore 인터페이스 + 로컬 구현(SQLite)
-    │   ├── contracts/         ← 플러그인/훅 + Gate/Admin/Connection 어댑터 계약
-    │   ├── cli/               ← CLI 진입점 (cc 바이너리)
-    │   ├── tui/               ← TUI 클라이언트 (SolidJS + OpenTUI)
-    │   └── plugins/           ← 아래 플러그인 서브패키지(각 1패키지)
-    │       ├── auth/          ← croak-auth 이식(로그인/세션/PKCE/슬래시)
-    │       ├── gate-identity/ ← x-croak-agent/session 헤더
-    │       ├── local-stability/ ← 반복 호출 차단·파라미터·compaction
-    │       ├── secret-paths/  ← 비밀 경로 차단/출력 제거
-    │       ├── stall-recovery/ ← SSE 스톨 재프롬프트
-    │       ├── tool-policy/   ← /net-off /net-on /tool-status
-    │       ├── usage-meter/   ← 토큰/속도 JSONL
-    │       ├── usage-panel/   ← 사이드바/아바타/guard TUI
-    │       ├── hwp-read/      ← hwp_read/hwp_cli 도구
-    │       └── cache-hit/     ← vendor/opencode-cache-hit 흡수(패널 기본 접힘)
+└── croakcode/                 ← 새 제품 리포
+    ├── upstream/              ← opencode v1.15.12 흡수(구조 유지, 리브랜딩)
+    │   └── packages/...       ← 기존 opencode 모노레포 구조 그대로
+    ├── contracts/             ← 논리 계약 모듈(플러그인/훅/Connection/Gate/Admin 어댑터)
+    ├── control/               ← 제어 경계 어댑터(권한 순서, 보안 컨텍스트, 복구)
+    │   ├── permission-order/  ← §3.4 실행 전 검사 순서
+    │   ├── security-context/  ← §5.4 모드/정책 스냅샷
+    │   └── recovery/          ← §4.5 invocationId/unknown
+    ├── plugins/               ← 초기엔 flat, 독립 필요 시 점진 추출
+    │   ├── auth.mjs           ← (추출 조건 충족 시 packages/auth/로 승격)
+    │   ├── gate-identity.mjs
+    │   ├── local-stability.js
+    │   ├── secret-paths.mjs
+    │   ├── stall-recovery.mjs
+    │   ├── tool-policy.mjs
+    │   ├── usage-meter.mjs
+    │   ├── hwp-read.mjs
+    │   ├── usage-panel/       ← TUI 플러그인(콘텐츠)
+    │   └── vendor/opencode-cache-hit/  (흡수, 패널 기본 접힘)
+    ├── cli/                   ← `cc` 바이너리 + resources(dev-safe 에이전트, commands 3종)
     ├── docs/superpowers/specs/
     ├── NOTICE                   ← opencode MIT 고지 (필수)
     ├── LICENSE
     └── README.md
 ```
 
-**패키지 경계 원칙**: 플러그인은 위와 같이 **자산 1개당 서브패키지 1개**(총 10개). 각 서브패키지는 contracts의 훅 인터페이스만 의존하고 core 내부를 직접 import하지 않는다. `dev-safe` 에이전트와 commands 3종은 코드가 아닌 **리소스**로 `packages/cli/resources/`에 둔다.
+**패키지 경계 원칙**:
+- **upstream은 구조 유지**: 코어 대규모 해체 금지(재사용 우선). 수정은 어댑터/계약 지점에 한정.
+- **contracts는 논리 계약**: 플러그인은 `contracts`만 의존하고 core 내부를 직접 import하지 않는다(린트/구조 테스트로 강제). 물리 패키지가 아니어도 계약은 유효하다.
+- **plugins는 초기 flat**: 자산 1개당 1파일로 시작. 아래 **추출 조건**을 만족하면 `packages/<name>/`로 승격한다.
+  - 추출 조건: 독립 버전/배포 필요, 서로 다른 언어/런타임 필요, 큰 테스트 스위트 분리 필요, 여러 제품에서 재사용 필요.
+- `dev-safe` 에이전트와 commands 3종은 코드가 아닌 **리소스**로 `cli/resources/`에 둔다.
+- **Phase 0 산출물**: 각 플러그인의 추출 여부를 판정하는 표(추출함/안함 + 근거)를 작성한다. 초기 기본값은 **flat 유지**.
 
 ## 3. 아키텍처·모듈 경계
 
@@ -115,11 +139,19 @@ Client → Core → {Tools, Permission} → Persistence
 역방향 금지. Tool Executor는 Client를 몰라야 함. 이 규칙이 C(통제)의 핵심.
 
 ### 3.4 계약 경계 (P1-1 반영)
-- **플러그인은 core 내부를 직접 import하지 않는다**(현재 참조 리포도 전부 공개 plugin API만 사용 — 전수 검증 완료). croakcode도 **contracts 패키지만 의존**하도록 강제한다.
+- **플러그인은 core 내부를 직접 import하지 않는다**(현재 참조 리포도 전부 공개 plugin API만 사용 — 전수 검증 완료). croakcode도 **contracts 계약(논리 경계)** 만 의존하도록 강제한다. 물리 패키지 분리는 §2 추출 조건을 만족할 때만 한다.
 - **capability 기반 contracts**: 플러그인이 쓸 수 있는 표면은 core/contracts에 명시된 포트로 제한한다 — `chat.headers`/`chat.params`(요청 메타), `tool.execute.*`(도구 인자/결과 + `ctx.ask`), `command.execute.*`, `event`(세션 이벤트), TUI `api.state.*`/`api.slots`/`api.keymap`/`api.permission.mode`. 그 외 내부 모듈 접근은 금지(린트/구조 테스트로 검증).
 - **실행 문맥/TUI 데이터**: 플러그인이 core 내부 대신 contracts의 **ExecutionContext**(sessionID, directory, abort, ask)와 **TUI 상태 포트**를 통해 접근한다.
 - **fork-added 공개 API 문서화**: 패치 0006(`session_message_footer` 슬롯), 0007(`api.permission.mode`)이 추가한 API는 **contracts에 정식 계약으로 승격**해 문서화한다(현재는 `packages/plugin/src/tui.ts`에 타입만 존재).
-- **권한 판정 순서는 Core가 통제**: Permission Engine 판정 → Tool Executor 실행 → plugin `tool.execute.before` → `policyHook`. (Persistence는 Core가 직접 사용하되 contracts 인터페이스로만 접근.)
+- **도구 실행 전 검사 순서(정본 — §4.3과 동일)**: 모든 필수 검사는 **도구 실행 전에** 완료되어야 하며, 실행 후 정책 차단은 금지한다. 순서는 다음과 같다:
+  1. **호출 검증** (인자 스키마, `requiresAuth` 여부, 대상 경로 유효성)
+  2. **플러그인 사전 정책 검사** (`tool.execute.before`)
+  3. **Gate 정책 검사** (`policyHook`; direct 모드에서는 null)
+  4. **Permission Engine 승인** (ask/deny/allow)
+  5. **도구 실행** (Tool Executor)
+  6. **결과 저장 + 사후 훅** (`tool.execute.after`)
+  - **`deny` 최우선**: 어느 단계에서든 deny가 결정되면 즉시 차단하며, 뒤 단계는 실행하지 않는다. ask는 deny 판정이 모두 통과한 뒤에만 사용자에게 제시한다.
+- **검사 우선순위 계약**: 정책 검사(2,3)가 승인(4)보다 **먼저**다. 즉 "승인했더라도 정책이 deny면 실행 불가". 이 순서는 contracts의 실행 파이프라인으로 고정하고 계약 테스트로 검증한다.(Persistence는 Core가 직접 사용하되 contracts 인터페이스로만 접근.)
 
 ### 3.5 핵심 설계 결정
 - **코어와 UI 분리**: 코어를 헤드리스로 구동 가능하게 → 이후 관리웹/게이트/CI 연동 기반.
@@ -158,7 +190,7 @@ create → prompt(user) → orchestrator loop → stream assistant
 - `command.execute.before` (슬래시 명령)
 - `event` (세션 이벤트 구독)
 - `connection.adapter` / `gate.adapter` / `admin.adapter` (Phase 1 no-op)
-- 순서: `chat.headers` → `chat.params` → `connection.prepare`(최종 인증 보강). 도구 실행 시 `tool.execute.before` → `policyHook` 순으로 deny 판정.
+- 순서: `chat.headers` → `chat.params` → `connection.prepare`(최종 인증 보강). 도구 실행 순서는 §3.4 **도구 실행 전 검사 순서(정본)** 을 따른다 — 호출 검증 → `tool.execute.before` → `policyHook` → Permission 승인 → 실행 → `tool.execute.after`.
 
 ### 4.4 Persistence 인터페이스
 ```ts
@@ -187,8 +219,13 @@ opencode는 이미 `ToolState(pending/running/completed/error)`를 영속화하�
   - `running` 진입 전 **WAL commit**(부작용 전 기록) → 프로세스 종료 시 `running` 잔존을 **`unknown`으로 복구**.
   - **외부 부작용 도구**(bash, write, hwp_cli 등)는 `unknown`을 **자동 재실행 금지**. resume 시 사용자에게 "결과 불명확 — 재실행/건너뜀/결과 입력" 확인 요청.
   - **부작용 없는 도구**(read/grep/glob)는 `unknown`이면 안전하게 재실행.
-- **상태 전이 영속화**: `running` 마킹과 결과 저장을 **동일 트랜잭션 경계**로 묶어, 결과 저장 전 종료 시에도 `unknown`으로 식별 가능하게 한다(정확히 1회 보장은 아니지만 무조건 재실행 위험을 제거).
-- **부작용 분류**: contracts에 `ToolSpec.hasSideEffects: boolean`를 두어 복구 정책을 결정한다.
+- **상태 전이 영속화(2-phase commit — 정본)**: 외부 부작용 도구의 실행 전체를 SQLite 단일 트랜잭션으로 묶어 원자성을 보장할 수 없다. 다음 순서를 따른다:
+  1. `running`을 DB에 저장하고 **커밋**(트랜잭션 T1 종료)
+  2. 외부 도구 실행 (트랜잭션 밖)
+  3. 결과(`succeeded`/`failed`)를 DB에 저장하고 **커밋**(트랜잭션 T2 종료)
+  4. 1과 3 사이에 프로세스가 종료되면 DB에는 `running`만 남는다 → resume 시 이를 **`unknown`으로 해석**(자동 재실행 금지, §4.5 정책 적용).
+  - 두 커밋은 **별개 트랜잭션**이며, "실행 + 결과 저장"을 하나의 원자 단위로 가정하지 않는다. 이는 정확히 1회 실행을 보장하지 않지만, 무조건 재실행하는 위험을 제거한다.
+- **부작용/재실행 안전성 분리**: contracts에서 **두 속성을 따로** 둔다 — `hasSideEffects: boolean`(외부 상태 변경 여부)과 `reexecutionSafe: boolean`(환경 변화에 무관하게 결과가 동일한가). 예: `read`는 둘 다 안전 쪽이나, 타임스탬프/외부 상태를 읽는 도구는 `hasSideEffects:false`여도 `reexecutionSafe:false`일 수 있다. 복구 시 `unknown` 처리 정책은 `reexecutionSafe`로 결정한다(`true`=재실행, `false`=사용자 확인).
 
 ### 4.6 에러 처리
 - SSE 타임아웃: "첫 데이터 전"(`sse_timeout_before`) = 재시도 가능, "데이터 수신 후"(`sse_timeout_after`) = 재시도 금지(도구 중복 실행 방지). 판정은 ConnectionAdapter, 재시도 결정은 core.
@@ -228,7 +265,7 @@ interface ConnectionAdapter {
 }
 ```
 - **SSE 타임아웃 분류는 어댑터 책임**: `stream`이 `sse_timeout_before`(첫 데이터 전, 재시도 가능) / `sse_timeout_after`(데이터 수신 후, 재시도 금지)를 구분해 Delta로 방출. core orchestration은 이 Delta를 받아 재시도/중단을 결정(패치 0004 로직은 어댑터에 캡슐화).
-- **훅 순서(단일 기준 — 정본 정렬)**: (요청) `chat.headers` → `chat.params` → `connection.prepare`; (도구 실행) `tool.execute.before` → `policyHook`. 아래 훅 지점 섹션은 이 순서를 재확인할 뿐이며, 두 곳이 어긋나면 이 문장을 정본으로 본다.
+- **훅 순서(단일 기준 — 정본은 §3.4)**: (요청) `chat.headers` → `chat.params` → `connection.prepare`; (도구 실행) 호출 검증 → `tool.execute.before` → `policyHook` → Permission 승인 → 실행 → `tool.execute.after`. 두 곳이 어긋나면 §3.4 정본을 따른다.
 - **policyHook vs Permission Engine**: Permission Engine(UI/도구 레벨 ask/deny/allow)은 항상 동작. `tool.execute.before` 훅(플러그인) → `policyHook`(gate 정책) 순으로 **deny가 하나라도 있으면 실행 차단**. direct 모드에서 `policyHook`은 null이지만 플러그인 훅(secret-paths/tool-policy)은 그대로 동작.
 
 ### 5.3 스위칭 지점 (3계층) + 우선순위
@@ -262,7 +299,18 @@ interface ConnectionAdapter {
 
 - **`agent.force`/`requiresAuth`는 관리자 정책**: 사용자 설정 파일로 변경 불가. 서명/해시 검증(정책 파일 변조 탐지)을 Phase 0 계약에 포함.
 - **서버 정책 vs 로컬 설정**: **서버 Gate 정책이 최종 권한**. 로컬 설정은 서버 정책을 **완화할 수 없고**, 더 엄격하게만 만들 수 있다(monotonic tightening).
-- **Gate 인증의 서버측 확인**: 도구 실행 시 Gate는 **서버 측에서도** 인증/정책을 재확인한다(클라측 훅만 신뢰하지 않음).
+
+**Gate 신뢰 경계와 서버측 강제 범위 (P0-2 반영 — 명확화)**:
+현재 아키텍처에서 `croakcode → croak-gate → LLM` 경로는 **LLM 요청**만 경유한다. `bash`, `write`, `hwp_cli` 등 로컬 도구는 croakcode가 **직접 실행**하므로, **Gate는 로컬 도구 실행을 자동으로 차단할 수 없다**. 따라서 두 방식을 구분한다:
+
+| 방식 | 강제 주체 | 강제력 | 채택 시점 |
+|---|---|---|---|
+| **로컬 정책 강제** | croakcode 클라이언트(§3.4 실행 전 검사 순서) | 클라이언트가 정상일 때 유효. **변조된 클라이언트에 대한 강제력은 없음** | Phase 1~3 (기본) |
+| **서버 실행 허가** | Gate의 서명된 허가 토큰을 도구 실행 직전 검증 | 온라인 연결·정책 프로토콜 필요, 변조 클라이언트도 차단 | **Phase 4 수용 기준** |
+
+- **Phase 0 계약 필수**: Gate 신뢰 경계를 문서화한다 — (a) 어느 정책이 서버 권위인지, (b) 로컬 정책 강제가 보장하는 것/보장하지 못하는 것, (c) "서버 실행 허가" 프로토콜의 **인터페이스 초안**(서명 검증 지점, 온라인 요구, 실패 시 동작)만 정의(구현은 Phase 4).
+- **정직한 보장 수준 명시**: Phase 1~3에서 "Gate 정책 강제"는 **정상 클라이언트 기준**임을 문서·에러 메시지에 명시한다. restricted agent의 `force: gate`는 로컬에서 강제되며, 변조 방지의 최종 보장은 Phase 4의 서버 실행 허가에서 완성된다.
+- **서버측 인증 재확인 범위**: LLM 요청에 한해 Gate가 서버측에서 토큰/정책을 재확인한다(croak-auth 헤더·gate-identity). 로컬 도구 실행은 위 "로컬 정책 강제"가 담당하고, 서버 강제는 Phase 4로 분리한다.
 
 **턴 단위 정책 스냅샷(고정)**:
 - 각 **턴 시작**에 유효 모드·정책·requiresAuth 집합을 **스냅샷**으로 고정한다. 턴 진행 중 `/mode` 변경은 다음 턴부터 적용(스냅샷은 유지).
@@ -306,7 +354,7 @@ type Delta =
 - restricted agent는 폴백 불가(항상 gate 강제).
 
 ### 5.8 정책·보안 경계
-- gate: secret-paths/tool-policy가 게이트 정책과 일치(서버측 강제와 클라측 훅 동일).
+- gate: secret-paths/tool-policy가 게이트 정책과 **논리적으로 일치**하도록 유지한다. **클라측 훅이 로컬 강제를 담당**하고, 서버측 강제는 Phase 4 서버 실행 허가에서 완성된다(§5.4).
 - direct: 클라측 훅(secret-paths, tool-policy)은 여전히 동작(로컬 보호 유지), 게이트 감사는 없음.
 - "권한 필요" 판단: `requiresAuth: true`인 에이전트/도구는 gate에서만 실행. direct에서 호출 시 실행 전 오류.
 
@@ -467,32 +515,42 @@ tools:
 - **작업**:
   1. 패치 8개 + 플러그인 10개 테스트 인벤토리 확보(실제 12개 테스트 파일 확인 완료, §6.5) 및 현재 통과 상태 기록.
   2. contracts 확정: Permission, ConnectionAdapter(§5.5), SessionStore/EventLog + 도구 복구 상태(§4.5), capability 표면(§3.4), gate/admin 어댑터 stubs.
-  3. 관리자 정책(`agent.force`/`requiresAuth`)의 서명/변조 탐지 방식 확정(§5.4).
-  4. SQLite 계승 설정(WAL/transaction) + croakcode 스키마 버전 + opencode DB 마이그레이션 계획 확정(§4.4).
-  5. 동등성 매트릭스 초안 작성(상태 = NOT TESTED).
-- **완료 조건(결정 게이트)**: 기준 구현 확정 + 계약 문서 승인 + 필수 기능 목록 확정 + 매트릭스 초안 존재.
+  3. **도구 실행 전 검사 순서(§3.4 정본)를 계약 테스트로 고정** — deny 최우선, 정책(2,3)이 승인(4)보다 먼저.
+  4. **Gate 신뢰 경계(§5.4)** 확정: 로컬 정책 강제의 보장 범위 명시 + 서버 실행 허가 프로토콜 인터페이스 초안(구현은 Phase 4).
+  5. 관리자 정책(`agent.force`/`requiresAuth`)의 서명/변조 탐지 방식 확정(§5.4).
+  6. SQLite 계승 설정(WAL/transaction) + croakcode 스키마 버전 + opencode DB 마이그레이션 계획 확정(§4.4).
+  7. **복구 2-phase commit(§4.5) 계약 테스트**: 실행 전 running 커밋 → 실행 → 결과 커밋, 중간 종료 시 unknown 해석, `hasSideEffects`/`reexecutionSafe` 분리.
+  8. **패키지 추출 판정 표**(§2): 각 플러그인 추출함/안함 + 근거. 초기 기본값 flat 유지.
+  9. 동등성 매트릭스 초안 작성(상태 = NOT TESTED).
+- **완료 조건(결정 게이트)**: 기준 구현 확정 + 계약 문서 승인 + **위 3·4·7 계약 테스트 작성·통과** + 필수 기능 목록 확정 + 매트릭스 초안 존재.
 
 ### 8.2 Phase 1 — Upstream 기반 Walking Skeleton
 - **목표**: opencode의 **기존 실행 경로를 재사용**해 `cc` CLI/TUI와 헤드리스 코어를 구동한다(재구현 금지).
 - **완료 조건**: 기본 에이전트 종단 간 실행(세션 생성→스트리밍→도구→권한→저장→재개) + 장애 복구 테스트(§4.5 unknown 경로) 통과 + 헤드리스 구동 검증.
   - Phase 1의 훅은 스텁(`chat.headers`/`chat.params`/`tool.execute.before`/`command.execute.before`/`event` = 인터페이스만, 기본 no-op). 권한(ask/deny/allow)·승인 다이얼로그는 실제 동작.
-  - TUI 슬롯 프레임워크는 Phase 1 포함(빈 슬롯 레지스트리). 슬롯 내용은 Phase 3.
+  - **슬롯 소유권(Phase 1)**: **upstream 슬롯 API를 그대로 사용**해 최소 실행(슬롯 등록/렌더가 실제로 동작하는지)만 확인한다. croakcode contracts로의 계약화는 Phase 2, 콘텐츠 이식은 Phase 3.
 
 ### 8.3 Phase 2 — 코어 독립화 및 기존 동작 흡수
 - **목표**: opencode 강결합을 contracts 중심으로 분리하면서 패치 8개를 반영. 매 변경마다 baseline 회귀 테스트.
-- **완료 조건**: 섹션 6의 A + B가 매트릭스에서 PASS(또는 승인된 ACCEPTED DEVIATION). TUI 슬롯 프레임워크(0006)·permission.mode(0007) 확정.
+- **완료 조건**: 섹션 6의 A + B가 매트릭스에서 PASS(또는 승인된 ACCEPTED DEVIATION).
+  - **슬롯 소유권(Phase 2)**: 슬롯 **API를 croakcode contracts로 계약 확정**(패치 0006 `session_message_footer`, 0007 `api.permission.mode` 포함). 슬롯은 여전히 비어 있음(콘텐츠는 Phase 3).
 
 ### 8.4 Phase 3 — 커스텀 플러그인 이식
 - **목표**: 인증·보안·HWP·사용량·안정성·TUI 기능 이식. Gate/Direct 우회 테스트(§5.4) 포함.
 - **완료 조건**: 섹션 6의 C가 매트릭스에서 PASS. §5.4 우회 차단 5종 + §4.5 복구 테스트 통과. 필수 기능에 FAIL/NOT TESTED 없음.
+  - **보장 수준**: Phase 3의 정책 강제는 **로컬 정책 강제(정상 클라이언트 기준)**. 변조 클라이언트에 대한 서버측 강제는 **Phase 4 서버 실행 허가** 수용 기준에서 완성된다(§5.4).
+  - **슬롯 소유권(Phase 3)**: 플러그인 **슬롯 콘텐츠 이식**(usage-panel/cache-hit/아바타)은 Phase 3. 플러그인은 슬롯에 "내용을 등록"만 하고 슬롯 API/호스트는 만들지 않는다.
 
 ### 8.5 Phase 4 (게이트/관리웹)
-- 설계 범위 외.
+- 설계 범위 외. 단 Phase 4 수용 기준에 **서버 실행 허가(§5.4)** 구현·검증 포함.
 
 ### 8.6 최종 수용
 - **Phase 2+3의 동등성 매트릭스에서 필수 기능이 전부 PASS**(또는 승인된 ACCEPTED DEVIATION) + §5.4 우회·§4.5 복구 테스트 통과 = 수용. "완벽히 동작"이라는 모호한 표현 대신 **검증 가능한 pass/fail 조건**으로 대체한다.
 
-**슬롯 소유권 규칙(충돌 해소)**: 슬롯 **프레임워크(슬롯 등록 API/호스트 위치)** = Phase 2(core/tui 소유). 슬롯에 **렌더링되는 내용(플러그인)** = Phase 3(plugins 소유). usage-panel은 Phase 3에서 "슬롯에 내용을 등록"만 하고 슬롯 자체는 만들지 않는다.
+**슬롯 소유권 규칙(3단계 — 충돌 해소)**:
+1. **Phase 1**: upstream 슬롯 API를 그대로 사용해 최소 실행 확인(등록/렌더 동작).
+2. **Phase 2**: 슬롯 API를 croakcode contracts로 계약 확정(0006/0007 포함). 슬롯은 비어 있음.
+3. **Phase 3**: 플러그인이 슬롯 **콘텐츠**를 등록(슬롯 API/호스트는 만들지 않음).
 
 ## 9. 명시적 비목표 (Phase 1에서 안 함)
 - croak-auth 로그인/세션, 게이트 정책·인증 연동, 보안 경로 차단 완전판, HWP 도구, 사용량 패널/아바타, 관리웹, SaaS 멀티테넌시.
