@@ -1,0 +1,74 @@
+import { Config } from "effect"
+
+function truthy(key: string) {
+  const value = process.env[key]?.toLowerCase()
+  return value === "true" || value === "1"
+}
+
+const CROAKCODE_EXPERIMENTAL = truthy("CROAKCODE_EXPERIMENTAL")
+const copy = process.env["CROAKCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT"]
+
+function enabledByExperimental(key: string) {
+  return process.env[key] === undefined ? CROAKCODE_EXPERIMENTAL : truthy(key)
+}
+
+export const Flag = {
+  OTEL_EXPORTER_OTLP_ENDPOINT: process.env["OTEL_EXPORTER_OTLP_ENDPOINT"],
+  OTEL_EXPORTER_OTLP_HEADERS: process.env["OTEL_EXPORTER_OTLP_HEADERS"],
+
+  CROAKCODE_AUTO_HEAP_SNAPSHOT: truthy("CROAKCODE_AUTO_HEAP_SNAPSHOT"),
+  CROAKCODE_GIT_BASH_PATH: process.env["CROAKCODE_GIT_BASH_PATH"],
+  CROAKCODE_CONFIG: process.env["CROAKCODE_CONFIG"],
+  CROAKCODE_CONFIG_CONTENT: process.env["CROAKCODE_CONFIG_CONTENT"],
+  CROAKCODE_DISABLE_AUTOUPDATE: truthy("CROAKCODE_DISABLE_AUTOUPDATE"),
+  CROAKCODE_ALWAYS_NOTIFY_UPDATE: truthy("CROAKCODE_ALWAYS_NOTIFY_UPDATE"),
+  CROAKCODE_DISABLE_PRUNE: truthy("CROAKCODE_DISABLE_PRUNE"),
+  CROAKCODE_DISABLE_TERMINAL_TITLE: truthy("CROAKCODE_DISABLE_TERMINAL_TITLE"),
+  CROAKCODE_SHOW_TTFD: truthy("CROAKCODE_SHOW_TTFD"),
+  CROAKCODE_DISABLE_AUTOCOMPACT: truthy("CROAKCODE_DISABLE_AUTOCOMPACT"),
+  CROAKCODE_DISABLE_MODELS_FETCH: truthy("CROAKCODE_DISABLE_MODELS_FETCH"),
+  CROAKCODE_DISABLE_MOUSE: truthy("CROAKCODE_DISABLE_MOUSE"),
+  CROAKCODE_FAKE_VCS: process.env["CROAKCODE_FAKE_VCS"],
+  CROAKCODE_SERVER_PASSWORD: process.env["CROAKCODE_SERVER_PASSWORD"],
+  CROAKCODE_SERVER_USERNAME: process.env["CROAKCODE_SERVER_USERNAME"],
+
+  // Experimental
+  CROAKCODE_EXPERIMENTAL_FILEWATCHER: Config.boolean("CROAKCODE_EXPERIMENTAL_FILEWATCHER").pipe(
+    Config.withDefault(false),
+  ),
+  CROAKCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: Config.boolean("CROAKCODE_EXPERIMENTAL_DISABLE_FILEWATCHER").pipe(
+    Config.withDefault(false),
+  ),
+  CROAKCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT:
+    copy === undefined ? process.platform === "win32" : truthy("CROAKCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT"),
+  CROAKCODE_MODELS_URL: process.env["CROAKCODE_MODELS_URL"],
+  CROAKCODE_MODELS_PATH: process.env["CROAKCODE_MODELS_PATH"],
+  CROAKCODE_DB: process.env["CROAKCODE_DB"],
+
+  CROAKCODE_WORKSPACE_ID: process.env["CROAKCODE_WORKSPACE_ID"],
+  CROAKCODE_EXPERIMENTAL_WORKSPACES: enabledByExperimental("CROAKCODE_EXPERIMENTAL_WORKSPACES"),
+
+  // Evaluated at access time (not module load) because tests, the CLI, and
+  // external tooling set these env vars at runtime.
+  get CROAKCODE_DISABLE_PROJECT_CONFIG() {
+    return truthy("CROAKCODE_DISABLE_PROJECT_CONFIG")
+  },
+  get CROAKCODE_TUI_CONFIG() {
+    return process.env["CROAKCODE_TUI_CONFIG"]
+  },
+  get CROAKCODE_CONFIG_DIR() {
+    return process.env["CROAKCODE_CONFIG_DIR"]
+  },
+  get CROAKCODE_PURE() {
+    return truthy("CROAKCODE_PURE")
+  },
+  get CROAKCODE_PERMISSION() {
+    return process.env["CROAKCODE_PERMISSION"]
+  },
+  get CROAKCODE_PLUGIN_META_FILE() {
+    return process.env["CROAKCODE_PLUGIN_META_FILE"]
+  },
+  get CROAKCODE_CLIENT() {
+    return process.env["CROAKCODE_CLIENT"] ?? "cli"
+  },
+}

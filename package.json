@@ -1,4 +1,4 @@
 { "name": "croakcode", "private": true, "type": "module",
   "workspaces": ["contracts", "control"],
   "devDependencies": { "@croakcode/contracts": "workspace:*", "@croakcode/control": "workspace:*" },
-  "scripts": { "test": "node --test", "test:bun": "bun test tests" } }
+  "scripts": { "test": "node --test 'tests/*.test.mjs'", "test:bun": "bun test tests" } }
