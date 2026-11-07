@@ -48,7 +48,7 @@ croakcode/
 - Create: `croakcode/contracts/package.json`
 - Create: `croakcode/control/package.json`
 
-- [ ] **Step 1: `.gitignore` 작성 (커밋 전 필수)**
+- [x] **Step 1: `.gitignore` 작성 (커밋 전 필수)**
 
 ```gitignore
 node_modules/
@@ -57,7 +57,7 @@ dist/
 .DS_Store
 ```
 
-- [ ] **Step 2: 세 개의 `package.json` 작성**
+- [x] **Step 2: 세 개의 `package.json` 작성**
 
 루트:
 ```json
@@ -78,17 +78,17 @@ dist/
 ```
 > **주의**: 루트 `package.json`에 `devDependencies`로 두 워크스페이스 패키지를 선언해야 한다. 그래야 bun이 루트 `node_modules/@croakcode/*` 심볼릭을 생성해 `tests/`에서 `@croakcode/*` import가 해석된다(검증됨).
 
-- [ ] **Step 3: 설치 (workspace 링크)**
+- [x] **Step 3: 설치 (workspace 링크)**
 
 Run: `cd croakcode && bun install`
 Expected: 성공, `node_modules/@croakcode/*` 심볼릭 링크 생성. `node_modules`/`bun.lock`은 `.gitignore`로 무시됨.
 
-- [ ] **Step 4: 무시 확인**
+- [x] **Step 4: 무시 확인**
 
 Run: `cd croakcode && git status --short`
 Expected: `node_modules`, `bun.lock`이 목록에 없음.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .gitignore package.json contracts/package.json control/package.json
@@ -100,7 +100,7 @@ git commit -m "chore: scaffold croakcode workspace for phase 0a"
 **Files:**
 - Create: `croakcode/tests/smoke.test.mjs`
 
-- [ ] **Step 1: 스모크 테스트 작성 (`node:test` 기준 — 참조 리포와 동일 스타일)**
+- [x] **Step 1: 스모크 테스트 작성 (`node:test` 기준 — 참조 리포와 동일 스타일)**
 
 ```js
 import test from "node:test";
@@ -111,17 +111,17 @@ test("workspace is wired", () => {
 });
 ```
 
-- [ ] **Step 2: node 러너 실행**
+- [x] **Step 2: node 러너 실행**
 
 Run: `cd croakcode && node --test tests/smoke.test.mjs`
 Expected: PASS (1 test). `node:test` API라 `.mjs`에서 정상 동작.
 
-- [ ] **Step 3: bun 러너 실행 (동일 파일)**
+- [x] **Step 3: bun 러너 실행 (동일 파일)**
 
 Run: `cd croakcode && bun test tests/smoke.test.mjs`
 Expected: PASS. Bun은 `node:test`를 지원하므로 통과해야 한다.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/smoke.test.mjs
@@ -140,7 +140,7 @@ git commit -m "test: add workspace smoke test (node:test compatible)"
 - Create: `croakcode/scripts/baseline-inventory.mjs`
 - Create: `croakcode/docs/superpowers/phase0/baseline-inventory.md` (출력)
 
-- [ ] **Step 1: 인벤토리 스크립트 작성 (플러그인 테스트 + 패치-added 테스트 분리 집계)**
+- [x] **Step 1: 인벤토리 스크립트 작성 (플러그인 테스트 + 패치-added 테스트 분리 집계)**
 
 ```js
 #!/usr/bin/env node
@@ -195,12 +195,12 @@ await writeFile(OUT, lines.join("\n"), "utf8");
 console.log(`wrote ${OUT}: ${pluginTests.length} plugin tests, ${patchAdded.length} patches scanned`);
 ```
 
-- [ ] **Step 2: 실행**
+- [x] **Step 2: 실행**
 
 Run: `cd croakcode && node scripts/baseline-inventory.mjs`
 Expected: `wrote ...: 12 plugin test files, 8 patches scanned`. 12개 = node-호환 `.mjs` 7개(최상위 6 + croak-auth 1) + **bun 전용 `.ts` 5개**(usage-panel). 문서에서 이 두 그룹을 분리 표기한다(다르면 출력값 기준).
 
-- [ ] **Step 3: 검증 (개수 + no-test 패치 명시)**
+- [x] **Step 3: 검증 (개수 + no-test 패치 명시)**
 
 Run: `cd croakcode && grep -c '^\- `' docs/superpowers/phase0/baseline-inventory.md`
 Expected: 12 + (테스트 있는 패치 수) 이상. 그리고 grep으로 `adds NO tests` 라인이 최소 2개(0006·0007) 존재 확인:
@@ -208,7 +208,7 @@ Expected: 12 + (테스트 있는 패치 수) 이상. 그리고 grep으로 `adds 
 Run: `cd croakcode && grep -c 'adds NO tests' docs/superpowers/phase0/baseline-inventory.md`
 Expected: `2` (0006, 0007). 값이 다르면 실제 패치 내용 기준으로 문서에 기록.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/baseline-inventory.mjs docs/superpowers/phase0/baseline-inventory.md
@@ -220,22 +220,22 @@ git commit -m "docs: capture baseline test inventory with patch gap notes"
 **Files:**
 - Modify: `croakcode/docs/superpowers/phase0/baseline-inventory.md`
 
-- [ ] **Step 1: 플러그인 최상위 테스트 실행 (읽기 전용)**
+- [x] **Step 1: 플러그인 최상위 테스트 실행 (읽기 전용)**
 
 Run: `cd /Users/herace/workspace/ideas/codefrog-opencode/plugins && node --test *.test.mjs 2>&1 | tail -15`
 Expected: 통과/실패 요약 캡처.
 
-- [ ] **Step 2: croak-auth 서브디렉토리 테스트 실행 (누락 방지)**
+- [x] **Step 2: croak-auth 서브디렉토리 테스트 실행 (누락 방지)**
 
 Run: `cd /Users/herace/workspace/ideas/codefrog-opencode/plugins/croak-auth && node --test session.test.mjs 2>&1 | tail -15`
 Expected: 통과/실패 요약 캡처.
 
-- [ ] **Step 3: usage-panel 테스트 실행**
+- [x] **Step 3: usage-panel 테스트 실행**
 
 Run: `cd /Users/herace/workspace/ideas/codefrog-opencode/plugins/usage-panel && bun test 2>&1 | tail -15`
 Expected: 통과/실패 요약 캡처. `node_modules` symlink 미설정이면 `NOT RUN: needs opencode symlink`로 기록.
 
-- [ ] **Step 4: 결과를 문서에 추가**
+- [x] **Step 4: 결과를 문서에 추가**
 
 문서 끝에 추가하고 실제 출력을 붙여넣는다:
 
@@ -252,7 +252,7 @@ Expected: 통과/실패 요약 캡처. `node_modules` symlink 미설정이면 `N
 <PASTE tail output>
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/phase0/baseline-inventory.md
@@ -270,7 +270,7 @@ git commit -m "docs: record baseline test run status (incl. croak-auth)"
 - Create: `croakcode/contracts/src/index.mjs`
 - Create: `croakcode/tests/contracts.conformance.test.mjs`
 
-- [ ] **Step 1: 실패하는 conformance 테스트 작성**
+- [x] **Step 1: 실패하는 conformance 테스트 작성**
 
 ```js
 import test from "node:test";
@@ -287,12 +287,12 @@ test("contracts exports hooks descriptor", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: FAIL — `@croakcode/contracts` 해석 불가 또는 export 없음.
 
-- [ ] **Step 3: `hooks.mjs` 작성 (타입은 JSDoc, 런타임 상수는 실제 값)**
+- [x] **Step 3: `hooks.mjs` 작성 (타입은 JSDoc, 런타임 상수는 실제 값)**
 
 ```js
 /**
@@ -319,18 +319,18 @@ export const HOOK_NAMES = Object.freeze([
 ]);
 ```
 
-- [ ] **Step 4: `index.mjs` 작성**
+- [x] **Step 4: `index.mjs` 작성**
 
 ```js
 export * from "./hooks.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add contracts/src tests/contracts.conformance.test.mjs
@@ -344,7 +344,7 @@ git commit -m "feat(contracts): add hook typedefs and HOOK_NAMES"
 - Modify: `croakcode/contracts/src/index.mjs`
 - Modify: `croakcode/tests/contracts.conformance.test.mjs`
 
-- [ ] **Step 1: 실패하는 테스트 추가**
+- [x] **Step 1: 실패하는 테스트 추가**
 
 ```js
 test("Delta kinds separate tool_call phases", () => {
@@ -355,12 +355,12 @@ test("ToolSpec requires side-effect and reexecution flags", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: FAIL — `DELTA_KINDS`/`TOOL_SPEC_REQUIRED` 미정의.
 
-- [ ] **Step 3: `connection.mjs` 작성**
+- [x] **Step 3: `connection.mjs` 작성**
 
 ```js
 /**
@@ -404,19 +404,19 @@ export const DELTA_KINDS = Object.freeze([
 export const TOOL_SPEC_REQUIRED = Object.freeze(["name", "hasSideEffects", "reexecutionSafe"]);
 ```
 
-- [ ] **Step 4: `index.mjs` 갱신**
+- [x] **Step 4: `index.mjs` 갱신**
 
 ```js
 export * from "./hooks.mjs";
 export * from "./connection.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: PASS (3 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add contracts/src tests/contracts.conformance.test.mjs
@@ -436,7 +436,7 @@ git commit -m "feat(contracts): add Connection/Delta/ToolSpec contract"
 - Create: `croakcode/control/src/index.mjs`
 - Create: `croakcode/tests/permission-order.test.mjs`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```js
 import test from "node:test";
@@ -486,12 +486,12 @@ test("all allow executes", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/permission-order.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: `permission-order.mjs` 작성**
+- [x] **Step 3: `permission-order.mjs` 작성**
 
 ```js
 /**
@@ -530,18 +530,18 @@ export function resolveExecutionPlan(input) {
 }
 ```
 
-- [ ] **Step 4: `control/src/index.mjs` 작성**
+- [x] **Step 4: `control/src/index.mjs` 작성**
 
 ```js
 export * from "./permission-order.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/permission-order.test.mjs`
 Expected: PASS (6 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add control/src tests/permission-order.test.mjs
@@ -561,7 +561,7 @@ git commit -m "feat(control): deny-first execution order with ask-after-policy-d
 - Modify: `croakcode/control/src/index.mjs`
 - Create: `croakcode/tests/security-context.test.mjs`
 
-- [ ] **Step 1: 실패하는 테스트 작성 (spec §5.3 표의 핵심 행 포함)**
+- [x] **Step 1: 실패하는 테스트 작성 (spec §5.3 표의 핵심 행 포함)**
 
 ```js
 import test from "node:test";
@@ -601,12 +601,12 @@ test("requiresAuth + global gate => ok", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/security-context.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: `security-context.mjs` 작성**
+- [x] **Step 3: `security-context.mjs` 작성**
 
 ```js
 /**
@@ -638,19 +638,19 @@ export function resolveEffectiveMode(i) {
 }
 ```
 
-- [ ] **Step 4: `index.mjs` 갱신**
+- [x] **Step 4: `index.mjs` 갱신**
 
 ```js
 export * from "./permission-order.mjs";
 export * from "./security-context.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/security-context.test.mjs`
 Expected: PASS (5 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add control/src tests/security-context.test.mjs
@@ -666,7 +666,7 @@ git commit -m "feat(control): mode precedence incl. session-direct requiresAuth 
 - Modify: `croakcode/control/src/index.mjs`
 - Modify: `croakcode/tests/contracts.conformance.test.mjs`
 
-- [ ] **Step 1: 실패하는 conformance 테스트 (타입 서술만 검증, 동작 금지)**
+- [x] **Step 1: 실패하는 conformance 테스트 (타입 서술만 검증, 동작 금지)**
 
 ```js
 test("server auth stub exposes interface descriptor but no enforcement", () => {
@@ -676,12 +676,12 @@ test("server auth stub exposes interface descriptor but no enforcement", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: FAIL — `SERVER_AUTH_DESCRIPTOR` 미정의.
 
-- [ ] **Step 3: `server-auth-stub.mjs` 작성 (로직 없음, 문서화된 인터페이스만)**
+- [x] **Step 3: `server-auth-stub.mjs` 작성 (로직 없음, 문서화된 인터페이스만)**
 
 ```js
 /**
@@ -703,7 +703,7 @@ export const SERVER_AUTH_DESCRIPTOR = Object.freeze({
 });
 ```
 
-- [ ] **Step 4: `index.mjs` 갱신**
+- [x] **Step 4: `index.mjs` 갱신**
 
 ```js
 export * from "./permission-order.mjs";
@@ -711,12 +711,12 @@ export * from "./security-context.mjs";
 export * from "./server-auth-stub.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/contracts.conformance.test.mjs`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add control/src tests/contracts.conformance.test.mjs
@@ -736,7 +736,7 @@ git commit -m "feat(control): server authorization interface stub (phase 4, no l
 - Modify: `croakcode/control/src/index.mjs`
 - Create: `croakcode/tests/recovery.test.mjs`
 
-- [ ] **Step 1: 실패하는 테스트 작성 (커밋 순서 포함)**
+- [x] **Step 1: 실패하는 테스트 작성 (커밋 순서 포함)**
 
 ```js
 import test from "node:test";
@@ -787,12 +787,12 @@ test("side-effect tool never auto-reexecutes, even if marked reexecutionSafe", (
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/recovery.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: `recovery.mjs` 작성**
+- [x] **Step 3: `recovery.mjs` 작성**
 
 ```js
 /**
@@ -837,7 +837,7 @@ export function canAutoReexecute(state, traits) {
 }
 ```
 
-- [ ] **Step 4: `index.mjs` 갱신**
+- [x] **Step 4: `index.mjs` 갱신**
 
 ```js
 export * from "./permission-order.mjs";
@@ -846,12 +846,12 @@ export * from "./server-auth-stub.mjs";
 export * from "./recovery.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/recovery.test.mjs`
 Expected: PASS (3 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add control/src tests/recovery.test.mjs
@@ -871,7 +871,7 @@ git commit -m "feat(control): recovery 2-phase commit contract (T1 before execut
 - Modify: `croakcode/control/src/index.mjs`
 - Create: `croakcode/tests/admin-policy.test.mjs`
 
-- [ ] **Step 1: 실패하는 테스트 작성 (변조+재계산 거부 포함)**
+- [x] **Step 1: 실패하는 테스트 작성 (변조+재계산 거부 포함)**
 
 ```js
 import test from "node:test";
@@ -905,12 +905,12 @@ test("malformed policy fails even with valid signature", () => {
 });
 ```
 
-- [ ] **Step 2: 실행 (실패)**
+- [x] **Step 2: 실행 (실패)**
 
 Run: `cd croakcode && node --test tests/admin-policy.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: `admin-policy.mjs` 작성**
+- [x] **Step 3: `admin-policy.mjs` 작성**
 
 ```js
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -940,7 +940,7 @@ export function verifyAdminPolicy(body, signature, opts) {
 }
 ```
 
-- [ ] **Step 4: `index.mjs` 갱신**
+- [x] **Step 4: `index.mjs` 갱신**
 
 ```js
 export * from "./permission-order.mjs";
@@ -950,12 +950,12 @@ export * from "./recovery.mjs";
 export * from "./admin-policy.mjs";
 ```
 
-- [ ] **Step 5: 실행 (통과)**
+- [x] **Step 5: 실행 (통과)**
 
 Run: `cd croakcode && node --test tests/admin-policy.test.mjs`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add control/src tests/admin-policy.test.mjs
@@ -970,17 +970,17 @@ git commit -m "feat(control): HMAC admin policy integrity (tamper-resistant)"
 
 **Files:** 없음 (실행만)
 
-- [ ] **Step 1: node 러너 전체 실행**
+- [x] **Step 1: node 러너 전체 실행**
 
 Run: `cd croakcode && node --test`
 Expected: PASS. 테스트 수: smoke 1 + contracts.conformance 4 + permission-order 6 + security-context 5 + recovery 3 + admin-policy 4 = **23**.
 
-- [ ] **Step 2: bun 러너 전체 실행**
+- [x] **Step 2: bun 러너 전체 실행**
 
 Run: `cd croakcode && bun test tests`
 Expected: PASS. `node:test` 기반이라 Bun에서도 통과해야 한다.
 
-- [ ] **Step 3: Commit (무시 파일 미포함 확인 후)**
+- [x] **Step 3: Commit (무시 파일 미포함 확인 후)**
 
 Run: `cd croakcode && git status --short` → `node_modules`/`bun.lock` 미표시 확인.
 
