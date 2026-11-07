@@ -1,7 +1,7 @@
 {
-  "name": "opencode",
-  "displayName": "opencode",
-  "description": "opencode for VS Code",
+  "name": "croakcode",
+  "displayName": "croakcode",
+  "description": "croakcode for VS Code",
   "version": "1.15.12",
   "publisher": "sst-dev",
   "repository": {
