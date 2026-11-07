@@ -28,3 +28,34 @@ Plugin/invariant test files: 12
 - `0006-feat-tui-add-session_message_footer-plugin-slot.patch`: (adds NO tests — must be covered by a new Phase 2/3 test)
 - `0007-feat-tui-expose-the-permission-approval-mode-to-plug.patch`: (adds NO tests — must be covered by a new Phase 2/3 test)
 - `0008-fix-tui-truncate-dialog-titles-by-display-width.patch`: `packages/opencode/test/util/locale.test.ts`
+
+## Baseline run status (captured 2026-11-07)
+
+Environment: Node v22.14.0, Bun 1.3.14, `rhwp` NOT installed.
+
+### plugins/*.test.mjs
+```
+1..28
+# tests 28
+# pass 27
+# fail 1
+```
+Failure: `hwp-read.test.mjs` "hwpCli asks before writing and never runs blocked commands"
+— depends on the external `rhwp` binary, which is not installed in this environment
+(`rhwp edit --help` => exit 1). Environment-dependent, not a code defect.
+
+### croak-auth/session.test.mjs
+```
+1..9
+# tests 9
+# pass 9
+# fail 0
+```
+
+### usage-panel
+```
+bun test v1.3.14
+error: preload not found "@opentui/solid/preload"
+```
+NOT RUN: needs `node_modules` symlinked to the built opencode tree
+(`opencode/work/packages/opencode/node_modules`) to resolve `@opentui/solid/preload`.
