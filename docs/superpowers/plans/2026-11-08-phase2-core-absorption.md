@@ -156,17 +156,28 @@ Run: `node scripts/rebrand-check.mjs upstream 2>&1 | grep '^ - upstream/'`
 Run: `grep -rn 'croakcode.ai/desktop-feedback\|croakcode.ai/changelog\|croakcode.ai/favicon\|croakcode.ai/brand\|croakcode.ai/discord\|croakcode.ai/zen\|croakcode.ai/legal' upstream/packages --include='*.*' | grep -v node_modules`
 Expected: 0건 — 비소유 엔드포인트를 croakcode URL로 잘못 바꾼 흔적이 없어야 한다.
 
-- [ ] **Step 4: rebrand-check를 전체 blocking으로 변경**
+- [ ] **Step 4: rebrand-check를 코어 전체 blocking + Phase 4 명시 allowlist로 변경 (옵션 A)**
 
-`scripts/rebrand-check.mjs`에서 `CORE_PREFIXES` 기반 분기를 제거하고 모든 파일을 `bad`로 모은다. 단 `packages/opencode/package.json`·`packages/core/package.json`의 `"name": "opencode"`는 `ALLOW_PKG_NAMES`로 계속 허용한다(workspace:* 의존).
+> **검토 지적 반영 (P1 Task 2) + 범위 결정:** 비소유 upstream 엔드포인트(`api.opencode.ai` GitHub-App, `infra` 배포 도메인, `/changelog*`·`/brand`·`/legal/*`·`/favicon*`·`/discord` 등)를 `croakcode.ai`로 rewrite하면 **죽은 링크**가 된다. spec상 Phase 2/3은 **AI 에이전트 코어**만 대상이고 app/desktop/docs/stats/enterprise/github/infra/sdks는 **Phase 4 제품 표면**이다. 따라서 **코어는 완전 blocking**, Phase-4 패키지는 **명시적 allowlist로 DEFERRED**, 그 밖(core도 Phase4도 아닌 위치)은 **fail-closed로 위반** 처리한다.
+
+`scripts/rebrand-check.mjs`:
+- `CORE_PREFIXES`(opencode/core/ui/sdk/plugin/script) → `bad`(blocking). `ALLOW_PKG_NAMES`로 `packages/opencode/package.json`·`packages/core/package.json`의 `"name":"opencode"`는 계속 허용(workspace:* 의존).
+- `PHASE4_PREFIXES`(`.opencode/`, `github/`, `infra/`, `packages/{app,desktop,docs,enterprise,slack,stats}/`, `script/`, `sdks/`) → `deferred`(문서화된 Phase 4 이관).
+- 그 외 → `bad`(fail-closed).
 
 Run: `node scripts/rebrand-check.mjs upstream`
-Expected: `PASS: no disallowed upstream branding outside NOTICE/attribution` (DEFERRED 출력 없음). FAIL이면 남은 파일을 치환한다. **NOTICE/LICENSE의 upstream 고지는 예외로 유지**(MIT 의무).
+Expected: `PASS: no disallowed upstream branding in core packages; Phase 4 deferred scope is explicit` + `DEFERRED: <n> hits in Phase 4 product packages …`. FAIL이면 코어 또는 allowlist 밖 히트이므로 해당 파일을 처리한다. **NOTICE/LICENSE 고지는 예외 유지**(MIT 의무).
+
+fail-closed 검증:
+Run: `mkdir -p upstream/packages/probe && printf 'const x="https://opencode.ai"\n' > upstream/packages/probe/a.ts && node scripts/rebrand-check.mjs upstream; echo exit:$?; rm -rf upstream/packages/probe`
+Expected: `exit:1`(코어도 Phase4도 아닌 신규 패키지는 위반).
 
 - [ ] **Step 5: typecheck + 회귀 동등성 증거 + 커밋**
 
 Run: `cd upstream && bun install --ignore-scripts && bun run typecheck 2>&1 | tail -4`
 Expected: `Tasks: N successful, N total`, 실패 0. **삭제 사전 점검(Step 2)의 기준선 태스크 수와 비교**해, 제거된 `console`/`web` 프로젝트 수만큼만 줄고 **나머지 프로젝트는 모두 성공**함을 기록한다.
+
+> **외부 플러그인 타입 경계:** console/web 제거 후 `@opencode-ai/plugin`이 npm(1.19.5)으로 해석되면서 `src/plugin/index.ts`의 `GitlabAuthPlugin`/`PoeAuthPlugin`(외부 npm 플러그인)이 local `@croakcode/plugin` 타입과 불일치했다(Phase 1에서는 구 락파일 alias로 local에 묶여 통과). 런타임 호환은 동일하므로 **경계 캐스트**(`as unknown as PluginInstance`)로 처리한다. 이 캐스트는 동등성에 영향 없음(런타임 동일).
 
 Run: `cd upstream/packages/opencode && bun test test/cli/help 2>&1 | tail -4`
 Expected: 통과 — `console`/`web` 제거가 코어 CLI 동작에 회귀를 주지 않음(동등성 증거).
@@ -1265,7 +1276,7 @@ Spec: `docs/superpowers/specs/2026-11-07-croakcode-agent-core-design.md` §8.3
 Evidence: `docs/superpowers/phase0/phase2-equivalence-matrix.md` (§6.1 A + §6.2 B)
 
 - [ ] upstream help snapshots regenerated for `cc` (`bun test ... -u`, 잔여 opencode 0)
-- [ ] console/web packages removed; rebrand-check 전체 blocking PASS (삭제 영향도 사전 점검 증거 첨부)
+- [ ] console/web packages removed; rebrand-check PASS — **core fully blocking**, Phase 4 packages explicitly DEFERRED (non-owned upstream endpoints not rewritten); 삭제 영향도 사전 점검 증거 첨부
 - [ ] zen provider (id `opencode`) removed from catalog/loaders/transforms (`scripts/phase2-zen-check.sh` PASS, baseten 보존 교차검증)
 - [ ] zen tier/upsell removed from TUI, retry, provider list (일반 재시도 테스트 4개 유지 확인)
 - [ ] TUI slot + permission.mode promoted to contracts (patch 0006/0007)
