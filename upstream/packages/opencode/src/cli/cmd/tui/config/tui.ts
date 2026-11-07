@@ -13,21 +13,21 @@ import {
   resolveAttentionSoundPaths,
   TuiInfo,
 } from "./tui-schema"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { Flag } from "@croakcode/core/flag/flag"
 import { isRecord } from "@/util/record"
-import { Global } from "@opencode-ai/core/global"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { Global } from "@croakcode/core/global"
+import { AppFileSystem } from "@croakcode/core/filesystem"
 import { CurrentWorkingDirectory } from "./cwd"
 import { ConfigPlugin } from "@/config/plugin"
 import { TuiKeybind } from "./keybind"
-import { InstallationLocal, InstallationVersion } from "@opencode-ai/core/installation/version"
-import { makeRuntime } from "@opencode-ai/core/effect/runtime"
+import { InstallationLocal, InstallationVersion } from "@croakcode/core/installation/version"
+import { makeRuntime } from "@croakcode/core/effect/runtime"
 import { Filesystem } from "@/util/filesystem"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@croakcode/core/util/log"
 import { ConfigVariable } from "@/config/variable"
-import { Npm } from "@opencode-ai/core/npm"
-import type { DeepMutable } from "@opencode-ai/core/schema"
-import type { TuiAttentionSoundName } from "@opencode-ai/plugin/tui"
+import { Npm } from "@croakcode/core/npm"
+import type { DeepMutable } from "@croakcode/core/schema"
+import type { TuiAttentionSoundName } from "@croakcode/plugin/tui"
 import { FormatError, FormatUnknownError } from "@/cli/error"
 
 const log = Log.create({ service: "tui.config" })
@@ -286,7 +286,7 @@ export const layer = Layer.effect(
           .install(dir, {
             add: [
               {
-                name: "@opencode-ai/plugin",
+                name: "@croakcode/plugin",
                 version: InstallationLocal ? undefined : InstallationVersion,
               },
             ],
