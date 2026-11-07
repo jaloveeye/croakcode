@@ -1,0 +1,3 @@
+{ "name": "@croakcode/control", "version": "0.0.0", "private": true,
+  "type": "module", "exports": { ".": "./src/index.mjs" },
+  "dependencies": { "@croakcode/contracts": "workspace:*" } }
