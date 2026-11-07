@@ -13,7 +13,7 @@ const enabledByExperimental = (name: string) =>
     Config.map((flags) => Option.getOrElse(flags.enabled, () => flags.experimental)),
   )
 
-export class Service extends ConfigService.Service<Service>()("@opencode/RuntimeFlags", {
+export class Service extends ConfigService.Service<Service>()("@croakcode/RuntimeFlags", {
   autoShare: bool("CROAKCODE_AUTO_SHARE"),
   pure: bool("CROAKCODE_PURE"),
   disableDefaultPlugins: bool("CROAKCODE_DISABLE_DEFAULT_PLUGINS"),
