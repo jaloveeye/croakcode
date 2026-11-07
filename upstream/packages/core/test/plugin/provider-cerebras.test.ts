@@ -33,7 +33,7 @@ describe("CerebrasPlugin", () => {
       })
       expect((yield* catalog.provider.get(ProviderV2.ID.make("cerebras"))).options.headers).toEqual({
         Existing: "1",
-        "X-Cerebras-3rd-Party-Integration": "opencode",
+        "X-Cerebras-3rd-Party-Integration": "croakcode",
       })
     }),
   )

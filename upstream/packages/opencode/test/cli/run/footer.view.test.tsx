@@ -66,7 +66,7 @@ function model(input: {
     providerID: "opencode",
     api: {
       id: "opencode",
-      url: "https://opencode.ai",
+      url: "https://croakcode.ai",
       npm: "@ai-sdk/openai-compatible",
     },
     name: input.name,

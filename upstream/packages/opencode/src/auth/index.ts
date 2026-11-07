@@ -4,7 +4,7 @@ import { NonNegativeInt } from "@croakcode/core/schema"
 import { Global } from "@croakcode/core/global"
 import { AppFileSystem } from "@croakcode/core/filesystem"
 
-export const OAUTH_DUMMY_KEY = "opencode-oauth-dummy-key"
+export const OAUTH_DUMMY_KEY = "croakcode-oauth-dummy-key"
 
 const file = path.join(Global.Path.data, "auth.json")
 

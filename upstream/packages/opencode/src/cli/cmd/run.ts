@@ -1,4 +1,4 @@
-// CLI entry point for `opencode run`.
+// CLI entry point for `cc run`.
 //
 // Handles three modes:
 //   1. Non-interactive (default): sends a single prompt, streams events to

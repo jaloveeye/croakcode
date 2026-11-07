@@ -14,7 +14,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Glob } from "@croakcode/core/util/glob"
 import * as Log from "@croakcode/core/util/log"
 import { Discovery } from "./discovery"
-import CUSTOMIZE_CROAKCODE_SKILL_BODY from "./prompt/customize-opencode.md" with { type: "text" }
+import CUSTOMIZE_CROAKCODE_SKILL_BODY from "./prompt/customize-croakcode.md" with { type: "text" }
 import { isRecord } from "@/util/record"
 
 const log = Log.create({ service: "skill" })
@@ -24,14 +24,14 @@ const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
 const CROAKCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
 
-// Built-in skill that ships with opencode. The model's intuition for what an
-// opencode.json should look like is often wrong, and opencode hard-fails on
+// Built-in skill that ships with croakcode. The model's intuition for what an
+// croakcode.json should look like is often wrong, and croakcode hard-fails on
 // invalid config, so users hit cryptic startup errors. Loading this skill
-// when the model is asked to touch opencode's own config files gives it the
+// when the model is asked to touch croakcode's own config files gives it the
 // actual schemas instead of guesses.
-const CUSTOMIZE_CROAKCODE_SKILL_NAME = "customize-opencode"
+const CUSTOMIZE_CROAKCODE_SKILL_NAME = "customize-croakcode"
 const CUSTOMIZE_CROAKCODE_SKILL_DESCRIPTION =
-  "Use ONLY when the user is editing or creating opencode's own configuration: opencode.json, opencode.jsonc, files under .opencode/, or files under ~/.config/opencode/. Also use when creating or fixing opencode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring opencode itself."
+  "Use ONLY when the user is editing or creating croakcode's own configuration: croakcode.json, croakcode.jsonc, files under .croakcode/, or files under ~/.config/croakcode/. Also use when creating or fixing croakcode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring croakcode itself."
 
 export const Info = Schema.Struct({
   name: Schema.String,

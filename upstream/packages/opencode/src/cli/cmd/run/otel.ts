@@ -8,7 +8,7 @@ type AttributeValue = string | number | boolean | undefined
 export type RunSpanAttributes = Record<string, AttributeValue>
 
 const noop = trace.wrapSpanContext(INVALID_SPAN_CONTEXT)
-const tracer = trace.getTracer("opencode.run")
+const tracer = trace.getTracer("croakcode.run")
 const runtime = ManagedRuntime.make(Observability.layer, { memoMap })
 let ready: Promise<void> | undefined
 

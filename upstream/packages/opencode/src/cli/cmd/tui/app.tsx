@@ -110,7 +110,7 @@ const appBindingCommands = [
   "variant.list",
   "provider.connect",
   "console.org.switch",
-  "opencode.status",
+  "croakcode.status",
   "theme.switch",
   "theme.switch_mode",
   "theme.mode.lock",
@@ -770,7 +770,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
           ]
         : []),
       {
-        name: "opencode.status",
+        name: "croakcode.status",
         title: "View status",
         slashName: "status",
         run: () => {
@@ -819,7 +819,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         name: "docs.open",
         title: "Open docs",
         run: () => {
-          open("https://opencode.ai/docs").catch(() => {})
+          open("https://croakcode.ai/docs").catch(() => {})
           dialog.clear()
         },
         category: "System",

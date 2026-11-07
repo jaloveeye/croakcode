@@ -94,9 +94,9 @@ export async function tmpdir<T>(options?: TmpDirOptions<T>) {
   }
   if (options?.config) {
     await Bun.write(
-      path.join(dirpath, "opencode.json"),
+      path.join(dirpath, "croakcode.json"),
       JSON.stringify({
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://croakcode.ai/config.json",
         ...options.config,
       }),
     )
@@ -152,8 +152,8 @@ export function tmpdirScoped(options?: {
       const resolved = typeof options.config === "function" ? options.config() : options.config
       yield* Effect.promise(() =>
         fs.writeFile(
-          path.join(dir, "opencode.json"),
-          JSON.stringify({ $schema: "https://opencode.ai/config.json", ...resolved }),
+          path.join(dir, "croakcode.json"),
+          JSON.stringify({ $schema: "https://croakcode.ai/config.json", ...resolved }),
         ),
       )
     }

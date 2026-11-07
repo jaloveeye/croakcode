@@ -393,7 +393,7 @@ describe("workspace HttpApi", () => {
             "content-type": "application/json",
             "x-opencode-workspace": "internal",
           },
-          body: JSON.stringify({ $schema: "https://opencode.ai/config.json" }),
+          body: JSON.stringify({ $schema: "https://croakcode.ai/config.json" }),
         })
 
         const responseBody = yield* Effect.promise(() => response.text())
@@ -410,7 +410,7 @@ describe("workspace HttpApi", () => {
               "content-type": "application/json",
               "x-target-auth": "secret",
             }),
-            body: JSON.stringify({ $schema: "https://opencode.ai/config.json" }),
+            body: JSON.stringify({ $schema: "https://croakcode.ai/config.json" }),
           },
         ])
         expect(forwarded[0]?.headers).not.toHaveProperty("x-opencode-directory")

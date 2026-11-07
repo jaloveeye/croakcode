@@ -14,7 +14,7 @@ export function resolveResumeArgs<T extends { last?: boolean; session?: string }
 
 export const ResumeCommand = cmd({
   command: "resume [project]",
-  describe: "resume an opencode session",
+  describe: "resume a croakcode session",
   builder: (yargs) =>
     withNetworkOptions(yargs)
       .positional("project", {

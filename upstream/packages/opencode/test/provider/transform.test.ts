@@ -1241,7 +1241,7 @@ describe("ProviderTransform.message - surrogate sanitization", () => {
         content: [
           { type: "text", text: text("assistant text") },
           { type: "reasoning", text: text("assistant reasoning") },
-          { type: "tool-call", toolCallId: "call-1", toolName: "Read", input: { filePath: ".opencode/tool/emoji.ts" } },
+          { type: "tool-call", toolCallId: "call-1", toolName: "Read", input: { filePath: ".croakcode/tool/emoji.ts" } },
           {
             type: "tool-result",
             toolCallId: "call-2",
@@ -1907,7 +1907,7 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
       providerID: "opencode",
       api: {
         id: "opencode-test",
-        url: "https://api.opencode.ai",
+        url: "https://api.croakcode.ai",
         npm: "@ai-sdk/openai-compatible",
       },
     }
@@ -1941,7 +1941,7 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
       providerID: "opencode",
       api: {
         id: "opencode-test",
-        url: "https://api.opencode.ai",
+        url: "https://api.croakcode.ai",
         npm: "@ai-sdk/openai-compatible",
       },
     }
