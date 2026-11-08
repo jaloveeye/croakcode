@@ -9,7 +9,9 @@ process.env.CROAK_PROVIDERS = "litellm-head,other";
 process.env.CROAK_AUTH_URL = "https://gate.example";
 
 const S = await import("../upstream/.croakcode/plugins/lib/croak-auth-session.js");
-const plugin = (await import("../upstream/.croakcode/plugins/croak-auth-server.js")).default;
+const serverModule = await import("../upstream/.croakcode/plugins/croak-auth-server.js");
+const plugin = serverModule.default;
+const { shouldAttachToken } = serverModule;
 
 test("plugin exports id and server", async () => {
   assert.equal(plugin.id, "croak-auth");
@@ -62,4 +64,42 @@ test("direct mode => no Authorization (gate token not needed/forbidden)", async 
   const out = { headers: {} };
   await hooks["chat.headers"]({ model: { providerID: "litellm-head" }, provider: { id: "litellm-head", options: { baseURL: "https://gate.example/v1" } }, connection: { mode: "direct" } }, out);
   assert.equal(out.headers.Authorization, undefined);
+});
+
+// === 로그인 서버 주소는 환경 변수로만 받는다 (소스에 인프라 주소 금지) ===
+test("CROAK_AUTH_URL unset => no Authorization, login refuses with a clear error", async () => {
+  const saved = process.env.CROAK_AUTH_URL;
+  delete process.env.CROAK_AUTH_URL;
+  try {
+    assert.equal(S.authUrl(), undefined);
+    assert.throws(() => S.requireAuthUrl(), (e) => e.code === "not_configured");
+    assert.throws(() => S.loginUrl("c"), (e) => e.code === "not_configured");
+    const hooks = await plugin.server();
+    S.save({ access_token: "a", refresh_token: "r", access_expires_at: new Date(Date.now() + 3600e3).toISOString(), session_expires_at: new Date(Date.now() + 86400e3).toISOString(), user: {}, auth_url: "https://gate.example" });
+    const out = { headers: {} };
+    await hooks["chat.headers"]({ model: { providerID: "litellm-head" }, provider: { id: "litellm-head", options: { baseURL: "https://gate.example/v1" } }, connection: { mode: "gate" } }, out);
+    assert.equal(out.headers.Authorization, undefined);
+  } finally {
+    process.env.CROAK_AUTH_URL = saved;
+  }
+});
+
+test("unparsable gate URL and baseURL never compare equal", () => {
+  const saved = process.env.CROAK_AUTH_URL;
+  process.env.CROAK_AUTH_URL = "not a url";
+  try {
+    assert.equal(
+      shouldAttachToken({ model: { providerID: "litellm-head" }, provider: { id: "litellm-head", options: { baseURL: "also not a url" } }, connection: { mode: "gate" } }),
+      false,
+    );
+  } finally {
+    process.env.CROAK_AUTH_URL = saved;
+  }
+});
+
+test("plugin sources hardcode no login server address", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../upstream/.croakcode/plugins/lib/croak-auth-session.js", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /https?:\/\/\d{1,3}(\.\d{1,3}){3}/, "no literal IP URL in source");
+  assert.doesNotMatch(src, /env\("CROAK_AUTH_URL",/, "CROAK_AUTH_URL must not have a fallback");
 });
