@@ -40,6 +40,42 @@ function asMode(value) {
   return value === "gate" || value === "direct" ? value : undefined;
 }
 
+/** Trusted provenance values the runtime may stamp on a persisted part. */
+export const TRUSTED_ORIGINS = Object.freeze(["gate", "user"]);
+
+/**
+ * Stamp a trusted provenance value on a part's metadata.
+ *
+ * SEC-03: the runtime — not the provider or the model — decides where a part
+ * came from. A pre-existing `metadata.origin` (which a provider could set via
+ * `providerMetadata`) must never win, so this always overwrites it. All other
+ * metadata keys are preserved.
+ *
+ * @param {any} part
+ * @param {"gate"|"user"} origin
+ * @returns {any} the same part with the trusted stamp
+ */
+export function markOrigin(part, origin) {
+  if (!part || typeof part !== "object") return part;
+  if (!TRUSTED_ORIGINS.includes(origin)) {
+    throw new Error(`markOrigin: refusing to stamp untrusted origin ${String(origin)}`);
+  }
+  part.metadata = { ...(part.metadata ?? {}), origin };
+  return part;
+}
+
+/**
+ * True when a part's declared origin is missing or not one of the trusted
+ * values. Such parts cannot be proven safe to replay to a direct provider.
+ *
+ * @param {any} part
+ * @returns {boolean}
+ */
+export function isUntrustedOrigin(part) {
+  const origin = part && typeof part === "object" ? part.metadata?.origin : undefined;
+  return !TRUSTED_ORIGINS.includes(origin);
+}
+
 /**
  * @param {unknown} part
  * @returns {boolean}
@@ -49,24 +85,21 @@ export function isGateOnlyPart(part) {
 }
 
 /**
- * A part is "unlabeled" when it is an assistant part of a non-text kind that
- * carries no metadata at all. Text parts without metadata are ordinary model
- * output, so they are not dropped. Anything with explicit metadata is judged
- * by `isGateOnlyPart`.
+ * An assistant part that must not be replayed to a direct provider:
+ * gate-produced (`origin:"gate"`) or of unprovable provenance (fail-closed).
+ * Explicitly user-trusted parts (`origin:"user"`) are safe.
  *
  * @param {any} part
  * @returns {boolean}
  */
-function isUnlabeledPart(part) {
-  if (!part || typeof part !== "object") return true;
-  if (part.type === "text") return false;
-  return !part.metadata;
+export function isProtectedAssistantPart(part) {
+  return isGateOnlyPart(part) || isUntrustedOrigin(part);
 }
 
 /** @param {any} message */
 function isUnsafeAssistantMessage(message) {
   const parts = message?.parts ?? [];
-  return parts.some((p) => isGateOnlyPart(p) || isUnlabeledPart(p));
+  return parts.some(isProtectedAssistantPart);
 }
 
 /**
@@ -77,7 +110,11 @@ function isUnsafeAssistantMessage(message) {
 export function filterMessagesForMode(messages, mode) {
   if (mode === "gate") return messages;
   return messages.filter((msg) => {
-    if (msg?.role === "user") return true;
+    if (msg?.role === "user") {
+      // SEC-03: withhold a synthetic user turn carrying gate-stamped sub-agent
+      // output; genuine user input (untagged / origin:"user") is kept.
+      return !(msg?.parts ?? []).some(isGateOnlyPart);
+    }
     return !isUnsafeAssistantMessage(msg);
   });
 }
@@ -94,7 +131,16 @@ export function filterMessagesForMode(messages, mode) {
 export function filterMessagesForModeParts(messages, mode) {
   if (mode === "gate") return messages;
   return messages.filter((m) => {
-    if (m?.info?.role !== "assistant") return true;
-    return !isUnsafeAssistantMessage(m);
+    const role = m?.info?.role;
+    if (role === "assistant") return !isUnsafeAssistantMessage(m);
+    // SEC-03: user-role turns are normally trusted (genuine user input is never
+    // removed). But a synthetic user message can carry sub-agent output injected
+    // by the runtime, so only an explicitly gate-stamped part is withheld. An
+    // untagged user part stays trusted to avoid over-removing real user input.
+    if (role === "user") {
+      const parts = m?.parts ?? [];
+      return !parts.some(isGateOnlyPart);
+    }
+    return true;
   });
 }

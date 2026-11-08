@@ -13,4 +13,4 @@ export function connectionFor(config: { connection?: { mode?: unknown } } | unde
 
 // Re-exported so the request path imports the exact same implementation the
 // plugin-side tests exercise (single source of truth, no copy).
-export { filterMessagesForModeParts }
+export { filterMessagesForModeParts, markOrigin }

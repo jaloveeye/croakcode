@@ -629,7 +629,9 @@ function hydrate(rows: (typeof MessageTable.$inferSelect)[]) {
 
 function providerMeta(metadata: Record<string, any> | undefined) {
   if (!metadata) return undefined
-  const { providerExecuted: _, ...rest } = metadata
+  // SEC-03: `origin` is runtime provenance, not provider metadata. It must never
+  // be forwarded to the provider in the request body.
+  const { providerExecuted: _, origin: __, ...rest } = metadata
   return Object.keys(rest).length > 0 ? rest : undefined
 }
 

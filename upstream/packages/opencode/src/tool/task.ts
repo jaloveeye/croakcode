@@ -9,6 +9,7 @@ import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
+import { connectionFor } from "@/session/llm/mode"
 import { Cause, Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -249,6 +250,10 @@ export const TaskTool = Tool.define(
         text: string,
       ) {
         const currentParent = yield* sessions.get(ctx.sessionID)
+        // SEC-03: the injected sub-agent result is model/tool output. Stamp it
+        // with the runtime-decided provenance of the receiving turn so a later
+        // direct-mode request cannot replay gate context as trusted user input.
+        const origin: "gate" | "user" = connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user"
         yield* ops
           .prompt({
             sessionID: ctx.sessionID,
@@ -257,6 +262,7 @@ export const TaskTool = Tool.define(
               {
                 type: "text",
                 synthetic: true,
+                metadata: { origin },
                 text: backgroundMessage({
                   sessionID: nextSession.id,
                   description: params.description,
