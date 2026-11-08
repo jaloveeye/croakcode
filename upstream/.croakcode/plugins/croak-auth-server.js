@@ -35,7 +35,10 @@ export function shouldAttachToken(input) {
   if (mode !== "gate") return false; // direct면 금지, 미상이면 fail-closed
   const base = input?.provider?.options?.baseURL ?? input?.provider?.info?.options?.baseURL;
   if (!base) return false;
-  return originOf(base) === originOf(authUrl());
+  // Both origins must parse: two unparsable values compare equal as undefined.
+  const gate = originOf(authUrl());
+  const target = originOf(base);
+  return gate !== undefined && target !== undefined && target === gate;
 }
 
 export const server = async () => ({

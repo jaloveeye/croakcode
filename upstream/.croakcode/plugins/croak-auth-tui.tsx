@@ -104,7 +104,14 @@ const tui = async (api: any) => {
 
   function login() {
     const { verifier, challenge } = S.pkce()
-    const url = S.loginUrl(challenge)
+    let url: string
+    try {
+      url = S.loginUrl(challenge)
+    } catch (error: any) {
+      // CROAK_AUTH_URL is not configured; there is no built-in server address.
+      toast("error", "로그인할 수 없습니다", error?.message ?? String(error))
+      return
+    }
     const opened = openBrowser(url)
     const [busy, setBusy] = createSignal(false)
     const DialogPrompt = api.ui.DialogPrompt

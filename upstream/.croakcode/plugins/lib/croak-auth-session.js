@@ -14,7 +14,22 @@ const env = (name, fallback) => process.env[name] || fallback
 export const configDir = () => env("CROAK_CONFIG_DIR", path.join(homedir(), ".config", "croak"))
 export const sessionFile = () => path.join(configDir(), "session.json")
 export const caFile = () => env("CROAK_CA_FILE", path.join(configDir(), "ca", "ca.crt"))
-export const authUrl = () => env("CROAK_AUTH_URL", "https://CROAK_AUTH_HOST_REDACTED:8443").replace(/\/+$/, "")
+/**
+ * The croak-gate login server URL. There is no built-in default: an
+ * infrastructure address must not ship in source, so it comes only from
+ * CROAK_AUTH_URL. Returns undefined when it is not configured.
+ */
+export const authUrl = () => {
+  const value = (process.env.CROAK_AUTH_URL ?? "").trim().replace(/\/+$/, "")
+  return value || undefined
+}
+
+/** Like authUrl(), but throws a user-facing AuthError when it is not configured. */
+export function requireAuthUrl() {
+  const url = authUrl()
+  if (!url) throw new AuthError(0, "not_configured", "로그인 서버 주소가 없습니다. CROAK_AUTH_URL 환경 변수를 설정하세요.")
+  return url
+}
 
 /** Refresh this long before the access token expires. */
 export const REFRESH_EARLY_MS = 10 * 60 * 1000
@@ -28,7 +43,7 @@ export function pkce() {
   return { verifier, challenge }
 }
 
-export const loginUrl = (challenge) => `${authUrl()}/auth/login?challenge=${encodeURIComponent(challenge)}`
+export const loginUrl = (challenge) => `${requireAuthUrl()}/auth/login?challenge=${encodeURIComponent(challenge)}`
 
 // --- file ------------------------------------------------------------------
 
@@ -96,9 +111,10 @@ async function call(method, route, { body, token } = {}) {
   const headers = { accept: "application/json" }
   if (body !== undefined) headers["content-type"] = "application/json"
   if (token) headers.authorization = `Bearer ${token}`
+  const base = requireAuthUrl()
   let res
   try {
-    res = await fetch(`${authUrl()}${route}`, {
+    res = await fetch(`${base}${route}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -106,7 +122,7 @@ async function call(method, route, { body, token } = {}) {
       ...tlsOptions(),
     })
   } catch (error) {
-    throw new AuthError(0, "unreachable", `로그인 서버에 연결하지 못했습니다 (${authUrl()}): ${error?.message ?? error}`)
+    throw new AuthError(0, "unreachable", `로그인 서버에 연결하지 못했습니다 (${base}): ${error?.message ?? error}`)
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new AuthError(res.status, data.error ?? "error", data.message ?? `HTTP ${res.status}`)
