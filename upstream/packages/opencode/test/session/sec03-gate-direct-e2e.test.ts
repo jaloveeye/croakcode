@@ -9,7 +9,7 @@
 import { NodeFileSystem } from "@effect/platform-node"
 import { FetchHttpClient } from "effect/unstable/http"
 import { afterEach, expect } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Fiber, Layer } from "effect"
 import path from "path"
 import { Agent as AgentSvc } from "../../src/agent/agent"
 import { BackgroundJob } from "@/background/job"
@@ -50,8 +50,9 @@ import { Format } from "../../src/format"
 import { Reference } from "../../src/reference/reference"
 import { RepositoryCache } from "../../src/reference/repository-cache"
 import { TestInstance } from "../fixture/fixture"
-import { testEffect } from "../lib/effect"
-import { TestLLMServer } from "../lib/llm-server"
+import { pollWithTimeout, testEffect } from "../lib/effect"
+import { reply, TestLLMServer } from "../lib/llm-server"
+import { MessageV2 } from "../../src/session/message-v2"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -156,7 +157,7 @@ function makePrompt() {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
-  const flags = RuntimeFlags.layer({ experimentalEventSystem: true })
+  const flags = RuntimeFlags.layer({ experimentalEventSystem: true, experimentalBackgroundSubagents: true })
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
@@ -350,5 +351,143 @@ it.instance("direct request after a gate compaction omits the gate summary", () 
     const sent = bodies(yield* llm.inputs)
     expect(sent.at(-1)).not.toContain("GATE_SUMMARY_SECRET")
     expect(sent.at(-1)).not.toContain("GATE_SECRET_ALPHA")
+  }),
+)
+
+// --- Sub-agent results through the full loop -------------------------------
+//
+// The parent and the sub-agent share one provider, and a background child runs
+// concurrently with the parent, so replies are routed by request content, not
+// by queue order. A child reply can be held open while the test changes the
+// mode, which is exactly when an operator switch would land.
+
+const bodyOf = (hit: { body: Record<string, unknown> }) => JSON.stringify(hit.body)
+const isParent = (hit: { body: Record<string, unknown> }) => bodyOf(hit).includes("PARENT_Q")
+const isChild = (hit: { body: Record<string, unknown> }) =>
+  bodyOf(hit).includes("CHILD_TASK_PROMPT") && !isParent(hit)
+
+function gate() {
+  let open!: () => void
+  const promise = new Promise<void>((resolve) => (open = resolve))
+  return { promise, open }
+}
+
+const childHits = Effect.fn("sec03.childHits")(function* () {
+  const llm = yield* TestLLMServer
+  return (yield* llm.hits).filter(isChild).length
+})
+
+const waitChildHits = (count: number) =>
+  pollWithTimeout(
+    Effect.gen(function* () {
+      return (yield* childHits()) >= count ? (true as const) : undefined
+    }),
+    `sub-agent never sent request ${count}`,
+  )
+
+const taskPart = Effect.fn("sec03.taskPart")(function* (sessionID: Session.Info["id"]) {
+  const msgs = yield* MessageV2.filterCompactedEffect(sessionID)
+  for (const msg of msgs)
+    for (const part of msg.parts) if (part.type === "tool" && part.tool === "task") return part
+})
+
+// The background result is delivered as a synthetic user message, which starts
+// another parent turn. Wait until that turn has finished.
+const waitInjectedTurn = (sessionID: Session.Info["id"]) =>
+  pollWithTimeout(
+    Effect.gen(function* () {
+      const msgs = yield* MessageV2.filterCompactedEffect(sessionID)
+      const idx = msgs.findIndex(
+        (m) => m.info.role === "user" && m.parts.some((p) => p.type === "text" && p.text.includes("<task id=")),
+      )
+      if (idx === -1) return undefined
+      const after = msgs.slice(idx + 1).find((m) => m.info.role === "assistant")
+      if (after?.info.role === "assistant" && after.info.time.completed) return msgs[idx]
+      return undefined
+    }),
+    "background result was never injected into the parent",
+  )
+
+const injectedOrigin = (msg: MessageV2.WithParts) =>
+  msg.parts.find((p) => p.type === "text" && p.text.includes("<task id="))?.metadata?.origin
+
+const backgroundTask = { description: "inspect bug", prompt: "CHILD_TASK_PROMPT", subagent_type: "general", background: true }
+
+it.instance("background result launched under gate never reaches direct after a switch", () =>
+  Effect.gen(function* () {
+    const { llm, prompt, session, turn } = yield* setup()
+    const release = gate()
+
+    mode.current = "gate"
+    yield* llm.toolMatch(isParent, "task", backgroundTask)
+    yield* llm.pushMatch(isChild, reply().text("GATE_CHILD_SECRET").wait(release.promise).stop().item())
+    yield* prompt.prompt({ sessionID: session.id, agent: "build", noReply: true, parts: [{ type: "text", text: "PARENT_Q one" }] })
+    yield* prompt.loop({ sessionID: session.id })
+
+    // The sub-agent is mid-answer when the operator switches to direct.
+    yield* waitChildHits(1)
+    mode.current = "direct"
+    release.open()
+
+    const injected = yield* waitInjectedTurn(session.id)
+    expect(injectedOrigin(injected)).toBe("gate")
+    yield* turn("PARENT_Q two", "DIRECT_ANSWER_TWO")
+
+    const parent = (yield* llm.hits).filter(isParent).map(bodyOf)
+    expect(parent.some((body) => body.includes("PARENT_Q two"))).toBe(true)
+    for (const body of parent) expect(body).not.toContain("GATE_CHILD_SECRET")
+  }),
+)
+
+it.instance("background result from a pure direct run is replayed to direct", () =>
+  Effect.gen(function* () {
+    const { llm, prompt, session, turn } = yield* setup()
+
+    mode.current = "direct"
+    yield* llm.toolMatch(isParent, "task", backgroundTask)
+    yield* llm.textMatch(isChild, "DIRECT_CHILD_RESULT")
+    yield* prompt.prompt({ sessionID: session.id, agent: "build", noReply: true, parts: [{ type: "text", text: "PARENT_Q one" }] })
+    yield* prompt.loop({ sessionID: session.id })
+
+    const injected = yield* waitInjectedTurn(session.id)
+    expect(injectedOrigin(injected)).toBe("user")
+    yield* turn("PARENT_Q two", "DIRECT_ANSWER_TWO")
+
+    const last = (yield* llm.hits).filter(isParent).map(bodyOf).at(-1)!
+    expect(last).toContain("PARENT_Q two")
+    expect(last).toContain("DIRECT_CHILD_RESULT")
+  }),
+)
+
+it.instance("foreground result is withheld from direct when the child ran a gate step", () =>
+  Effect.gen(function* () {
+    const { llm, prompt, session } = yield* setup()
+    const stepOne = gate()
+    const stepTwo = gate()
+
+    mode.current = "direct"
+    yield* llm.toolMatch(isParent, "task", { ...backgroundTask, background: false })
+    // Child step 1 calls a harmless tool; the mode flips to gate before step 2,
+    // so step 2 is a gate turn. It flips back to direct before the result returns.
+    yield* llm.pushMatch(isChild, reply().tool("glob", { pattern: "**/*.sec03-none" }).wait(stepOne.promise).item())
+    yield* llm.pushMatch(isChild, reply().text("GATE_CHILD_SECRET").wait(stepTwo.promise).stop().item())
+    yield* prompt.prompt({ sessionID: session.id, agent: "build", noReply: true, parts: [{ type: "text", text: "PARENT_Q one" }] })
+    const fiber = yield* prompt.loop({ sessionID: session.id }).pipe(Effect.forkChild)
+
+    yield* waitChildHits(1)
+    mode.current = "gate"
+    stepOne.open()
+    yield* waitChildHits(2)
+    mode.current = "direct"
+    stepTwo.open()
+    yield* Fiber.join(fiber)
+
+    const part = yield* taskPart(session.id)
+    expect(part?.state.status).toBe("completed")
+    expect(part?.metadata?.origin).toBe("gate")
+
+    const parent = (yield* llm.hits).filter(isParent).map(bodyOf)
+    expect(parent.length).toBeGreaterThanOrEqual(2)
+    for (const body of parent) expect(body).not.toContain("GATE_CHILD_SECRET")
   }),
 )
