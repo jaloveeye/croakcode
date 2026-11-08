@@ -30,6 +30,9 @@ type PrepareInput = {
   readonly plugin: Plugin.Interface
   readonly flags: RuntimeFlags.Info
   readonly isWorkflow: boolean
+  // Effective connection mode (spec §5.3). Undefined means unresolvable;
+  // plugins that need gate (e.g. croak-auth) must treat that as fail-closed.
+  readonly connection?: { readonly mode: "gate" | "direct" }
 }
 
 export type Prepared = {
@@ -129,6 +132,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
       model: input.model,
       provider: input.provider,
       message: input.user,
+      connection: input.connection,
     },
     {
       headers: {},

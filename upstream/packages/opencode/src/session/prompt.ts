@@ -35,6 +35,7 @@ import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { Todo } from "./todo"
 import { LLM } from "./llm"
+import { connectionFor, filterMessagesForModeParts } from "./llm/mode"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "@/tool/shell/id"
 import { AppFileSystem } from "@croakcode/core/filesystem"
@@ -1448,13 +1449,19 @@ export const layer = Layer.effect(
               }
             }
 
-            yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+            // Direct mode must not replay assistant history produced under the
+            // gate (and drops assistant parts with unknown provenance). The filter
+            // is applied before the transform hook and model conversion so plugins
+            // and the provider never see the withheld context.
+            const connection = connectionFor(yield* config.get())
+            const msgsForModel: MessageV2.WithParts[] = filterMessagesForModeParts(msgs, connection.mode)
+            yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgsForModel })
 
             const [skills, env, instructions, modelMsgs] = yield* Effect.all([
               sys.skills(agent),
               sys.environment(model),
               instruction.system().pipe(Effect.orDie),
-              MessageV2.toModelMessagesEffect(msgs, model),
+              MessageV2.toModelMessagesEffect(msgsForModel, model),
             ])
             const system = [...env, ...instructions, ...(skills ? [skills] : [])]
             const format = lastUser.format ?? { type: "text" as const }
@@ -1470,6 +1477,7 @@ export const layer = Layer.effect(
               tools,
               model,
               toolChoice: format.type === "json_schema" ? "required" : undefined,
+              connection,
             }, { idleTimeoutMs: Flag.CROAKCODE_STREAM_IDLE_TIMEOUT_MS })
 
             if (structured !== undefined) {

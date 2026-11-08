@@ -243,6 +243,16 @@ export const Info = Schema.Struct({
   }),
   layout: Schema.optional(ConfigLayout.Layout).annotate({ description: "@deprecated Always uses stretch layout." }),
   permission: Schema.optional(ConfigPermission.Info),
+  // Connection mode for model requests (spec §5.3). `gate` keeps gate-only
+  // credentials and gate-origin context; `direct` talks to the provider without
+  // them and drops gate-origin assistant history from the request.
+  connection: Schema.optional(
+    Schema.Struct({
+      mode: Schema.optional(Schema.Literals(["gate", "direct"])).annotate({
+        description: "Effective connection mode when neither the agent nor the session overrides it (default: gate)",
+      }),
+    }),
+  ),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)),
   attachment: Schema.optional(ConfigAttachment.Info).annotate({
     description: "Attachment processing configuration, including image size limits and resizing behavior",
