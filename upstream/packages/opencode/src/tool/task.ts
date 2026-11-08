@@ -187,14 +187,19 @@ export const TaskTool = Tool.define(
               permission: item,
             })) ?? []),
           ],
+          // SC-01: persist the immutable ceiling atomically at creation so the
+          // child never exists without it (fail-closed relies on this).
+          inheritedPermission,
         }))
 
-      // SC-01: register the immutable inherited ceiling for this child so that
-      // later writes to `session.permission` (public Update API) or `prompt()`
-      // tools rebuilds (public prompt API) cannot relax it. Done for both the
-      // freshly created child and a resumed one (the ceiling is recomputed from
-      // the live parent each run).
-      yield* sessions.setInheritedPermission({ sessionID: nextSession.id, permission: inheritedPermission })
+      // SC-01: (re)register the immutable inherited ceiling for a resumed child
+      // so that later writes to `session.permission` (public Update API) or
+      // `prompt()` tools rebuilds (public prompt API) cannot relax it. The
+      // ceiling is recomputed from the live parent each run and persisted to
+      // the dedicated column (survives restarts and is shared across processes).
+      if (session) {
+        yield* sessions.setInheritedPermission({ sessionID: nextSession.id, permission: inheritedPermission })
+      }
 
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
