@@ -1,4 +1,8 @@
-import { resolveConnectionMode, filterMessagesForModeParts } from "../../../../../.croakcode/plugins/lib/connection.js"
+import {
+  resolveConnectionMode,
+  filterMessagesForModeParts,
+  markOrigin,
+} from "../../../../../.croakcode/plugins/lib/connection.js"
 
 export type ConnectionMode = "gate" | "direct"
 
