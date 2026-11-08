@@ -1,0 +1,240 @@
+TAP version 13
+# Subtest: contracts exports hooks descriptor
+ok 1 - contracts exports hooks descriptor
+  ---
+  duration_ms: 2.539693
+  ...
+# Subtest: Delta kinds separate tool_call phases
+ok 2 - Delta kinds separate tool_call phases
+  ---
+  duration_ms: 0.284529
+  ...
+# Subtest: ToolSpec requires side-effect and reexecution flags
+ok 3 - ToolSpec requires side-effect and reexecution flags
+  ---
+  duration_ms: 0.221597
+  ...
+# Subtest: server auth stub exposes interface descriptor but no enforcement
+ok 4 - server auth stub exposes interface descriptor but no enforcement
+  ---
+  duration_ms: 0.217872
+  ...
+# Subtest: TUI surface contract promotes patch 0006/0007
+ok 5 - TUI surface contract promotes patch 0006/0007
+  ---
+  duration_ms: 0.209599
+  ...
+# Subtest: phase 1 hook stubs are declared no-op
+ok 6 - phase 1 hook stubs are declared no-op
+  ---
+  duration_ms: 0.604482
+  ...
+# Subtest: 1. plugin deny short-circuits before policy/permission
+ok 7 - 1. plugin deny short-circuits before policy/permission
+  ---
+  duration_ms: 2.955431
+  ...
+# Subtest: 2. policy deny beats permission allow
+ok 8 - 2. policy deny beats permission allow
+  ---
+  duration_ms: 0.217445
+  ...
+# Subtest: 3. plugin ask + policy deny => deny wins, never asks
+ok 9 - 3. plugin ask + policy deny => deny wins, never asks
+  ---
+  duration_ms: 0.249243
+  ...
+# Subtest: 4. policy checked before permission ask
+ok 10 - 4. policy checked before permission ask
+  ---
+  duration_ms: 0.171624
+  ...
+# Subtest: 5. plugin ask with all denies cleared surfaces at permission stage for approval
+ok 11 - 5. plugin ask with all denies cleared surfaces at permission stage for approval
+  ---
+  duration_ms: 0.182177
+  ...
+# Subtest: 6. all allow (gate, policy allow) executes
+ok 12 - 6. all allow (gate, policy allow) executes
+  ---
+  duration_ms: 0.169222
+  ...
+# Subtest: 7. missing mode (undefined) => validate INVALID_INPUT
+ok 13 - 7. missing mode (undefined) => validate INVALID_INPUT
+  ---
+  duration_ms: 0.162977
+  ...
+# Subtest: 8. invalid mode ('proxy') => validate INVALID_INPUT
+ok 14 - 8. invalid mode ('proxy') => validate INVALID_INPUT
+  ---
+  duration_ms: 0.154309
+  ...
+# Subtest: 9. plugin undefined => validate INVALID_DECISION naming plugin
+ok 15 - 9. plugin undefined => validate INVALID_DECISION naming plugin
+  ---
+  duration_ms: 1.38928
+  ...
+# Subtest: 10. permission undefined => validate INVALID_DECISION
+ok 16 - 10. permission undefined => validate INVALID_DECISION
+  ---
+  duration_ms: 1.378519
+  ...
+# Subtest: 11. policy undefined (mode gate) => validate INVALID_DECISION
+ok 17 - 11. policy undefined (mode gate) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.953138
+  ...
+# Subtest: 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+ok 18 - 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.181017
+  ...
+# Subtest: 13. policy 'ask' => validate INVALID_DECISION
+ok 19 - 13. policy 'ask' => validate INVALID_DECISION
+  ---
+  duration_ms: 0.157372
+  ...
+# Subtest: 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+ok 20 - 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+  ---
+  duration_ms: 0.180742
+  ...
+# Subtest: 15. direct + policy 'not_applicable' + others allow => executes
+ok 21 - 15. direct + policy 'not_applicable' + others allow => executes
+  ---
+  duration_ms: 0.157857
+  ...
+# Subtest: 16. direct + policy 'deny' => POLICY_DENIED
+ok 22 - 16. direct + policy 'deny' => POLICY_DENIED
+  ---
+  duration_ms: 0.315399
+  ...
+# Subtest: 17. direct + policy 'allow' + others allow => executes
+ok 23 - 17. direct + policy 'allow' + others allow => executes
+  ---
+  duration_ms: 0.34049
+  ...
+# Subtest: 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+ok 24 - 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+  ---
+  duration_ms: 0.304941
+  ...
+# Subtest: allow/ask include, deny excludes
+ok 25 - allow/ask include, deny excludes
+  ---
+  duration_ms: 1.748903
+  ...
+# Subtest: unknown decision fails closed to exclude
+ok 26 - unknown decision fails closed to exclude
+  ---
+  duration_ms: 0.19604
+  ...
+# Subtest: harness contract declares decisions, triggers, and event
+ok 27 - harness contract declares decisions, triggers, and event
+  ---
+  duration_ms: 2.10875
+  ...
+# Subtest: runtime-wired triggers are a declared subset of all triggers
+ok 28 - runtime-wired triggers are a declared subset of all triggers
+  ---
+  duration_ms: 0.405627
+  ...
+# Subtest: shouldExposeTool is fail-closed
+ok 29 - shouldExposeTool is fail-closed
+  ---
+  duration_ms: 1.167885
+  ...
+# Subtest: contract inclusion agrees with exposure for allow/ask/deny
+ok 30 - contract inclusion agrees with exposure for allow/ask/deny
+  ---
+  duration_ms: 0.409531
+  ...
+# Subtest: compaction idle guard is always on with a default
+ok 31 - compaction idle guard is always on with a default
+  ---
+  duration_ms: 1.387027
+  ...
+# Subtest: normal stream can be explicitly disabled but defaults on
+ok 32 - normal stream can be explicitly disabled but defaults on
+  ---
+  duration_ms: 0.19349
+  ...
+# Subtest: compaction never auto-retries after idle
+ok 33 - compaction never auto-retries after idle
+  ---
+  duration_ms: 0.172363
+  ...
+# Subtest: stream guard declares phases, defaults, and error code
+ok 34 - stream guard declares phases, defaults, and error code
+  ---
+  duration_ms: 1.799356
+  ...
+# Subtest: evidence:tool completed without linked calls warns
+ok 35 - evidence:tool completed without linked calls warns
+  ---
+  duration_ms: 2.311103
+  ...
+# Subtest: evidence:none completed without linked calls does NOT warn
+ok 36 - evidence:none completed without linked calls does NOT warn
+  ---
+  duration_ms: 0.26421
+  ...
+# Subtest: completed with linked call is consistent
+ok 37 - completed with linked call is consistent
+  ---
+  duration_ms: 0.183049
+  ...
+# Subtest: missing evidence defaults to tool
+ok 38 - missing evidence defaults to tool
+  ---
+  duration_ms: 32.529122
+  ...
+# Subtest: in_progress spanning turns is not a false positive
+ok 39 - in_progress spanning turns is not a false positive
+  ---
+  duration_ms: 4.20803
+  ...
+# Subtest: in_progress entered with no tool calls warns
+ok 40 - in_progress entered with no tool calls warns
+  ---
+  duration_ms: 2.103072
+  ...
+# Subtest: invalid status and malformed input fail detectably
+ok 41 - invalid status and malformed input fail detectably
+  ---
+  duration_ms: 1.639104
+  ...
+# Subtest: todo contract declares statuses, evidence, and upstream event names
+ok 42 - todo contract declares statuses, evidence, and upstream event names
+  ---
+  duration_ms: 0.371184
+  ...
+# Subtest: contract consistency truth table is stable
+ok 43 - contract consistency truth table is stable
+  ---
+  duration_ms: 2.863157
+  ...
+# Subtest: contract labels align with upstream status/evidence/event vocabulary
+ok 44 - contract labels align with upstream status/evidence/event vocabulary
+  ---
+  duration_ms: 0.540062
+  ...
+# Subtest: zen/console provider removal invariants hold
+ok 45 - zen/console provider removal invariants hold
+  ---
+  duration_ms: 1111.210145
+  ...
+# Subtest: baseten enable_thinking branch is preserved
+ok 46 - baseten enable_thinking branch is preserved
+  ---
+  duration_ms: 6.730399
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1516.495484

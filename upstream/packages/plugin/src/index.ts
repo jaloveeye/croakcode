@@ -255,7 +255,17 @@ export interface Hooks {
     },
   ) => Promise<void>
   "chat.headers"?: (
-    input: { sessionID: string; agent: string; model: Model; provider: ProviderContext; message: UserMessage },
+    input: {
+      sessionID: string
+      agent: string
+      model: Model
+      provider: ProviderContext
+      message: UserMessage
+      // Effective connection mode for this request (spec §5.3 precedence).
+      // Plugins that carry a gate-only credential must treat a missing or
+      // unknown mode as NOT gate (fail-closed) and skip attaching it.
+      connection?: { mode: "gate" | "direct" }
+    },
     output: { headers: Record<string, string> },
   ) => Promise<void>
   "permission.ask"?: (input: Permission, output: { status: "ask" | "deny" | "allow" }) => Promise<void>

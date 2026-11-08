@@ -58,6 +58,50 @@ export function isDefaultTitle(title: string) {
 
 type SessionRow = typeof SessionTable.$inferSelect
 
+// SC-01 (Agent Principal): the inherited security ceiling of a delegated child
+// session is the set of restrictions derived from its parent (parent agent edit
+// deny, parent session denies, default todowrite/task denies). It is a HARD
+// CEILING: no public API (session permission update, prompt tools map) may
+// relax it. Storing it only in the mutable `session.permission` column is not
+// enough, because every writer of that column would be able to drop/override
+// it. We therefore persist it in a dedicated `inherited_permission` column,
+// written ONLY by the trusted runtime (task tool via `setInheritedPermission`),
+// and re-apply it on every read (`fromRow`). Because it is persisted in SQLite,
+// the ceiling survives process restarts and is shared across processes.
+function applyInheritedCeiling(
+  parentID: SessionID | undefined,
+  permission: Permission.Ruleset | undefined,
+  ceiling: Permission.Ruleset | undefined,
+) {
+  // FAIL-CLOSED: a delegated child session (`parent_id` set — only the trusted
+  // task tool creates these; `fork` does not set parent_id) MUST have a
+  // recorded inherited ceiling row. `undefined`/`null` means the ceiling was
+  // never recorded (e.g. corrupted DB, or a session inserted outside the
+  // trusted path). We refuse to run such a child with an unbounded ruleset:
+  // append a deny-all ceiling so every tool permission resolves to deny.
+  // An explicitly empty array `[]` means "no additional restrictions" and is
+  // legitimate (e.g. a child whose parent imposed nothing).
+  if (parentID !== undefined && ceiling === undefined) {
+    return [...(permission ?? []), { permission: "*", pattern: "*", action: "deny" as const }]
+  }
+  if (!ceiling || ceiling.length === 0) return permission ? [...permission] : permission
+  const base = permission ? [...permission] : []
+  // Remove any stored rule that the ceiling supersedes (same permission and a
+  // pattern the ceiling covers), then append the ceiling rules LAST. This
+  // guarantees the inherited ceiling is authoritative under
+  // Permission.evaluate's `findLast`, even if a client appended conflicting
+  // rules after it.
+  const survivors = base.filter(
+    (existing) =>
+      !ceiling.some(
+        (rule) =>
+          existing.permission === rule.permission &&
+          (rule.pattern === "*" || existing.pattern === rule.pattern),
+      ),
+  )
+  return [...survivors, ...ceiling.map((rule) => ({ ...rule }))]
+}
+
 export function fromRow(row: SessionRow): Info {
   const summary =
     row.summary_additions !== null || row.summary_deletions !== null || row.summary_files !== null
@@ -101,7 +145,7 @@ export function fromRow(row: SessionRow): Info {
     },
     share,
     revert,
-    permission: row.permission ? [...row.permission] : undefined,
+    permission: applyInheritedCeiling(row.parent_id ?? undefined, row.permission ?? undefined, row.inherited_permission ?? undefined),
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -456,6 +500,8 @@ export interface Interface {
     agent?: string
     model?: Schema.Schema.Type<typeof Model>
     permission?: Permission.Ruleset
+    /** SC-01: trusted-runtime-only immutable inherited ceiling (not in CreateInput). */
+    inheritedPermission?: Permission.Ruleset
     workspaceID?: WorkspaceID
   }) => Effect.Effect<Info>
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info, NotFound>
@@ -464,6 +510,16 @@ export interface Interface {
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
+  /**
+   * SC-01: register the IMMUTABLE inherited security ceiling for a delegated
+   * child session. Only the trusted runtime (task tool) may call this. The
+   * ceiling is re-appended on every read so no permission/tools write can relax
+   * it.
+   */
+  readonly setInheritedPermission: (input: {
+    sessionID: SessionID
+    permission: Permission.Ruleset
+  }) => Effect.Effect<void>
   readonly setRevert: (input: {
     sessionID: SessionID
     revert: Info["revert"]
@@ -530,6 +586,12 @@ export const layer: Layer.Layer<
       directory: string
       path?: string
       permission?: Permission.Ruleset
+      /**
+       * SC-01: immutable inherited security ceiling for a delegated child.
+       * Written to the dedicated `inherited_permission` column (never through
+       * the public Update API). Only the trusted task tool passes this.
+       */
+      inheritedPermission?: Permission.Ruleset
     }) {
       const ctx = yield* InstanceState.context
       const result: Info = {
@@ -555,6 +617,22 @@ export const layer: Layer.Layer<
       log.info("created", result)
 
       yield* sync.run(Event.Created, { sessionID: result.id, info: result })
+
+      // SC-01: persist the immutable inherited ceiling atomically right after
+      // creation (direct column write, never via the public Update path). This
+      // closes the window where a delegated child exists without a ceiling
+      // (fail-closed enforcement treats a parentID child with no recorded
+      // ceiling as untrusted). An explicitly empty array is persisted as `[]`
+      // (not null) so it is distinguishable from "never recorded".
+      if (input.inheritedPermission !== undefined) {
+        yield* db((d) =>
+          d
+            .update(SessionTable)
+            .set({ inherited_permission: input.inheritedPermission!.map((rule) => ({ ...rule })) })
+            .where(eq(SessionTable.id, result.id))
+            .run(),
+        )
+      }
 
       if (!flags.experimentalWorkspaces) {
         // This only exist for backwards compatibility. We should not be
@@ -660,6 +738,12 @@ export const layer: Layer.Layer<
       agent?: string
       model?: Schema.Schema.Type<typeof Model>
       permission?: Permission.Ruleset
+      /**
+       * SC-01: immutable inherited security ceiling. Only the trusted task tool
+       * passes this; it is persisted to a dedicated column and never exposed to
+       * the public Update API.
+       */
+      inheritedPermission?: Permission.Ruleset
       workspaceID?: WorkspaceID
     }) {
       const ctx = yield* InstanceState.context
@@ -672,6 +756,7 @@ export const layer: Layer.Layer<
         agent: input?.agent,
         model: input?.model,
         permission: input?.permission,
+        inheritedPermission: input?.inheritedPermission,
         workspaceID: input?.workspaceID ?? workspace,
       })
     })
@@ -737,6 +822,20 @@ export const layer: Layer.Layer<
       permission: Permission.Ruleset
     }) {
       yield* patch(input.sessionID, { permission: [...input.permission], time: { updated: Date.now() } })
+    })
+
+    const setInheritedPermission = Effect.fn("Session.setInheritedPermission")(function* (input: {
+      sessionID: SessionID
+      permission: Permission.Ruleset
+    }) {
+      // Persist directly to the dedicated column. This deliberately bypasses the
+      // public `Event.Updated`/Patch path so the ceiling can never be written by
+      // a client through the Update API (it is not part of `UpdatedInfo`). An
+      // explicitly empty array is persisted as `[]` (distinguishable from null).
+      const value = input.permission.map((rule) => ({ ...rule }))
+      yield* db((d) =>
+        d.update(SessionTable).set({ inherited_permission: value }).where(eq(SessionTable.id, input.sessionID)).run(),
+      )
     })
 
     const setRevert = Effect.fn("Session.setRevert")(function* (input: {
@@ -845,6 +944,7 @@ export const layer: Layer.Layer<
       setTitle,
       setArchived,
       setPermission,
+      setInheritedPermission,
       setRevert,
       clearRevert,
       setSummary,

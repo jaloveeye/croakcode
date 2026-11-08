@@ -1,0 +1,735 @@
+TAP version 13
+# Subtest: valid signature verifies
+ok 1 - valid signature verifies
+  ---
+  duration_ms: 9.427279
+  ...
+# Subtest: tampered body with stale signature fails
+ok 2 - tampered body with stale signature fails
+  ---
+  duration_ms: 0.444707
+  ...
+# Subtest: tampered body WITH recomputed HMAC using wrong key fails
+ok 3 - tampered body WITH recomputed HMAC using wrong key fails
+  ---
+  duration_ms: 0.546387
+  ...
+# Subtest: malformed policy fails even with valid signature
+ok 4 - malformed policy fails even with valid signature
+  ---
+  duration_ms: 0.733076
+  ...
+# Subtest: .croakcode/plugins exists (config loader scans .croakcode only)
+ok 5 - .croakcode/plugins exists (config loader scans .croakcode only)
+  ---
+  duration_ms: 12.031318
+  ...
+# Subtest: mode precedence: agentForce > session > global > default gate
+ok 6 - mode precedence: agentForce > session > global > default gate
+  ---
+  duration_ms: 1.653625
+  ...
+# Subtest: invalid/unknown mode values fall back to gate (fail-closed)
+ok 7 - invalid/unknown mode values fall back to gate (fail-closed)
+  ---
+  duration_ms: 0.32431
+  ...
+# Subtest: gate-only part detection uses metadata.origin, not string guessing
+ok 8 - gate-only part detection uses metadata.origin, not string guessing
+  ---
+  duration_ms: 0.268323
+  ...
+# Subtest: direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+ok 9 - direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+  ---
+  duration_ms: 2.804616
+  ...
+# Subtest: user message that mentions secrets is kept in direct mode
+ok 10 - user message that mentions secrets is kept in direct mode
+  ---
+  duration_ms: 4.198737
+  ...
+# Subtest: filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+ok 11 - filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+  ---
+  duration_ms: 0.360563
+  ...
+# Subtest: unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+ok 12 - unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+  ---
+  duration_ms: 0.306568
+  ...
+# Subtest: filterMessagesForModeParts treats a message with zero parts as safe
+ok 13 - filterMessagesForModeParts treats a message with zero parts as safe
+  ---
+  duration_ms: 0.177653
+  ...
+# Subtest: contracts exports hooks descriptor
+ok 14 - contracts exports hooks descriptor
+  ---
+  duration_ms: 3.673828
+  ...
+# Subtest: Delta kinds separate tool_call phases
+ok 15 - Delta kinds separate tool_call phases
+  ---
+  duration_ms: 0.314911
+  ...
+# Subtest: ToolSpec requires side-effect and reexecution flags
+ok 16 - ToolSpec requires side-effect and reexecution flags
+  ---
+  duration_ms: 0.222314
+  ...
+# Subtest: server auth stub exposes interface descriptor but no enforcement
+ok 17 - server auth stub exposes interface descriptor but no enforcement
+  ---
+  duration_ms: 0.243835
+  ...
+# Subtest: TUI surface contract promotes patch 0006/0007
+ok 18 - TUI surface contract promotes patch 0006/0007
+  ---
+  duration_ms: 0.263117
+  ...
+# Subtest: phase 1 hook stubs are declared no-op
+ok 19 - phase 1 hook stubs are declared no-op
+  ---
+  duration_ms: 0.18688
+  ...
+# Subtest: plugin exports id and server
+ok 20 - plugin exports id and server
+  ---
+  duration_ms: 1.489687
+  ...
+# Subtest: not logged in => no Authorization
+ok 21 - not logged in => no Authorization
+  ---
+  duration_ms: 0.473274
+  ...
+# Subtest: logged in + configured provider + gate-origin baseURL + gate mode => Authorization set
+ok 22 - logged in + configured provider + gate-origin baseURL + gate mode => Authorization set
+  ---
+  duration_ms: 12.444
+  ...
+# Subtest: unconfigured provider => no Authorization even with token
+ok 23 - unconfigured provider => no Authorization even with token
+  ---
+  duration_ms: 1.442104
+  ...
+# Subtest: provider baseURL origin != gate URL origin => no Authorization (token never leaks)
+ok 24 - provider baseURL origin != gate URL origin => no Authorization (token never leaks)
+  ---
+  duration_ms: 1.472739
+  ...
+# Subtest: direct mode => no Authorization (gate token not needed/forbidden)
+ok 25 - direct mode => no Authorization (gate token not needed/forbidden)
+  ---
+  duration_ms: 2.043108
+  ...
+# Subtest: pkce is RFC 7636 S256
+ok 26 - pkce is RFC 7636 S256
+  ---
+  duration_ms: 38.808189
+  ...
+# Subtest: a wrong code is rejected and nothing is stored
+ok 27 - a wrong code is rejected and nothing is stored
+  ---
+  duration_ms: 140.807698
+  ...
+# Subtest: exchange stores the session with mode 600
+ok 28 - exchange stores the session with mode 600
+  ---
+  duration_ms: 8.522984
+  ...
+# Subtest: refreshes shortly before expiry, once for concurrent callers
+ok 29 - refreshes shortly before expiry, once for concurrent callers
+  ---
+  duration_ms: 311.921275
+  ...
+# Subtest: keeps the token while the server is unreachable
+ok 30 - keeps the token while the server is unreachable
+  ---
+  duration_ms: 3.014933
+  ...
+# Subtest: a 401 on refresh ends the local session
+ok 31 - a 401 on refresh ends the local session
+  ---
+  duration_ms: 6.895294
+  ...
+# Subtest: the weekly session end clears the file without a call
+ok 32 - the weekly session end clears the file without a call
+  ---
+  duration_ms: 6.961947
+  ...
+# Subtest: whoami sends the access token
+ok 33 - whoami sends the access token
+  ---
+  duration_ms: 8.01675
+  ...
+# Subtest: logout tells the server and removes the file
+ok 34 - logout tells the server and removes the file
+  ---
+  duration_ms: 7.734679
+  ...
+# Subtest: tui.json registers the croak-auth TUI plugin by relative path
+ok 35 - tui.json registers the croak-auth TUI plugin by relative path
+  ---
+  duration_ms: 4.254446
+  ...
+# Subtest: croak-auth TUI sources import ported libs, not the original .mjs paths
+ok 36 - croak-auth TUI sources import ported libs, not the original .mjs paths
+  ---
+  duration_ms: 1.306113
+  ...
+# Subtest: dev-safe agent restricts bash/web/task
+ok 37 - dev-safe agent restricts bash/web/task
+  ---
+  duration_ms: 7.496682
+  ...
+# Subtest: net-off/net-on/tool-status commands exist with descriptions
+ok 38 - net-off/net-on/tool-status commands exist with descriptions
+  ---
+  duration_ms: 5.580223
+  ...
+# Subtest: identityHeaders carries agent and session
+ok 39 - identityHeaders carries agent and session
+  ---
+  duration_ms: 67.508092
+  ...
+# Subtest: chat.headers hook adds the headers without dropping others
+ok 40 - chat.headers hook adds the headers without dropping others
+  ---
+  duration_ms: 0.44287
+  ...
+# Subtest: resolveDocPath handles Windows, relative and absolute paths
+ok 41 - resolveDocPath handles Windows, relative and absolute paths
+  ---
+  duration_ms: 2.087394
+  ...
+# Subtest: parsePages accepts summary, one page and ranges
+ok 42 - parsePages accepts summary, one page and ranges
+  ---
+  duration_ms: 1.31618
+  ...
+# Subtest: parsePages rejects bad input and too many pages
+ok 43 - parsePages rejects bad input and too many pages
+  ---
+  duration_ms: 1.215279
+  ...
+# Subtest: stripImages keeps alt text only
+ok 44 - stripImages keeps alt text only
+  ---
+  duration_ms: 5.709136
+  ...
+# Subtest: sortPageFiles orders by page number, not by name
+ok 45 - sortPageFiles orders by page number, not by name
+  ---
+  duration_ms: 0.495913
+  ...
+# Subtest: classifyCli separates read, write and blocked commands
+ok 46 - classifyCli separates read, write and blocked commands
+  ---
+  duration_ms: 0.425013
+  ...
+# Subtest: convertArgs maps only Windows drive paths
+ok 47 - convertArgs maps only Windows drive paths
+  ---
+  duration_ms: 0.510862
+  ...
+# Subtest: hwpCli asks before writing and never runs blocked commands
+ok 48 - hwpCli asks before writing and never runs blocked commands
+  ---
+  duration_ms: 42.742369
+  ...
+# Subtest: exports id and all expected hooks
+ok 49 - exports id and all expected hooks
+  ---
+  duration_ms: 35.122761
+  ...
+# Subtest: identical read 4th time throws
+ok 50 - identical read 4th time throws
+  ---
+  duration_ms: 1.915836
+  ...
+# Subtest: qwen params adjusted for litellm-head
+ok 51 - qwen params adjusted for litellm-head
+  ---
+  duration_ms: 0.474135
+  ...
+# Subtest: compaction prompt does not disable built-in idle guard
+ok 52 - compaction prompt does not disable built-in idle guard
+  ---
+  duration_ms: 2.470322
+  ...
+# Subtest: 1. plugin deny short-circuits before policy/permission
+ok 53 - 1. plugin deny short-circuits before policy/permission
+  ---
+  duration_ms: 4.125192
+  ...
+# Subtest: 2. policy deny beats permission allow
+ok 54 - 2. policy deny beats permission allow
+  ---
+  duration_ms: 0.236759
+  ...
+# Subtest: 3. plugin ask + policy deny => deny wins, never asks
+ok 55 - 3. plugin ask + policy deny => deny wins, never asks
+  ---
+  duration_ms: 0.284237
+  ...
+# Subtest: 4. policy checked before permission ask
+ok 56 - 4. policy checked before permission ask
+  ---
+  duration_ms: 0.280171
+  ...
+# Subtest: 5. plugin ask with all denies cleared surfaces at permission stage for approval
+ok 57 - 5. plugin ask with all denies cleared surfaces at permission stage for approval
+  ---
+  duration_ms: 0.404885
+  ...
+# Subtest: 6. all allow (gate, policy allow) executes
+ok 58 - 6. all allow (gate, policy allow) executes
+  ---
+  duration_ms: 0.202293
+  ...
+# Subtest: 7. missing mode (undefined) => validate INVALID_INPUT
+ok 59 - 7. missing mode (undefined) => validate INVALID_INPUT
+  ---
+  duration_ms: 0.203494
+  ...
+# Subtest: 8. invalid mode ('proxy') => validate INVALID_INPUT
+ok 60 - 8. invalid mode ('proxy') => validate INVALID_INPUT
+  ---
+  duration_ms: 0.238178
+  ...
+# Subtest: 9. plugin undefined => validate INVALID_DECISION naming plugin
+ok 61 - 9. plugin undefined => validate INVALID_DECISION naming plugin
+  ---
+  duration_ms: 0.634651
+  ...
+# Subtest: 10. permission undefined => validate INVALID_DECISION
+ok 62 - 10. permission undefined => validate INVALID_DECISION
+  ---
+  duration_ms: 0.740194
+  ...
+# Subtest: 11. policy undefined (mode gate) => validate INVALID_DECISION
+ok 63 - 11. policy undefined (mode gate) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.323244
+  ...
+# Subtest: 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+ok 64 - 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.170132
+  ...
+# Subtest: 13. policy 'ask' => validate INVALID_DECISION
+ok 65 - 13. policy 'ask' => validate INVALID_DECISION
+  ---
+  duration_ms: 0.251761
+  ...
+# Subtest: 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+ok 66 - 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+  ---
+  duration_ms: 0.161911
+  ...
+# Subtest: 15. direct + policy 'not_applicable' + others allow => executes
+ok 67 - 15. direct + policy 'not_applicable' + others allow => executes
+  ---
+  duration_ms: 0.146016
+  ...
+# Subtest: 16. direct + policy 'deny' => POLICY_DENIED
+ok 68 - 16. direct + policy 'deny' => POLICY_DENIED
+  ---
+  duration_ms: 0.178069
+  ...
+# Subtest: 17. direct + policy 'allow' + others allow => executes
+ok 69 - 17. direct + policy 'allow' + others allow => executes
+  ---
+  duration_ms: 0.150713
+  ...
+# Subtest: 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+ok 70 - 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+  ---
+  duration_ms: 0.15135
+  ...
+# Subtest: lingering running resolves to unknown (spec §4.5)
+ok 71 - lingering running resolves to unknown (spec §4.5)
+  ---
+  duration_ms: 1.642115
+  ...
+# Subtest: unknown never auto-reexecutes side-effect tools
+ok 72 - unknown never auto-reexecutes side-effect tools
+  ---
+  duration_ms: 0.301841
+  ...
+# Subtest: unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+ok 73 - unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+  ---
+  duration_ms: 0.211767
+  ...
+# Subtest: created session row is persisted in croakcode.db
+ok 74 - created session row is persisted in croakcode.db
+  ---
+  duration_ms: 41.885734
+  ...
+# Subtest: croakcode.db uses WAL journal mode on disk
+ok 75 - croakcode.db uses WAL journal mode on disk
+  ---
+  duration_ms: 28.784635
+  ...
+# Subtest: db.ts configures busy_timeout, foreign_keys, and WAL in source
+ok 76 - db.ts configures busy_timeout, foreign_keys, and WAL in source
+  ---
+  duration_ms: 1.423004
+  ...
+# Subtest: allow/ask include, deny excludes
+ok 77 - allow/ask include, deny excludes
+  ---
+  duration_ms: 1.829995
+  ...
+# Subtest: unknown decision fails closed to exclude
+ok 78 - unknown decision fails closed to exclude
+  ---
+  duration_ms: 0.214388
+  ...
+# Subtest: harness contract declares decisions, triggers, and event
+ok 79 - harness contract declares decisions, triggers, and event
+  ---
+  duration_ms: 7.219912
+  ...
+# Subtest: runtime-wired triggers are a declared subset of all triggers
+ok 80 - runtime-wired triggers are a declared subset of all triggers
+  ---
+  duration_ms: 12.216219
+  ...
+# Subtest: shouldExposeTool is fail-closed
+ok 81 - shouldExposeTool is fail-closed
+  ---
+  duration_ms: 3.209461
+  ...
+# Subtest: contract inclusion agrees with exposure for allow/ask/deny
+ok 82 - contract inclusion agrees with exposure for allow/ask/deny
+  ---
+  duration_ms: 1.643579
+  ...
+# Subtest: compaction idle guard is always on with a default
+ok 83 - compaction idle guard is always on with a default
+  ---
+  duration_ms: 1.678542
+  ...
+# Subtest: normal stream can be explicitly disabled but defaults on
+ok 84 - normal stream can be explicitly disabled but defaults on
+  ---
+  duration_ms: 0.42691
+  ...
+# Subtest: compaction never auto-retries after idle
+ok 85 - compaction never auto-retries after idle
+  ---
+  duration_ms: 0.223246
+  ...
+# Subtest: stream guard declares phases, defaults, and error code
+ok 86 - stream guard declares phases, defaults, and error code
+  ---
+  duration_ms: 4.278123
+  ...
+# Subtest: evidence:tool completed without linked calls warns
+ok 87 - evidence:tool completed without linked calls warns
+  ---
+  duration_ms: 3.486401
+  ...
+# Subtest: evidence:none completed without linked calls does NOT warn
+ok 88 - evidence:none completed without linked calls does NOT warn
+  ---
+  duration_ms: 0.311573
+  ...
+# Subtest: completed with linked call is consistent
+ok 89 - completed with linked call is consistent
+  ---
+  duration_ms: 2.8063
+  ...
+# Subtest: missing evidence defaults to tool
+ok 90 - missing evidence defaults to tool
+  ---
+  duration_ms: 0.954077
+  ...
+# Subtest: in_progress spanning turns is not a false positive
+ok 91 - in_progress spanning turns is not a false positive
+  ---
+  duration_ms: 0.782547
+  ...
+# Subtest: in_progress entered with no tool calls warns
+ok 92 - in_progress entered with no tool calls warns
+  ---
+  duration_ms: 1.21483
+  ...
+# Subtest: invalid status and malformed input fail detectably
+ok 93 - invalid status and malformed input fail detectably
+  ---
+  duration_ms: 0.269971
+  ...
+# Subtest: todo contract declares statuses, evidence, and upstream event names
+ok 94 - todo contract declares statuses, evidence, and upstream event names
+  ---
+  duration_ms: 35.434452
+  ...
+# Subtest: contract consistency truth table is stable
+ok 95 - contract consistency truth table is stable
+  ---
+  duration_ms: 3.185451
+  ...
+# Subtest: contract labels align with upstream status/evidence/event vocabulary
+ok 96 - contract labels align with upstream status/evidence/event vocabulary
+  ---
+  duration_ms: 0.463841
+  ...
+# Subtest: zen/console provider removal invariants hold
+ok 97 - zen/console provider removal invariants hold
+  ---
+  duration_ms: 1825.297646
+  ...
+# Subtest: baseten enable_thinking branch is preserved
+ok 98 - baseten enable_thinking branch is preserved
+  ---
+  duration_ms: 8.66246
+  ...
+# Subtest: 1. force gate beats session direct switch
+ok 99 - 1. force gate beats session direct switch
+  ---
+  duration_ms: 2.015376
+  ...
+# Subtest: 2. requiresAuth on direct fails closed
+ok 100 - 2. requiresAuth on direct fails closed
+  ---
+  duration_ms: 0.465408
+  ...
+# Subtest: 3. local config cannot relax server gate deny
+ok 101 - 3. local config cannot relax server gate deny
+  ---
+  duration_ms: 0.303125
+  ...
+# Subtest: 3b. gate policy unavailable is fail-closed
+ok 102 - 3b. gate policy unavailable is fail-closed
+  ---
+  duration_ms: 1.624013
+  ...
+# Subtest: 3c. plugin deny stops before policy (order §3.4)
+ok 103 - 3c. plugin deny stops before policy (order §3.4)
+  ---
+  duration_ms: 0.231725
+  ...
+# Subtest: 4a. gate-only tool stays gate-gated during auth failure
+ok 104 - 4a. gate-only tool stays gate-gated during auth failure
+  ---
+  duration_ms: 0.240028
+  ...
+# Subtest: 4a'. missing/unknown mode resolves to gate
+ok 105 - 4a'. missing/unknown mode resolves to gate
+  ---
+  duration_ms: 0.260553
+  ...
+# Subtest: 5. gate→direct: gate-origin secret never reaches the provider payload
+ok 106 - 5. gate→direct: gate-origin secret never reaches the provider payload
+  ---
+  duration_ms: 2131.117277
+  ...
+# Subtest: 5b. gate mode keeps the very same gate-origin message
+ok 107 - 5b. gate mode keeps the very same gate-origin message
+  ---
+  duration_ms: 1628.416918
+  ...
+# Subtest: 5c. gate token is attached in gate mode for the configured gate origin
+ok 108 - 5c. gate token is attached in gate mode for the configured gate origin
+  ---
+  duration_ms: 1.119814
+  ...
+# Subtest: production filter is imported by the real request path (no duplicate copy)
+ok 109 - production filter is imported by the real request path (no duplicate copy)
+  ---
+  duration_ms: 0.844048
+  ...
+# Subtest: every server plugin file matches the auto-scan glob and exports default.id
+ok 110 - every server plugin file matches the auto-scan glob and exports default.id
+  ---
+  duration_ms: 114.772217
+  ...
+# Subtest: croakcode.jsonc exists and parses as JSONC (string-safe comment stripping)
+ok 111 - croakcode.jsonc exists and parses as JSONC (string-safe comment stripping)
+  ---
+  duration_ms: 16.934882
+  ...
+# Subtest: normalizePolicy trims, dedupes and drops non-strings
+ok 112 - normalizePolicy trims, dedupes and drops non-strings
+  ---
+  duration_ms: 7.884669
+  ...
+# Subtest: deniedFor merges global and session rules
+ok 113 - deniedFor merges global and session rules
+  ---
+  duration_ms: 0.461468
+  ...
+# Subtest: isDenied matches exact and prefix wildcards
+ok 114 - isDenied matches exact and prefix wildcards
+  ---
+  duration_ms: 18.560628
+  ...
+# Subtest: writePolicy roundtrips atomically and readPolicy returns ENOENT as empty
+ok 115 - writePolicy roundtrips atomically and readPolicy returns ENOENT as empty
+  ---
+  duration_ms: 29.022848
+  ...
+# Subtest: croakcode.jsonc defines provider litellm-head with a baseURL
+ok 116 - croakcode.jsonc defines provider litellm-head with a baseURL
+  ---
+  duration_ms: 24.59415
+  ...
+# Subtest: T1 running is committed BEFORE execute, T2 result AFTER
+ok 117 - T1 running is committed BEFORE execute, T2 result AFTER
+  ---
+  duration_ms: 7.763022
+  ...
+# Subtest: process dies between T1 and T2 => running survives => resume yields unknown
+ok 118 - process dies between T1 and T2 => running survives => resume yields unknown
+  ---
+  duration_ms: 3.026702
+  ...
+# Subtest: side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+ok 119 - side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+  ---
+  duration_ms: 0.399816
+  ...
+# Subtest: blocked folders and files
+ok 120 - blocked folders and files
+  ---
+  duration_ms: 36.436721
+  ...
+# Subtest: lookalikes stay readable
+ok 121 - lookalikes stay readable
+  ---
+  duration_ms: 0.510449
+  ...
+# Subtest: tool calls
+ok 122 - tool calls
+  ---
+  duration_ms: 19.862415
+  ...
+# Subtest: output filter drops blocked lines only
+ok 123 - output filter drops blocked lines only
+  ---
+  duration_ms: 0.577508
+  ...
+# Subtest: hooks
+ok 124 - hooks
+  ---
+  duration_ms: 1.138814
+  ...
+# Subtest: agent.force gate beats session direct (with warning)
+ok 125 - agent.force gate beats session direct (with warning)
+  ---
+  duration_ms: 1.78612
+  ...
+# Subtest: session direct overrides global gate
+ok 126 - session direct overrides global gate
+  ---
+  duration_ms: 0.266888
+  ...
+# Subtest: requiresAuth + direct (global) => error
+ok 127 - requiresAuth + direct (global) => error
+  ---
+  duration_ms: 0.598738
+  ...
+# Subtest: requiresAuth + session direct + global gate => error
+ok 128 - requiresAuth + session direct + global gate => error
+  ---
+  duration_ms: 6.001443
+  ...
+# Subtest: requiresAuth + global gate => ok
+ok 129 - requiresAuth + global gate => ok
+  ---
+  duration_ms: 1.62597
+  ...
+# Subtest: agent.force gate alone (no overrides, not auth) => gate ok, no warning
+ok 130 - agent.force gate alone (no overrides, not auth) => gate ok, no warning
+  ---
+  duration_ms: 0.261705
+  ...
+# Subtest: requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+ok 131 - requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+  ---
+  duration_ms: 0.316562
+  ...
+# Subtest: no mode resolvable (all absent) => fail-closed, mode undefined
+ok 132 - no mode resolvable (all absent) => fail-closed, mode undefined
+  ---
+  duration_ms: 0.199237
+  ...
+# Subtest: workspace is wired
+ok 133 - workspace is wired
+  ---
+  duration_ms: 4.358594
+  ...
+# Subtest: normalizePolicy keeps only known fields and dedupes
+ok 134 - normalizePolicy keeps only known fields and dedupes
+  ---
+  duration_ms: 3.853916
+  ...
+# Subtest: deniedFor merges global and session rules
+ok 135 - deniedFor merges global and session rules
+  ---
+  duration_ms: 0.710159
+  ...
+# Subtest: isDenied supports exact and wildcard rules
+ok 136 - isDenied supports exact and wildcard rules
+  ---
+  duration_ms: 1.481224
+  ...
+# Subtest: writePolicy and readPolicy roundtrip atomically
+ok 137 - writePolicy and readPolicy roundtrip atomically
+  ---
+  duration_ms: 75.738513
+  ...
+# Subtest: createPolicyReader refreshes after the file changes
+ok 138 - createPolicyReader refreshes after the file changes
+  ---
+  duration_ms: 9.625532
+  ...
+# Subtest: plugin blocks denied tools and allows the rest
+ok 139 - plugin blocks denied tools and allows the rest
+  ---
+  duration_ms: 21.16709
+  ...
+# Subtest: plugin respects session-specific rules and reports status
+ok 140 - plugin respects session-specific rules and reports status
+  ---
+  duration_ms: 10.42952
+  ...
+# Subtest: /net-on resets a broken policy file and keeps a copy
+ok 141 - /net-on resets a broken policy file and keeps a copy
+  ---
+  duration_ms: 11.426739
+  ...
+# Subtest: buildRecord computes prefill and decode speed
+ok 142 - buildRecord computes prefill and decode speed
+  ---
+  duration_ms: 4.86369
+  ...
+# Subtest: buildRecord leaves speeds empty without timing or on tiny intervals
+ok 143 - buildRecord leaves speeds empty without timing or on tiny intervals
+  ---
+  duration_ms: 0.345978
+  ...
+# Subtest: meter ties request, first chunk and finish of each step
+ok 144 - meter ties request, first chunk and finish of each step
+  ---
+  duration_ms: 2.8495
+  ...
+# Subtest: a finish without a recorded request still logs tokens
+ok 145 - a finish without a recorded request still logs tokens
+  ---
+  duration_ms: 0.68597
+  ...
+1..145
+# tests 145
+# suites 0
+# pass 145
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5107.123381

@@ -1,0 +1,889 @@
+== logs preserved in: /tmp/phase3-gate ==
+== rebrand ==
+DEFERRED: 123 hits in Phase 4 product packages (app/desktop/docs/stats/enterprise/github/infra/sdks/script/.opencode) — not owned by croakcode core, deferred to Phase 4
+PASS: no disallowed upstream branding in core packages; Phase 4 deferred scope is explicit
+== zen removal ==
+PASS: zen/console provider fully removed
+== phase1 regressions ==
+PASS: cli help+version ok
+session id: ses_e44e3aebcffe902UeTLUE1uZ3s
+PASS: headless server up + session created
+TAP version 13
+# Subtest: valid signature verifies
+ok 1 - valid signature verifies
+  ---
+  duration_ms: 2.025089
+  ...
+# Subtest: tampered body with stale signature fails
+ok 2 - tampered body with stale signature fails
+  ---
+  duration_ms: 0.325488
+  ...
+# Subtest: tampered body WITH recomputed HMAC using wrong key fails
+ok 3 - tampered body WITH recomputed HMAC using wrong key fails
+  ---
+  duration_ms: 0.269446
+  ...
+# Subtest: malformed policy fails even with valid signature
+ok 4 - malformed policy fails even with valid signature
+  ---
+  duration_ms: 0.250061
+  ...
+# Subtest: .croakcode/plugins exists (config loader scans .croakcode only)
+ok 5 - .croakcode/plugins exists (config loader scans .croakcode only)
+  ---
+  duration_ms: 47.322285
+  ...
+# Subtest: mode precedence: agentForce > session > global > default gate
+ok 6 - mode precedence: agentForce > session > global > default gate
+  ---
+  duration_ms: 3.671037
+  ...
+# Subtest: invalid/unknown mode values fall back to gate (fail-closed)
+ok 7 - invalid/unknown mode values fall back to gate (fail-closed)
+  ---
+  duration_ms: 0.292683
+  ...
+# Subtest: gate-only part detection uses metadata.origin, not string guessing
+ok 8 - gate-only part detection uses metadata.origin, not string guessing
+  ---
+  duration_ms: 0.228057
+  ...
+# Subtest: direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+ok 9 - direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+  ---
+  duration_ms: 8.21671
+  ...
+# Subtest: user message that mentions secrets is kept in direct mode
+ok 10 - user message that mentions secrets is kept in direct mode
+  ---
+  duration_ms: 0.491877
+  ...
+# Subtest: filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+ok 11 - filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+  ---
+  duration_ms: 0.335473
+  ...
+# Subtest: unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+ok 12 - unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+  ---
+  duration_ms: 0.398307
+  ...
+# Subtest: filterMessagesForModeParts treats a message with zero parts as safe
+ok 13 - filterMessagesForModeParts treats a message with zero parts as safe
+  ---
+  duration_ms: 0.406727
+  ...
+# Subtest: contracts exports hooks descriptor
+ok 14 - contracts exports hooks descriptor
+  ---
+  duration_ms: 2.309423
+  ...
+# Subtest: Delta kinds separate tool_call phases
+ok 15 - Delta kinds separate tool_call phases
+  ---
+  duration_ms: 0.949646
+  ...
+# Subtest: ToolSpec requires side-effect and reexecution flags
+ok 16 - ToolSpec requires side-effect and reexecution flags
+  ---
+  duration_ms: 0.216261
+  ...
+# Subtest: server auth stub exposes interface descriptor but no enforcement
+ok 17 - server auth stub exposes interface descriptor but no enforcement
+  ---
+  duration_ms: 0.491108
+  ...
+# Subtest: TUI surface contract promotes patch 0006/0007
+ok 18 - TUI surface contract promotes patch 0006/0007
+  ---
+  duration_ms: 0.243466
+  ...
+# Subtest: phase 1 hook stubs are declared no-op
+ok 19 - phase 1 hook stubs are declared no-op
+  ---
+  duration_ms: 0.177359
+  ...
+# Subtest: plugin exports id and server
+ok 20 - plugin exports id and server
+  ---
+  duration_ms: 1.214166
+  ...
+# Subtest: not logged in => no Authorization
+ok 21 - not logged in => no Authorization
+  ---
+  duration_ms: 44.166878
+  ...
+# Subtest: logged in + configured provider + gate-origin baseURL + gate mode => Authorization set
+ok 22 - logged in + configured provider + gate-origin baseURL + gate mode => Authorization set
+  ---
+  duration_ms: 32.02707
+  ...
+# Subtest: unconfigured provider => no Authorization even with token
+ok 23 - unconfigured provider => no Authorization even with token
+  ---
+  duration_ms: 1.145996
+  ...
+# Subtest: provider baseURL origin != gate URL origin => no Authorization (token never leaks)
+ok 24 - provider baseURL origin != gate URL origin => no Authorization (token never leaks)
+  ---
+  duration_ms: 1.209133
+  ...
+# Subtest: direct mode => no Authorization (gate token not needed/forbidden)
+ok 25 - direct mode => no Authorization (gate token not needed/forbidden)
+  ---
+  duration_ms: 3.302859
+  ...
+# Subtest: pkce is RFC 7636 S256
+ok 26 - pkce is RFC 7636 S256
+  ---
+  duration_ms: 37.215696
+  ...
+# Subtest: a wrong code is rejected and nothing is stored
+ok 27 - a wrong code is rejected and nothing is stored
+  ---
+  duration_ms: 151.672907
+  ...
+# Subtest: exchange stores the session with mode 600
+ok 28 - exchange stores the session with mode 600
+  ---
+  duration_ms: 9.875439
+  ...
+# Subtest: refreshes shortly before expiry, once for concurrent callers
+ok 29 - refreshes shortly before expiry, once for concurrent callers
+  ---
+  duration_ms: 349.882901
+  ...
+# Subtest: keeps the token while the server is unreachable
+ok 30 - keeps the token while the server is unreachable
+  ---
+  duration_ms: 2.805738
+  ...
+# Subtest: a 401 on refresh ends the local session
+ok 31 - a 401 on refresh ends the local session
+  ---
+  duration_ms: 6.327402
+  ...
+# Subtest: the weekly session end clears the file without a call
+ok 32 - the weekly session end clears the file without a call
+  ---
+  duration_ms: 8.218284
+  ...
+# Subtest: whoami sends the access token
+ok 33 - whoami sends the access token
+  ---
+  duration_ms: 7.350761
+  ...
+# Subtest: logout tells the server and removes the file
+ok 34 - logout tells the server and removes the file
+  ---
+  duration_ms: 6.829059
+  ...
+# Subtest: tui.json registers the croak-auth TUI plugin by relative path
+ok 35 - tui.json registers the croak-auth TUI plugin by relative path
+  ---
+  duration_ms: 24.309424
+  ...
+# Subtest: croak-auth TUI sources import ported libs, not the original .mjs paths
+ok 36 - croak-auth TUI sources import ported libs, not the original .mjs paths
+  ---
+  duration_ms: 0.720677
+  ...
+# Subtest: dev-safe agent restricts bash/web/task
+ok 37 - dev-safe agent restricts bash/web/task
+  ---
+  duration_ms: 10.002029
+  ...
+# Subtest: net-off/net-on/tool-status commands exist with descriptions
+ok 38 - net-off/net-on/tool-status commands exist with descriptions
+  ---
+  duration_ms: 8.800672
+  ...
+# Subtest: identityHeaders carries agent and session
+ok 39 - identityHeaders carries agent and session
+  ---
+  duration_ms: 1.869209
+  ...
+# Subtest: chat.headers hook adds the headers without dropping others
+ok 40 - chat.headers hook adds the headers without dropping others
+  ---
+  duration_ms: 0.417671
+  ...
+# Subtest: resolveDocPath handles Windows, relative and absolute paths
+ok 41 - resolveDocPath handles Windows, relative and absolute paths
+  ---
+  duration_ms: 1.715734
+  ...
+# Subtest: parsePages accepts summary, one page and ranges
+ok 42 - parsePages accepts summary, one page and ranges
+  ---
+  duration_ms: 1.158524
+  ...
+# Subtest: parsePages rejects bad input and too many pages
+ok 43 - parsePages rejects bad input and too many pages
+  ---
+  duration_ms: 0.416584
+  ...
+# Subtest: stripImages keeps alt text only
+ok 44 - stripImages keeps alt text only
+  ---
+  duration_ms: 0.269028
+  ...
+# Subtest: sortPageFiles orders by page number, not by name
+ok 45 - sortPageFiles orders by page number, not by name
+  ---
+  duration_ms: 0.39885
+  ...
+# Subtest: classifyCli separates read, write and blocked commands
+ok 46 - classifyCli separates read, write and blocked commands
+  ---
+  duration_ms: 34.192949
+  ...
+# Subtest: convertArgs maps only Windows drive paths
+ok 47 - convertArgs maps only Windows drive paths
+  ---
+  duration_ms: 0.628321
+  ...
+# Subtest: hwpCli asks before writing and never runs blocked commands
+ok 48 - hwpCli asks before writing and never runs blocked commands
+  ---
+  duration_ms: 66.506795
+  ...
+# Subtest: exports id and all expected hooks
+ok 49 - exports id and all expected hooks
+  ---
+  duration_ms: 1.42142
+  ...
+# Subtest: identical read 4th time throws
+ok 50 - identical read 4th time throws
+  ---
+  duration_ms: 63.282777
+  ...
+# Subtest: qwen params adjusted for litellm-head
+ok 51 - qwen params adjusted for litellm-head
+  ---
+  duration_ms: 0.348121
+  ...
+# Subtest: compaction prompt does not disable built-in idle guard
+ok 52 - compaction prompt does not disable built-in idle guard
+  ---
+  duration_ms: 14.248655
+  ...
+# Subtest: 1. plugin deny short-circuits before policy/permission
+ok 53 - 1. plugin deny short-circuits before policy/permission
+  ---
+  duration_ms: 2.983895
+  ...
+# Subtest: 2. policy deny beats permission allow
+ok 54 - 2. policy deny beats permission allow
+  ---
+  duration_ms: 0.289557
+  ...
+# Subtest: 3. plugin ask + policy deny => deny wins, never asks
+ok 55 - 3. plugin ask + policy deny => deny wins, never asks
+  ---
+  duration_ms: 0.264047
+  ...
+# Subtest: 4. policy checked before permission ask
+ok 56 - 4. policy checked before permission ask
+  ---
+  duration_ms: 0.176726
+  ...
+# Subtest: 5. plugin ask with all denies cleared surfaces at permission stage for approval
+ok 57 - 5. plugin ask with all denies cleared surfaces at permission stage for approval
+  ---
+  duration_ms: 0.23524
+  ...
+# Subtest: 6. all allow (gate, policy allow) executes
+ok 58 - 6. all allow (gate, policy allow) executes
+  ---
+  duration_ms: 0.197772
+  ...
+# Subtest: 7. missing mode (undefined) => validate INVALID_INPUT
+ok 59 - 7. missing mode (undefined) => validate INVALID_INPUT
+  ---
+  duration_ms: 0.188741
+  ...
+# Subtest: 8. invalid mode ('proxy') => validate INVALID_INPUT
+ok 60 - 8. invalid mode ('proxy') => validate INVALID_INPUT
+  ---
+  duration_ms: 0.156891
+  ...
+# Subtest: 9. plugin undefined => validate INVALID_DECISION naming plugin
+ok 61 - 9. plugin undefined => validate INVALID_DECISION naming plugin
+  ---
+  duration_ms: 0.549138
+  ...
+# Subtest: 10. permission undefined => validate INVALID_DECISION
+ok 62 - 10. permission undefined => validate INVALID_DECISION
+  ---
+  duration_ms: 0.545926
+  ...
+# Subtest: 11. policy undefined (mode gate) => validate INVALID_DECISION
+ok 63 - 11. policy undefined (mode gate) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.246023
+  ...
+# Subtest: 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+ok 64 - 12. permission 'blocked' (unknown) => validate INVALID_DECISION
+  ---
+  duration_ms: 0.236969
+  ...
+# Subtest: 13. policy 'ask' => validate INVALID_DECISION
+ok 65 - 13. policy 'ask' => validate INVALID_DECISION
+  ---
+  duration_ms: 0.161363
+  ...
+# Subtest: 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+ok 66 - 14. gate + policy 'not_applicable' => POLICY_UNAVAILABLE, no execute
+  ---
+  duration_ms: 0.124999
+  ...
+# Subtest: 15. direct + policy 'not_applicable' + others allow => executes
+ok 67 - 15. direct + policy 'not_applicable' + others allow => executes
+  ---
+  duration_ms: 0.127392
+  ...
+# Subtest: 16. direct + policy 'deny' => POLICY_DENIED
+ok 68 - 16. direct + policy 'deny' => POLICY_DENIED
+  ---
+  duration_ms: 0.116522
+  ...
+# Subtest: 17. direct + policy 'allow' + others allow => executes
+ok 69 - 17. direct + policy 'allow' + others allow => executes
+  ---
+  duration_ms: 0.115787
+  ...
+# Subtest: 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+ok 70 - 18. gate + policy 'allow' + permission 'ask' => permission stage, askUser true, no execute
+  ---
+  duration_ms: 0.113517
+  ...
+# Subtest: lingering running resolves to unknown (spec §4.5)
+ok 71 - lingering running resolves to unknown (spec §4.5)
+  ---
+  duration_ms: 1.179563
+  ...
+# Subtest: unknown never auto-reexecutes side-effect tools
+ok 72 - unknown never auto-reexecutes side-effect tools
+  ---
+  duration_ms: 60.651051
+  ...
+# Subtest: unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+ok 73 - unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+  ---
+  duration_ms: 0.214643
+  ...
+# Subtest: created session row is persisted in croakcode.db
+ok 74 - created session row is persisted in croakcode.db
+  ---
+  duration_ms: 32.288264
+  ...
+# Subtest: croakcode.db uses WAL journal mode on disk
+ok 75 - croakcode.db uses WAL journal mode on disk
+  ---
+  duration_ms: 28.70401
+  ...
+# Subtest: db.ts configures busy_timeout, foreign_keys, and WAL in source
+ok 76 - db.ts configures busy_timeout, foreign_keys, and WAL in source
+  ---
+  duration_ms: 0.955462
+  ...
+# Subtest: allow/ask include, deny excludes
+ok 77 - allow/ask include, deny excludes
+  ---
+  duration_ms: 1.647014
+  ...
+# Subtest: unknown decision fails closed to exclude
+ok 78 - unknown decision fails closed to exclude
+  ---
+  duration_ms: 0.212158
+  ...
+# Subtest: harness contract declares decisions, triggers, and event
+ok 79 - harness contract declares decisions, triggers, and event
+  ---
+  duration_ms: 1.004219
+  ...
+# Subtest: runtime-wired triggers are a declared subset of all triggers
+ok 80 - runtime-wired triggers are a declared subset of all triggers
+  ---
+  duration_ms: 0.217246
+  ...
+# Subtest: shouldExposeTool is fail-closed
+ok 81 - shouldExposeTool is fail-closed
+  ---
+  duration_ms: 1.43489
+  ...
+# Subtest: contract inclusion agrees with exposure for allow/ask/deny
+ok 82 - contract inclusion agrees with exposure for allow/ask/deny
+  ---
+  duration_ms: 1.693491
+  ...
+# Subtest: compaction idle guard is always on with a default
+ok 83 - compaction idle guard is always on with a default
+  ---
+  duration_ms: 1.959252
+  ...
+# Subtest: normal stream can be explicitly disabled but defaults on
+ok 84 - normal stream can be explicitly disabled but defaults on
+  ---
+  duration_ms: 0.197693
+  ...
+# Subtest: compaction never auto-retries after idle
+ok 85 - compaction never auto-retries after idle
+  ---
+  duration_ms: 0.180202
+  ...
+# Subtest: stream guard declares phases, defaults, and error code
+ok 86 - stream guard declares phases, defaults, and error code
+  ---
+  duration_ms: 1.286217
+  ...
+# Subtest: evidence:tool completed without linked calls warns
+ok 87 - evidence:tool completed without linked calls warns
+  ---
+  duration_ms: 2.776532
+  ...
+# Subtest: evidence:none completed without linked calls does NOT warn
+ok 88 - evidence:none completed without linked calls does NOT warn
+  ---
+  duration_ms: 0.289045
+  ...
+# Subtest: completed with linked call is consistent
+ok 89 - completed with linked call is consistent
+  ---
+  duration_ms: 0.188238
+  ...
+# Subtest: missing evidence defaults to tool
+ok 90 - missing evidence defaults to tool
+  ---
+  duration_ms: 0.19244
+  ...
+# Subtest: in_progress spanning turns is not a false positive
+ok 91 - in_progress spanning turns is not a false positive
+  ---
+  duration_ms: 0.217234
+  ...
+# Subtest: in_progress entered with no tool calls warns
+ok 92 - in_progress entered with no tool calls warns
+  ---
+  duration_ms: 0.804894
+  ...
+# Subtest: invalid status and malformed input fail detectably
+ok 93 - invalid status and malformed input fail detectably
+  ---
+  duration_ms: 0.291756
+  ...
+# Subtest: todo contract declares statuses, evidence, and upstream event names
+ok 94 - todo contract declares statuses, evidence, and upstream event names
+  ---
+  duration_ms: 0.371097
+  ...
+# Subtest: contract consistency truth table is stable
+ok 95 - contract consistency truth table is stable
+  ---
+  duration_ms: 2.486311
+  ...
+# Subtest: contract labels align with upstream status/evidence/event vocabulary
+ok 96 - contract labels align with upstream status/evidence/event vocabulary
+  ---
+  duration_ms: 0.359237
+  ...
+# Subtest: zen/console provider removal invariants hold
+ok 97 - zen/console provider removal invariants hold
+  ---
+  duration_ms: 1581.806254
+  ...
+# Subtest: baseten enable_thinking branch is preserved
+ok 98 - baseten enable_thinking branch is preserved
+  ---
+  duration_ms: 7.164406
+  ...
+# Subtest: 1. force gate beats session direct switch
+ok 99 - 1. force gate beats session direct switch
+  ---
+  duration_ms: 1.406187
+  ...
+# Subtest: 2. requiresAuth on direct fails closed
+ok 100 - 2. requiresAuth on direct fails closed
+  ---
+  duration_ms: 0.340644
+  ...
+# Subtest: 3. local config cannot relax server gate deny
+ok 101 - 3. local config cannot relax server gate deny
+  ---
+  duration_ms: 0.278033
+  ...
+# Subtest: 3b. gate policy unavailable is fail-closed
+ok 102 - 3b. gate policy unavailable is fail-closed
+  ---
+  duration_ms: 9.39851
+  ...
+# Subtest: 3c. plugin deny stops before policy (order §3.4)
+ok 103 - 3c. plugin deny stops before policy (order §3.4)
+  ---
+  duration_ms: 0.208217
+  ...
+# Subtest: 4a. gate-only tool stays gate-gated during auth failure
+ok 104 - 4a. gate-only tool stays gate-gated during auth failure
+  ---
+  duration_ms: 1.340312
+  ...
+# Subtest: 4a'. missing/unknown mode resolves to gate
+ok 105 - 4a'. missing/unknown mode resolves to gate
+  ---
+  duration_ms: 0.225861
+  ...
+# Subtest: 5. gate→direct: gate-origin secret never reaches the provider payload
+ok 106 - 5. gate→direct: gate-origin secret never reaches the provider payload
+  ---
+  duration_ms: 1703.567414
+  ...
+# Subtest: 5b. gate mode keeps the very same gate-origin message
+ok 107 - 5b. gate mode keeps the very same gate-origin message
+  ---
+  duration_ms: 1489.615366
+  ...
+# Subtest: 5c. gate token is attached in gate mode for the configured gate origin
+ok 108 - 5c. gate token is attached in gate mode for the configured gate origin
+  ---
+  duration_ms: 1.126407
+  ...
+# Subtest: production filter is imported by the real request path (no duplicate copy)
+ok 109 - production filter is imported by the real request path (no duplicate copy)
+  ---
+  duration_ms: 0.892991
+  ...
+# Subtest: every server plugin file matches the auto-scan glob and exports default.id
+ok 110 - every server plugin file matches the auto-scan glob and exports default.id
+  ---
+  duration_ms: 94.302993
+  ...
+# Subtest: croakcode.jsonc exists and parses as JSONC (string-safe comment stripping)
+ok 111 - croakcode.jsonc exists and parses as JSONC (string-safe comment stripping)
+  ---
+  duration_ms: 3.503326
+  ...
+# Subtest: normalizePolicy trims, dedupes and drops non-strings
+ok 112 - normalizePolicy trims, dedupes and drops non-strings
+  ---
+  duration_ms: 2.720475
+  ...
+# Subtest: deniedFor merges global and session rules
+ok 113 - deniedFor merges global and session rules
+  ---
+  duration_ms: 0.840578
+  ...
+# Subtest: isDenied matches exact and prefix wildcards
+ok 114 - isDenied matches exact and prefix wildcards
+  ---
+  duration_ms: 2.362431
+  ...
+# Subtest: writePolicy roundtrips atomically and readPolicy returns ENOENT as empty
+ok 115 - writePolicy roundtrips atomically and readPolicy returns ENOENT as empty
+  ---
+  duration_ms: 14.472246
+  ...
+# Subtest: croakcode.jsonc defines provider litellm-head with a baseURL
+ok 116 - croakcode.jsonc defines provider litellm-head with a baseURL
+  ---
+  duration_ms: 6.467311
+  ...
+# Subtest: T1 running is committed BEFORE execute, T2 result AFTER
+ok 117 - T1 running is committed BEFORE execute, T2 result AFTER
+  ---
+  duration_ms: 10.386785
+  ...
+# Subtest: process dies between T1 and T2 => running survives => resume yields unknown
+ok 118 - process dies between T1 and T2 => running survives => resume yields unknown
+  ---
+  duration_ms: 0.786026
+  ...
+# Subtest: side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+ok 119 - side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+  ---
+  duration_ms: 0.307067
+  ...
+# Subtest: blocked folders and files
+ok 120 - blocked folders and files
+  ---
+  duration_ms: 1.940046
+  ...
+# Subtest: lookalikes stay readable
+ok 121 - lookalikes stay readable
+  ---
+  duration_ms: 0.541432
+  ...
+# Subtest: tool calls
+ok 122 - tool calls
+  ---
+  duration_ms: 48.058455
+  ...
+# Subtest: output filter drops blocked lines only
+ok 123 - output filter drops blocked lines only
+  ---
+  duration_ms: 0.772865
+  ...
+# Subtest: hooks
+ok 124 - hooks
+  ---
+  duration_ms: 1.067522
+  ...
+# Subtest: agent.force gate beats session direct (with warning)
+ok 125 - agent.force gate beats session direct (with warning)
+  ---
+  duration_ms: 4.147653
+  ...
+# Subtest: session direct overrides global gate
+ok 126 - session direct overrides global gate
+  ---
+  duration_ms: 0.231703
+  ...
+# Subtest: requiresAuth + direct (global) => error
+ok 127 - requiresAuth + direct (global) => error
+  ---
+  duration_ms: 0.321769
+  ...
+# Subtest: requiresAuth + session direct + global gate => error
+ok 128 - requiresAuth + session direct + global gate => error
+  ---
+  duration_ms: 0.262038
+  ...
+# Subtest: requiresAuth + global gate => ok
+ok 129 - requiresAuth + global gate => ok
+  ---
+  duration_ms: 10.714744
+  ...
+# Subtest: agent.force gate alone (no overrides, not auth) => gate ok, no warning
+ok 130 - agent.force gate alone (no overrides, not auth) => gate ok, no warning
+  ---
+  duration_ms: 0.236006
+  ...
+# Subtest: requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+ok 131 - requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+  ---
+  duration_ms: 0.296641
+  ...
+# Subtest: no mode resolvable (all absent) => fail-closed, mode undefined
+ok 132 - no mode resolvable (all absent) => fail-closed, mode undefined
+  ---
+  duration_ms: 0.185302
+  ...
+# Subtest: workspace is wired
+ok 133 - workspace is wired
+  ---
+  duration_ms: 1.110067
+  ...
+# Subtest: normalizePolicy keeps only known fields and dedupes
+ok 134 - normalizePolicy keeps only known fields and dedupes
+  ---
+  duration_ms: 36.545398
+  ...
+# Subtest: deniedFor merges global and session rules
+ok 135 - deniedFor merges global and session rules
+  ---
+  duration_ms: 0.548184
+  ...
+# Subtest: isDenied supports exact and wildcard rules
+ok 136 - isDenied supports exact and wildcard rules
+  ---
+  duration_ms: 0.346036
+  ...
+# Subtest: writePolicy and readPolicy roundtrip atomically
+ok 137 - writePolicy and readPolicy roundtrip atomically
+  ---
+  duration_ms: 18.386321
+  ...
+# Subtest: createPolicyReader refreshes after the file changes
+ok 138 - createPolicyReader refreshes after the file changes
+  ---
+  duration_ms: 7.539228
+  ...
+# Subtest: plugin blocks denied tools and allows the rest
+ok 139 - plugin blocks denied tools and allows the rest
+  ---
+  duration_ms: 16.389365
+  ...
+# Subtest: plugin respects session-specific rules and reports status
+ok 140 - plugin respects session-specific rules and reports status
+  ---
+  duration_ms: 5.934687
+  ...
+# Subtest: /net-on resets a broken policy file and keeps a copy
+ok 141 - /net-on resets a broken policy file and keeps a copy
+  ---
+  duration_ms: 13.65582
+  ...
+# Subtest: buildRecord computes prefill and decode speed
+ok 142 - buildRecord computes prefill and decode speed
+  ---
+  duration_ms: 4.705508
+  ...
+# Subtest: buildRecord leaves speeds empty without timing or on tiny intervals
+ok 143 - buildRecord leaves speeds empty without timing or on tiny intervals
+  ---
+  duration_ms: 0.329392
+  ...
+# Subtest: meter ties request, first chunk and finish of each step
+ok 144 - meter ties request, first chunk and finish of each step
+  ---
+  duration_ms: 2.557422
+  ...
+# Subtest: a finish without a recorded request still logs tokens
+ok 145 - a finish without a recorded request still logs tokens
+  ---
+  duration_ms: 0.77116
+  ...
+1..145
+# tests 145
+# suites 0
+# pass 145
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4487.410653
+bun test v1.3.14 (0d9b296a)
+
+ 145 pass
+ 0 fail
+Ran 145 tests across 32 files. [4.72s]
+== upstream core package ==
+bun test v1.3.14 (0d9b296a)
+
+ 359 pass
+ 0 fail
+ 672 expect() calls
+Ran 359 tests across 48 files. [20.66s]
+== upstream opencode (provider/tool/session/cli-help/skill) ==
+bun test v1.3.14 (0d9b296a)
+
+test/provider/provider.test.ts:
+[12:23:29.161] ERROR (#4458): 1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+
+1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (native:7:39)
+(fail) hosted nvidia provider adds billing origin header [237.79ms]
+[12:23:29.396] ERROR (#4520): 1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+
+1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (native:7:39)
+(fail) custom nvidia baseURL adds billing origin header [234.87ms]
+
+test/session/llm.test.ts:
+[12:25:27.819] INFO (#73306): llm runtime selected {
+  "llm.runtime": "ai-sdk",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[12:25:28.176] INFO (#73384): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[12:25:28.548] INFO (#73470): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[12:25:28.986] INFO (#73559): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+
+ 1047 pass
+ 5 skip
+ 1 todo
+ 2 fail
+ 51 snapshots, 2416 expect() calls
+Ran 1055 tests across 55 files. [182.74s]
+BASELINE_FAIL (first-run): hosted nvidia provider adds billing origin header
+BASELINE_FAIL (first-run): custom nvidia baseURL adds billing origin header
+PASS: phase 2 gate replay (no unexpected failures; baseline/stale-test only)

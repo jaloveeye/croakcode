@@ -1,0 +1,254 @@
+{
+ "name": "frieren",
+ "width": 16,
+ "height": 16,
+ "palette": {
+  "H": "#f4f6fb",
+  "h": "#c7cedb",
+  "S": "#f2d3bd",
+  "E": "#3fae6a",
+  "K": "#171b26",
+  "W": "#e9edf5",
+  "R": "#262d40",
+  "G": "#e0b34f",
+  "O": "#d98c3f",
+  "B": "#8a5a3a",
+  "Z": "#a8d8ff",
+  "C": "#9fd8ff"
+ },
+ "frames": [
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSEKSSKESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSKKSSKKSSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSKKSSKKShSSG",
+   ".SSHSEKSSKESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH.G..",
+   "..SHHHHHHHHHHSG.",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSKKSSKKShSSG",
+   ".SSHSEKSSKESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHSG.",
+   ".HSHHHHHHHHHHS.G",
+   ".SSHHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSEKSSKESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   ".hHKWWGWWWKHh..B",
+   ".hHKRRWWRRKHh..B",
+   ".hHKRRRRRRKHh..B",
+   ".hHKKKKKKKKHh..B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHSHG",
+   ".SShHHHHHHHHHSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSEKSSKESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "...hHKRRRRKHh..B",
+   "...hHKKKKKKHh..B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH.Z..",
+   "..SHHHHHHHHHHSZ.",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSKKSSKKSSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSORSSORSSSSB",
+   "..HhSSSSSSSShHCB",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   "G....HHHHHH.....",
+   "G...HHHHHHHH....",
+   "G.SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   "GSShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSEESSEESSSSB",
+   "..HhSSSSSSSShH.B",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ],
+  [
+   "................",
+   ".....HHHHHH.....",
+   "....HHHHHHHH....",
+   "..SHHHHHHHHHHS..",
+   "..SHHHHHHHHHHS.G",
+   ".SShHHHHHHHHhSSG",
+   ".SShSSSSSSSShSSG",
+   ".SSHSROSSROSSSSB",
+   "..HhSSSSSSSShHCB",
+   "...HhSSSSSShH..B",
+   "....HhSSSShH...B",
+   ".....HSSSSH....B",
+   "..hHKWWGWWWKHh.B",
+   "..hHKRRWWRRKHh.B",
+   "..hHKRRRRRRKHh.B",
+   "..hHKKKKKKKKHh.B"
+  ]
+ ],
+ "animations": {
+  "idle": {
+   "fps": 2,
+   "sequence": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ]
+  },
+  "think": {
+   "fps": 4,
+   "sequence": [
+    2,
+    3,
+    2,
+    3
+   ]
+  },
+  "run": {
+   "fps": 8,
+   "sequence": [
+    4,
+    5,
+    4,
+    5
+   ]
+  },
+  "sleep": {
+   "fps": 1,
+   "sequence": [
+    6
+   ]
+  },
+  "dizzy": {
+   "fps": 6,
+   "sequence": [
+    7,
+    9,
+    7,
+    9
+   ]
+  },
+  "ask": {
+   "fps": 2,
+   "sequence": [
+    8,
+    0
+   ]
+  }
+ }
+}
