@@ -135,28 +135,71 @@ export const TaskTool = Tool.define(
       const session = params.task_id
         ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
+      // SC-01 (P0-C): a `task_id` may only resume a child session that this
+      // exact parent session owns AND that was created for the same subagent
+      // type. Otherwise one parent could hijack another parent's delegated
+      // session (inheriting a different authority boundary).
+      if (session) {
+        if (session.parentID !== ctx.sessionID) {
+          return yield* Effect.fail(
+            new Error(`Cannot resume task_id ${session.id}: it is not a child of this session`),
+          )
+        }
+        // Reject a type mismatch only when the stored agent is known. Sessions
+        // created before this fix (or by non-task paths) may have no `agent`;
+        // their authority is still re-derived from the live parent below, so
+        // resuming them is not an escalation vector — but hijacking a child of
+        // a *different* type is blocked whenever the type is known.
+        if (session.agent !== undefined && session.agent !== next.name) {
+          return yield* Effect.fail(
+            new Error(
+              `Cannot resume task_id ${session.id}: it was created for agent "${session.agent}", not "${next.name}"`,
+            ),
+          )
+        }
+      }
       const parent = yield* sessions.get(ctx.sessionID)
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
+      // SC-01: the restrictions inherited from the parent (plan edit-deny, parent
+      // session denies, default todowrite/task denies) are computed once and are
+      // IMMUTABLE for the child. They are passed both at session creation and as
+      // `inheritedPermission` on the child prompt so the tools map cannot relax
+      // them (prompt.ts appends inherited rules last → findLast keeps them
+      // authoritative).
+      const inheritedPermission = deriveSubagentSessionPermission({
+        parentSessionPermission: parent.permission ?? [],
+        parentAgent,
+        subagent: next,
+      })
       const nextSession =
         session ??
         (yield* sessions.create({
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
+          agent: next.name,
           permission: [
-            ...deriveSubagentSessionPermission({
-              parentSessionPermission: parent.permission ?? [],
-              parentAgent,
-              subagent: next,
-            }),
+            ...inheritedPermission,
             ...(cfg.experimental?.primary_tools?.map((item) => ({
               pattern: "*",
               action: "allow" as const,
               permission: item,
             })) ?? []),
           ],
+          // SC-01: persist the immutable ceiling atomically at creation so the
+          // child never exists without it (fail-closed relies on this).
+          inheritedPermission,
         }))
+
+      // SC-01: (re)register the immutable inherited ceiling for a resumed child
+      // so that later writes to `session.permission` (public Update API) or
+      // `prompt()` tools rebuilds (public prompt API) cannot relax it. The
+      // ceiling is recomputed from the live parent each run and persisted to
+      // the dedicated column (survives restarts and is shared across processes).
+      if (session) {
+        yield* sessions.setInheritedPermission({ sessionID: nextSession.id, permission: inheritedPermission })
+      }
 
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
@@ -190,6 +233,7 @@ export const TaskTool = Tool.define(
             providerID: model.providerID,
           },
           agent: next.name,
+          inheritedPermission,
           tools: {
             ...(next.permission.some((rule) => rule.permission === "todowrite") ? {} : { todowrite: false }),
             ...(next.permission.some((rule) => rule.permission === id) ? {} : { task: false }),

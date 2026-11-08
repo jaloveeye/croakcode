@@ -6,6 +6,7 @@ import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
 import { NamedError } from "@croakcode/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
+import { deriveSubagentSessionPermission } from "../../src/agent/subagent-permissions"
 import { BackgroundJob } from "@/background/job"
 import { Bus } from "../../src/bus"
 import { Command } from "../../src/command"
@@ -13,6 +14,8 @@ import { Config } from "@/config/config"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "../../src/mcp"
 import { Permission } from "../../src/permission"
+import { PermissionID } from "../../src/permission/schema"
+import { PermissionV2 } from "@croakcode/core/permission"
 import { Plugin } from "../../src/plugin"
 import { Provider as ProviderSvc } from "@/provider/provider"
 import { Env } from "../../src/env"
@@ -22,7 +25,7 @@ import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Question } from "../../src/question"
 import { Todo } from "../../src/session/todo"
 import { Session } from "@/session/session"
-import { SessionMessageTable } from "../../src/session/session.sql"
+import { SessionMessageTable, SessionTable } from "../../src/session/session.sql"
 import { LLM } from "../../src/session/llm"
 import { MessageV2 } from "../../src/session/message-v2"
 import { AppFileSystem } from "@croakcode/core/filesystem"
@@ -2340,6 +2343,396 @@ noLLMServer.instance(
           expect(err.data.message).toContain("init")
         }
       }
+    }),
+  30_000,
+)
+
+
+
+// ---------------------------------------------------------------------------
+// SC-01 / SC-02 / SC-03 — Agent Principal delegation authority invariants.
+//
+// INVARIANT (INV-2 / DG-05): a sub-agent must never obtain authority that the
+// parent (plan agent / parent session) denied. In particular, spawning a
+// `general` (or custom) sub-agent from a `plan` parent — or passing a `tools`
+// map with `edit: true` — must NOT relax the inherited `edit: deny`.
+//
+// These tests drive the REAL `prompt()` path and the REAL execution-time
+// ruleset merge used by session/tools.ts:64-72:
+//     Permission.merge(agent.permission, session.permission ?? [])
+// then assert `Permission.evaluate(...)` and `Permission.ask(...)`.
+// ---------------------------------------------------------------------------
+
+const execRuleset = (agent: { permission: PermissionV2.Ruleset }, session: { permission?: PermissionV2.Ruleset }) =>
+  Permission.merge(agent.permission, session.permission ?? [])
+
+const spawnPlanChild = Effect.fn("test.spawnPlanChild")(function* (input?: { custom?: boolean }) {
+  const agents = yield* AgentSvc.Service
+  const sessions = yield* Session.Service
+  const plan = yield* agents.get("plan")
+  const sub = yield* agents.get(input?.custom ? "my_subagent" : "general")
+  expect(plan).toBeDefined()
+  expect(sub).toBeDefined()
+
+  const parent = yield* sessions.create({ title: "plan-parent" })
+  yield* sessions.setPermission({ sessionID: parent.id, permission: [] })
+
+  const inherited = deriveSubagentSessionPermission({
+    parentSessionPermission: [],
+    parentAgent: plan,
+    subagent: sub!,
+  })
+  const child = yield* sessions.create({
+    title: "child",
+    parentID: parent.id,
+    permission: inherited,
+    // Mirror the trusted task path: delegated children always record the
+    // immutable ceiling (fail-closed treats a parentID child without one as
+    // untrusted).
+    inheritedPermission: inherited,
+  })
+  return { plan: plan!, sub: sub!, parent, child, inherited }
+})
+
+// Mirrors exactly what TaskTool.runTask now does (task.ts:185-199): the child
+// prompt is driven with both the `tools` map AND the immutable
+// `inheritedPermission` (the parent-derived restrictions).
+const runChildPrompt = Effect.fn("test.runChildPrompt")(function* (input: {
+  childID: SessionID
+  agent: string
+  inheritedPermission: PermissionV2.Ruleset
+  tools?: Record<string, boolean>
+}) {
+  const prompt = yield* SessionPrompt.Service
+  yield* prompt.prompt({
+    sessionID: input.childID,
+    agent: input.agent,
+    noReply: true,
+    inheritedPermission: input.inheritedPermission,
+    tools: input.tools ?? { task: false },
+    parts: [{ type: "text", text: "look into the cache key path" }],
+  })
+})
+// --- SC-01 core: plan → general, edit/write/apply_patch stay denied --------
+it.instance(
+  "SC-01: plan → general keeps edit/write/apply_patch denied after prompt() tools overwrite",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+
+      const { sub, child, inherited } = yield* spawnPlanChild()
+
+      const created = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/x.ts", created.permission ?? []).action).toBe("deny")
+
+      yield* runChildPrompt({ childID: child.id, agent: "general", inheritedPermission: inherited })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(sub, after)
+      // edit/write/apply_patch all ask with permission "edit" at the tool
+      // executor layer (write.ts:55, edit.ts:99/142), so assert on "edit".
+      expect(Permission.evaluate("edit", "/x.ts", effective).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01: custom subagent inherits parent edit deny ----------------------
+it.instance(
+  "SC-01: plan → custom subagent keeps parent edit deny after prompt() tools overwrite",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig((url) => ({
+        ...providerCfg(url),
+        agent: { my_subagent: { mode: "subagent" as const, description: "custom" } },
+      }))
+
+      const { sub, child, inherited } = yield* spawnPlanChild({ custom: true })
+      yield* runChildPrompt({ childID: child.id, agent: "my_subagent", inheritedPermission: inherited })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(sub, after)
+      expect(Permission.evaluate("edit", "/x.ts", effective).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01: tools:{edit:true} must NOT bypass an inherited deny ------------
+it.instance(
+  "SC-01: tools:{edit:true} cannot bypass inherited plan edit deny",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+
+      const { sub, child, inherited } = yield* spawnPlanChild()
+      yield* runChildPrompt({
+        childID: child.id,
+        agent: "general",
+        inheritedPermission: inherited,
+        tools: { task: false, edit: true },
+      })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(sub, after)
+      expect(Permission.evaluate("edit", "/x.ts", effective).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01: parent SESSION deny rules are preserved ------------------------
+it.instance(
+  "SC-01: parent session deny rules survive child prompt() tools overwrite",
+  () =>
+    Effect.gen(function* () {
+      const agents = yield* AgentSvc.Service
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+
+      const plan = yield* agents.get("plan")
+      const general = yield* agents.get("general")
+
+      const parent = yield* sessions.create({ title: "plan-parent" })
+      const parentDeny: PermissionV2.Ruleset = [{ permission: "bash", pattern: "*", action: "deny" }]
+      yield* sessions.setPermission({ sessionID: parent.id, permission: parentDeny })
+
+      const inherited = deriveSubagentSessionPermission({
+        parentSessionPermission: parentDeny,
+        parentAgent: plan,
+        subagent: general!,
+      })
+      const child = yield* sessions.create({ title: "child", parentID: parent.id, permission: inherited })
+
+      yield* runChildPrompt({ childID: child.id, agent: "general", inheritedPermission: inherited })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(general!, after)
+      expect(Permission.evaluate("bash", "git status", effective).action).toBe("deny")
+      expect(Permission.evaluate("edit", "/x.ts", effective).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01: allowed read tools still work ---------------------------------
+it.instance(
+  "SC-01: subagent keeps allowed read/grep usable",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+
+      const { sub, child, inherited } = yield* spawnPlanChild()
+      yield* runChildPrompt({ childID: child.id, agent: "general", inheritedPermission: inherited })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(sub, after)
+      expect(Permission.evaluate("read", "README.md", effective).action).toBe("allow")
+      expect(Permission.evaluate("grep", "foo", effective).action).toBe("allow")
+    }),
+  30_000,
+)
+
+// --- Requirement 5: normal independent session tool config unchanged ------
+it.instance(
+  "SC-02: normal (non-subagent) session honours tools map enable/disable",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const prompt = yield* SessionPrompt.Service
+      yield* useServerConfig(providerCfg)
+
+      const chat = yield* sessions.create({ title: "normal" })
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        noReply: true,
+        tools: { edit: false, bash: true },
+        parts: [{ type: "text", text: "hi" }],
+      })
+      const after = yield* sessions.get(chat.id)
+      const rules = after.permission ?? []
+      expect(Permission.evaluate("edit", "*", rules).action).toBe("deny")
+      expect(Permission.evaluate("bash", "*", rules).action).toBe("allow")
+    }),
+  30_000,
+)
+
+// --- Requirement 7: real execution path denies edit -----------------------
+it.instance(
+  "SC-01: real Permission.ask denies edit on a plan sub-agent (execution path)",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const permission = yield* Permission.Service
+      yield* useServerConfig(providerCfg)
+
+      const { sub, child, inherited } = yield* spawnPlanChild()
+      yield* runChildPrompt({
+        childID: child.id,
+        agent: "general",
+        inheritedPermission: inherited,
+        tools: { task: false, edit: true },
+      })
+
+      const after = yield* sessions.get(child.id)
+      const effective = execRuleset(sub, after)
+
+      const exit = yield* permission
+        .ask({
+          id: PermissionID.ascending(),
+          sessionID: child.id,
+          permission: "edit",
+          patterns: ["/x.ts"],
+          metadata: {},
+          always: ["*"],
+          ruleset: effective,
+        })
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const err = Cause.squash(exit.cause) as { _tag?: string }
+        expect(err._tag).toBe("PermissionDeniedError")
+      }
+    }),
+  30_000,
+)
+
+// --- SC-01 hardening: inheritedPermission must not be reachable from public API
+it.instance(
+  "SC-01: public prompt payload omits inheritedPermission (client cannot inject the ceiling)",
+  () =>
+    Effect.gen(function* () {
+      const { PromptPayload } = yield* Effect.promise(() =>
+        import("../../src/server/routes/instance/httpapi/groups/session"),
+      )
+      const fields = Object.keys(PromptPayload.fields)
+      expect(fields).not.toContain("inheritedPermission")
+      // sessionID comes from the URL path, never the body.
+      expect(fields).not.toContain("sessionID")
+    }),
+  30_000,
+)
+
+// --- SC-01 P0-A: Update API must not relax an inherited ceiling --------------
+// The public `PATCH /session/:id` route merges the client's ruleset AFTER the
+// stored rules and persists them (handlers/session.ts:188-192). With findLast,
+// a client `allow` would win over an inherited `deny` unless the ceiling is
+// re-applied on every read/write. The trusted task path registers the ceiling
+// via `setInheritedPermission`; after any `setPermission`, edits stay denied.
+it.instance(
+  "SC-01(A): client permission update on a child cannot relax inherited edit deny",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+      const { parent, child, inherited } = yield* spawnPlanChild()
+      // Trusted runtime registers the immutable ceiling for the child.
+      yield* sessions.setInheritedPermission({ sessionID: child.id, permission: inherited })
+
+      // Attacker: public Update API merges an `allow edit` rule after stored ones.
+      const current = yield* sessions.get(child.id)
+      yield* sessions.setPermission({
+        sessionID: child.id,
+        permission: Permission.merge(current.permission ?? [], [
+          { permission: "edit", pattern: "*", action: "allow" },
+        ]),
+      })
+
+      const after = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/etc/passwd", after.permission ?? []).action).toBe("deny")
+      // sanity: the parent is untouched and the child still records the parent.
+      expect(after.parentID).toBe(parent.id)
+    }),
+  30_000,
+)
+
+// --- SC-01 P0-B: public prompt (no inheritedPermission) must keep ceiling ----
+// A direct `prompt()` on a child session (what the public prompt API does) has
+// no `inheritedPermission` in its payload, yet `prompt()` rebuilds
+// `session.permission` from the `tools` map and REPLACES it. Without the
+// registry re-appending the ceiling, `tools:{edit:true}` would re-open edit.
+it.instance(
+  "SC-01(B): public prompt on a child with tools:{edit:true} cannot relax inherited deny",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const prompt = yield* SessionPrompt.Service
+      yield* useServerConfig(providerCfg)
+      const { child, inherited } = yield* spawnPlanChild()
+      yield* sessions.setInheritedPermission({ sessionID: child.id, permission: inherited })
+
+      // Public API shape: no inheritedPermission, attacker-controlled tools map.
+      yield* prompt.prompt({
+        sessionID: child.id,
+        agent: "general",
+        noReply: true,
+        tools: { edit: true, task: false },
+        parts: [{ type: "text", text: "look into the cache key path" }],
+      })
+
+      const after = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/etc/passwd", after.permission ?? []).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01 P0-restart: ceiling survives process restart --------------------
+// The inherited ceiling is persisted in the `inherited_permission` column, not
+// process memory. A restart (new process sharing the same SQLite file) must
+// still enforce it. We prove the value lives in the DB and that the read path
+// (`fromRow`) re-derives DENY from the persisted row alone.
+it.instance(
+  "SC-01(restart): inherited ceiling is persisted in the DB, not process memory",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { child, inherited } = yield* spawnPlanChild()
+      // Simulate an attacker weakening the mutable permission column in-process.
+      yield* sessions.setPermission({
+        sessionID: child.id,
+        permission: [{ permission: "edit", pattern: "*", action: "allow" }],
+      })
+
+      // Read the raw DB row — this is what a fresh process sees after restart.
+      const row = Database.use((db) =>
+        db.select().from(SessionTable).where(Database.eq(SessionTable.id, child.id)).get(),
+      )
+      expect(row).toBeDefined()
+      // The ceiling is physically present in the persisted row.
+      expect(row!.inherited_permission).toEqual(inherited)
+      expect(inherited.some((r) => r.permission === "edit" && r.action === "deny")).toBe(true)
+
+      // A fresh read derives the effective ruleset from that persisted row only.
+      const { fromRow } = yield* Effect.promise(() => import("../../src/session/session"))
+      const info = fromRow(row!)
+      expect(Permission.evaluate("edit", "/etc/passwd", info.permission ?? []).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01 fail-closed: delegated child with no recorded ceiling -----------
+// Only the trusted task tool creates `parent_id` children. If such a row has no
+// `inherited_permission` (corruption / inserted outside the trusted path), the
+// engine must refuse to run it as unbounded: append deny-all.
+it.instance(
+  "SC-01(fail-closed): delegated child with no recorded ceiling denies by default",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const parent = yield* sessions.create({ title: "parent" })
+      // Create a parentID child WITHOUT an inherited ceiling (untrusted path).
+      const child = yield* sessions.create({ parentID: parent.id, title: "orphan child" })
+      const { fromRow } = yield* Effect.promise(() => import("../../src/session/session"))
+      const row = Database.use((db) =>
+        db.select().from(SessionTable).where(Database.eq(SessionTable.id, child.id)).get(),
+      )
+      expect(row!.inherited_permission).toBeNull()
+      const info = fromRow(row!)
+      // Deny-all ceiling appended ⇒ edit (and any other tool permission) denies.
+      expect(Permission.evaluate("edit", "/x.ts", info.permission ?? []).action).toBe("deny")
+      expect(Permission.evaluate("bash", "rm -rf /", info.permission ?? []).action).toBe("deny")
     }),
   30_000,
 )

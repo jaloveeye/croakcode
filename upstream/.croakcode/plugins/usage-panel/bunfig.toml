@@ -1,0 +1,4 @@
+# Tests need the Solid JSX transform that the opencode TUI applies to plugins.
+# node_modules is a local symlink to the opencode build (see README).
+[test]
+preload = ["@opentui/solid/preload"]

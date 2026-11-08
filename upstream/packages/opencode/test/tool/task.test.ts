@@ -1,6 +1,7 @@
 import { afterEach, describe, expect } from "bun:test"
 import { Effect, Exit, Fiber, Layer } from "effect"
 import { Agent } from "../../src/agent/agent"
+import { Permission } from "../../src/permission"
 import { BackgroundJob } from "@/background/job"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
@@ -241,6 +242,74 @@ describe("tool.task", () => {
     }),
   )
 
+  // --- SC-01 P0-C: task_id must not cross parent/agent ownership -----------
+  it.instance("execute rejects a task_id owned by a different parent session", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      // A child belonging to a DIFFERENT parent session.
+      const foreignParent = yield* sessions.create({ title: "foreign-parent" })
+      const foreignChild = yield* sessions.create({ parentID: foreignParent.id, title: "foreign child" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+      const promptOps = stubOps({ onPrompt: () => (prompted = true) })
+
+      const exit = yield* def
+        .execute(
+          { description: "hijack", prompt: "do something", subagent_type: "general", task_id: foreignChild.id },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+      // The foreign child still belongs to its original parent.
+      const still = yield* sessions.get(foreignChild.id)
+      expect(still.parentID).toBe(foreignParent.id)
+    }),
+  )
+
+  it.instance("execute rejects a task_id whose session agent differs from subagent_type", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const child = yield* sessions.create({ parentID: chat.id, title: "explore child", agent: "explore" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+      const promptOps = stubOps({ onPrompt: () => (prompted = true) })
+
+      const exit = yield* def
+        .execute(
+          { description: "mismatch", prompt: "do something", subagent_type: "general", task_id: child.id },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+    }),
+  )
+
   it.instance("execute asks by default and skips checks when bypassed", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()
@@ -405,23 +474,18 @@ describe("tool.task", () => {
 
         const child = yield* sessions.get(result.metadata.sessionId)
         expect(child.parentID).toBe(chat.id)
-        expect(child.permission).toEqual([
-          {
-            permission: "todowrite",
-            pattern: "*",
-            action: "deny",
-          },
-          {
-            permission: "bash",
-            pattern: "*",
-            action: "allow",
-          },
-          {
-            permission: "read",
-            pattern: "*",
-            action: "allow",
-          },
-        ])
+        // SC-01: the inherited ceiling is appended LAST (so findLast makes it
+        // authoritative), which may reorder rules relative to creation order.
+        // Assert the rule set, not the order.
+        const normalize = (rules: { permission: string; pattern: string; action: string }[]) =>
+          [...rules].sort((a, b) => (a.permission + a.pattern + a.action).localeCompare(b.permission + b.pattern + b.action))
+        expect(normalize(child.permission ?? [])).toEqual(
+          normalize([
+            { permission: "todowrite", pattern: "*", action: "deny" },
+            { permission: "bash", pattern: "*", action: "allow" },
+            { permission: "read", pattern: "*", action: "allow" },
+          ]),
+        )
         expect(seen?.tools).toEqual({
           todowrite: false,
           bash: false,
@@ -729,5 +793,121 @@ describe("tool.task", () => {
       expect((yield* jobs.get(child.id))?.status).toBe("cancelled")
       expect((yield* jobs.get(grandchild.id))?.status).toBe("cancelled")
     }),
+  )
+
+  // SC-01: TaskTool MUST forward the parent-derived restrictions to the child
+  // prompt as `inheritedPermission` (task.ts:185-199). This is what prevents
+  // the child tools-map from relaxing a plan parent's `edit: deny`.
+  it.instance(
+    "SC-01: task forwards inheritedPermission (parent edit-deny) to child prompt",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const agents = yield* Agent.Service
+        const plan = yield* agents.get("plan")
+        const general = yield* agents.get("general")
+        expect(plan).toBeDefined()
+        expect(general).toBeDefined()
+
+        // Parent session running the `plan` agent.
+        const chat = yield* sessions.create({ title: "plan-parent", agent: "plan" })
+        const user = yield* sessions.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID: chat.id,
+          agent: "plan",
+          model: ref,
+          time: { created: Date.now() },
+        })
+        const assistant: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          parentID: user.id,
+          sessionID: chat.id,
+          mode: "plan",
+          agent: "plan",
+          cost: 0,
+          path: { cwd: "/tmp", root: "/tmp" },
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: ref.modelID,
+          providerID: ref.providerID,
+          time: { created: Date.now() },
+        }
+        yield* sessions.updateMessage(assistant)
+
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        yield* def.execute(
+          { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general" },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "plan",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen).toBeDefined()
+        const inherited = seen?.inheritedPermission ?? []
+        // The plan agent's `edit: deny` must be forwarded to the child prompt.
+        expect(
+          inherited.some((r) => r.permission === "edit" && r.action === "deny"),
+        ).toBe(true)
+        // The child session must also carry the restriction at creation.
+        const childID = seen?.sessionID
+        expect(childID).toBeDefined()
+        const child = yield* sessions.get(childID!)
+        expect(
+          (child.permission ?? []).some((r) => r.permission === "edit" && r.action === "deny"),
+        ).toBe(true)
+      }),
+  )
+
+  // SC-03: a default sub-agent (no `task` rule) must NOT be able to re-delegate.
+  // deriveSubagentSessionPermission injects `task: deny` into the child session;
+  // at execution ctx.ask (session-last merge + findLast) must deny "task".
+  it.instance(
+    "SC-03: general subagent has task denied (no unauthorised re-delegation)",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const agents = yield* Agent.Service
+        const general = yield* agents.get("general")
+        expect(general).toBeDefined()
+
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        yield* def.execute(
+          { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general" },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        const child = yield* sessions.get(seen!.sessionID)
+        // Session-level injected task deny.
+        expect((child.permission ?? []).some((r) => r.permission === "task" && r.action === "deny")).toBe(true)
+        // Effective execution ruleset denies "task" (session/tools.ts merge order).
+        const effective = Permission.merge(general!.permission, child.permission ?? [])
+        expect(Permission.evaluate("task", "*", effective).action).toBe("deny")
+      }),
   )
 })

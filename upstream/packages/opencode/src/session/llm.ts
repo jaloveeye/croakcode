@@ -26,6 +26,7 @@ import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { LLMAISDK } from "./llm/ai-sdk"
 import { LLMNativeRuntime } from "./llm/native-runtime"
 import { LLMRequestPrep } from "./llm/request"
+import { connectionFor } from "./llm/mode"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -43,6 +44,8 @@ export type StreamInput = {
   tools: Record<string, Tool>
   retries?: number
   toolChoice?: "auto" | "required" | "none"
+  // Effective connection mode (spec §5.3). Resolved from config when omitted.
+  connection?: { mode: "gate" | "direct" }
 }
 
 export type StreamRequest = StreamInput & {
@@ -103,6 +106,9 @@ const live: Layer.Layer<
       )
 
       const isWorkflow = language instanceof GitLabWorkflowLanguageModel
+      // Connection mode is resolved after config loads so every caller (prompt,
+      // compaction, workflows) gets the same precedence and fail-closed default.
+      const connection = input.connection ?? connectionFor(cfg)
       const prepared = yield* LLMRequestPrep.prepare({
         ...input,
         provider: item,
@@ -110,6 +116,7 @@ const live: Layer.Layer<
         plugin,
         flags,
         isWorkflow,
+        connection,
       })
 
       // Wire up toolExecutor for DWS workflow models so that tool calls

@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: 5. gate→direct: gate-origin secret never reaches the provider payload
+ok 1 - 5. gate→direct: gate-origin secret never reaches the provider payload
+  ---
+  duration_ms: 1373.598288
+  ...
+# Subtest: 5b. gate mode keeps the very same gate-origin message
+ok 2 - 5b. gate mode keeps the very same gate-origin message
+  ---
+  duration_ms: 1337.678719
+  ...
+# Subtest: 5c. gate token is attached in gate mode for the configured gate origin
+ok 3 - 5c. gate token is attached in gate mode for the configured gate origin
+  ---
+  duration_ms: 2.19388
+  ...
+# Subtest: production filter is imported by the real request path (no duplicate copy)
+ok 4 - production filter is imported by the real request path (no duplicate copy)
+  ---
+  duration_ms: 0.936952
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2855.364768
