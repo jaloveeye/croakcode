@@ -41,6 +41,11 @@ export const SessionTable = sqliteTable(
     tokens_cache_write: integer().notNull().default(0),
     revert: text({ mode: "json" }).$type<{ messageID: MessageID; partID?: PartID; snapshot?: string; diff?: string }>(),
     permission: text({ mode: "json" }).$type<Permission.Ruleset>(),
+    // SC-01: immutable inherited security ceiling for delegated child sessions.
+    // Written ONLY by the trusted runtime (Session.setInheritedPermission / task
+    // tool). Never exposed through the public Update API schema. Persisted so
+    // the ceiling survives process restarts and is shared across processes.
+    inherited_permission: text({ mode: "json" }).$type<Permission.Ruleset>(),
     agent: text(),
     model: text({ mode: "json" }).$type<{
       id: string

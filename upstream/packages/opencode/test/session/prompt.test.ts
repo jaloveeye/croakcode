@@ -25,7 +25,7 @@ import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Question } from "../../src/question"
 import { Todo } from "../../src/session/todo"
 import { Session } from "@/session/session"
-import { SessionMessageTable } from "../../src/session/session.sql"
+import { SessionMessageTable, SessionTable } from "../../src/session/session.sql"
 import { LLM } from "../../src/session/llm"
 import { MessageV2 } from "../../src/session/message-v2"
 import { AppFileSystem } from "@croakcode/core/filesystem"
@@ -2386,6 +2386,10 @@ const spawnPlanChild = Effect.fn("test.spawnPlanChild")(function* (input?: { cus
     title: "child",
     parentID: parent.id,
     permission: inherited,
+    // Mirror the trusted task path: delegated children always record the
+    // immutable ceiling (fail-closed treats a parentID child without one as
+    // untrusted).
+    inheritedPermission: inherited,
   })
   return { plan: plan!, sub: sub!, parent, child, inherited }
 })
@@ -2670,6 +2674,65 @@ it.instance(
 
       const after = yield* sessions.get(child.id)
       expect(Permission.evaluate("edit", "/etc/passwd", after.permission ?? []).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01 P0-restart: ceiling survives process restart --------------------
+// The inherited ceiling is persisted in the `inherited_permission` column, not
+// process memory. A restart (new process sharing the same SQLite file) must
+// still enforce it. We prove the value lives in the DB and that the read path
+// (`fromRow`) re-derives DENY from the persisted row alone.
+it.instance(
+  "SC-01(restart): inherited ceiling is persisted in the DB, not process memory",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { child, inherited } = yield* spawnPlanChild()
+      // Simulate an attacker weakening the mutable permission column in-process.
+      yield* sessions.setPermission({
+        sessionID: child.id,
+        permission: [{ permission: "edit", pattern: "*", action: "allow" }],
+      })
+
+      // Read the raw DB row — this is what a fresh process sees after restart.
+      const row = Database.use((db) =>
+        db.select().from(SessionTable).where(Database.eq(SessionTable.id, child.id)).get(),
+      )
+      expect(row).toBeDefined()
+      // The ceiling is physically present in the persisted row.
+      expect(row!.inherited_permission).toEqual(inherited)
+      expect(inherited.some((r) => r.permission === "edit" && r.action === "deny")).toBe(true)
+
+      // A fresh read derives the effective ruleset from that persisted row only.
+      const { fromRow } = yield* Effect.promise(() => import("../../src/session/session"))
+      const info = fromRow(row!)
+      expect(Permission.evaluate("edit", "/etc/passwd", info.permission ?? []).action).toBe("deny")
+    }),
+  30_000,
+)
+
+// --- SC-01 fail-closed: delegated child with no recorded ceiling -----------
+// Only the trusted task tool creates `parent_id` children. If such a row has no
+// `inherited_permission` (corruption / inserted outside the trusted path), the
+// engine must refuse to run it as unbounded: append deny-all.
+it.instance(
+  "SC-01(fail-closed): delegated child with no recorded ceiling denies by default",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const parent = yield* sessions.create({ title: "parent" })
+      // Create a parentID child WITHOUT an inherited ceiling (untrusted path).
+      const child = yield* sessions.create({ parentID: parent.id, title: "orphan child" })
+      const { fromRow } = yield* Effect.promise(() => import("../../src/session/session"))
+      const row = Database.use((db) =>
+        db.select().from(SessionTable).where(Database.eq(SessionTable.id, child.id)).get(),
+      )
+      expect(row!.inherited_permission).toBeNull()
+      const info = fromRow(row!)
+      // Deny-all ceiling appended ⇒ edit (and any other tool permission) denies.
+      expect(Permission.evaluate("edit", "/x.ts", info.permission ?? []).action).toBe("deny")
+      expect(Permission.evaluate("bash", "rm -rf /", info.permission ?? []).action).toBe("deny")
     }),
   30_000,
 )

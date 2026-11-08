@@ -134,7 +134,8 @@ croakcode의 철학은 "에이전트 = 독립적 작업 주체"다. 현재 upstr
      - **(A) 공개 Session Update API**가 `current.permission` 뒤에 클라이언트 규칙을 merge → `findLast`로 allow가 상속 deny를 완화 가능.
      - **(B) 공개 Prompt API**가 자식 세션에 `tools`로 `prompt()`를 호출하면 `inheritedPermission` 없이 `session.permission`을 전체 교체 → 상속 deny 소실.
      - **(C) `task_id` 재개**가 세션 `parentID`/`agent` 일치를 검사하지 않아 다른 부모/타입 세션 hijack 가능.
-     - **수정**: 상속 상한을 **불변 레지스트리**(`Session.setInheritedPermission`, 신뢰 런타임만 기록)로 분리하고 `fromRow`에서 매 읽기마다 상한이 덮는 규칙을 제거 후 끝에 append → 어떤 permission/tools 쓰기도 완화 불가. `task.ts`는 생성 시 `agent`를 기록하고 생성·재개 모두 상한을 등록하며, `task_id`는 `parentID` 불일치/타입 불일치(기록된 경우)를 거부.
+     - **수정**: 상속 상한을 **불변 저장소**(`Session.setInheritedPermission`, 신뢰 런타임만 기록)로 분리하고 `fromRow`에서 매 읽기마다 상한이 덮는 규칙을 제거 후 끝에 append → 어떤 permission/tools 쓰기도 완화 불가. `task.ts`는 생성 시 `agent`를 기록하고 생성·재개 모두 상한을 등록하며, `task_id`는 `parentID` 불일치/타입 불일치(기록된 경우)를 거부.
+     - **영속 + fail-closed(2026-11-08, P0-restart)**: 상한을 프로세스 `Map`이 아니라 **영속 컬럼 `session.inherited_permission`**에 저장(마이그레이션 추가) → 재시작·다중 프로세스에서 유지. 쓰기는 생성(`createNext`)·재개(`setInheritedPermission`)의 직접 컬럼 UPDATE로만, 공개 `Patch`엔 미포함. `parent_id` 위임 세션에 상한이 `null`이면 `*:deny`를 append해 **fail-closed**; 빈 배열 `[]`은 명시적 "제한 없음". 별도 레지스트리 제거로 삭제 실패 시 상한-세션 불일치(P1)도 소멸.
      - **검증**: `prompt.test.ts -t SC-0` 10 pass, `task.test.ts` 19 pass, 계약 45 pass, typecheck clean.
 - **손자 생성**(확인된 사실): `task`는 모든 에이전트에 등록된다. `general`/`explore`/`scout`는 defaults `"*": "allow"`를 상속하므로 **노출 게이트(`registry.ts:330-341`)에서 `task`는 allow로 노출된다(기본 deny 아님)**. 실제 제한은 `deriveSubagentSessionPermission`이 자식 세션에 `{permission:"task", pattern:"*", action:"deny"}`를 주입하고(`subagent-permissions.ts:22,32`), 실행 시 `ctx.ask`가 `merge(agent, session)`에서 session-last로 이 deny를 최종 매칭(`findLast`)해 차단하는 것이다(`session/tools.ts:64-72`). 또한 `task.ts:195`가 tools 맵에 `task:false`를 넣는다. **에이전트 config에 `task` 규칙이 명시된 경우에만** 손자 생성이 가능하다.
 - **취소 전파**(확인된 사실): 포그라운드는 `ctx.abort` 리스너 → `ops.cancel(nextSession.id)`(`task.ts:260-269`), 백그라운드는 `SessionRunState.cancel`의 `metadata.parentSessionId` 매칭(`run-state.ts:122-128`).
@@ -142,7 +143,7 @@ croakcode의 철학은 "에이전트 = 독립적 작업 주체"다. 현재 upstr
 - **에이전트 vs 세션 분리**(확인된 사실): `Session.Info.id` + `Session.Info.agent`(optional) 분리(`session.ts:209-221`, `session.sql.ts:19,44`). 그러나 실행 시 에이전트는 **메시지 단위 `lastUser.agent`** (`prompt.ts:1334`).
 - **철회 개념 부재**(확인된 사실): 코드베이스에 revocation/authorization 재확인 개념 없음. 실행 직전 검사는 `ctx.ask`(Permission evaluate + live approved list)뿐(`session/tools.ts:64-72`, `permission/index.ts:176-186`). **부모 권한 재검증은 없음.**
 - **기존 보안 회귀 테스트**(확인된 사실): `test/agent/plan-mode-subagent-bypass.test.ts`는 `deriveSubagentSessionPermission` + merge를 **격리 환경에서** 검증하며 5/5 통과. 그러나 이 테스트는 **`prompt()`의 덮어쓰기 경로를 거치지 않으므로** 위 3번 경로를 포착하지 못한다(설계상 추론). `test/tool/task.test.ts`는 abort 전파(포그라운드 `:290`, 백그라운드 재귀 취소 `:705`)를 검증한다.
-- **P0 수정 및 검증(2026-11-08)**: 위 잠재 경로를 실제 `prompt()` 경로로 재현(FAIL) → 수정(`inheritedPermission`) → PASS로 전환. 이어서 P0-A(공개 permission 수정)·P0-B(공개 prompt)·P0-C(task_id 소유권) 우회 경로를 재현(FAIL)하고 불변 상속 상한 레지스트리 + 소유권 검사로 봉쇄 → PASS. `test/session/prompt.test.ts` SC-0 10 pass(A·B 포함), `test/tool/task.test.ts` 19 pass(C 포함). 실행 증거: `docs/superpowers/evidence/agent-principal-delegation/2026-11-08-test-evidence.md`.
+- **P0 수정 및 검증(2026-11-08)**: 위 잠재 경로를 실제 `prompt()` 경로로 재현(FAIL) → 수정(`inheritedPermission`) → PASS로 전환. 이어서 P0-A(공개 permission 수정)·P0-B(공개 prompt)·P0-C(task_id 소유권) 우회 경로를 재현(FAIL)하고 불변 상속 상한 저장소 + 소유권 검사로 봉쇄 → PASS. 이어서 P0-restart(휘발성 Map 소실)를 영속 컬럼 + fail-closed로 봉쇄 → PASS. `test/session/prompt.test.ts` SC-0 12 pass(A·B·restart·fail-closed 포함), `test/tool/task.test.ts` 19 pass(C 포함), 마이그레이션 업그레이드 테스트 1 pass. 실행 증거: `docs/superpowers/evidence/agent-principal-delegation/2026-11-08-test-evidence.md`.
 
 ---
 
