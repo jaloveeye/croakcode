@@ -62,7 +62,7 @@
 | 2 | direct + `requiresAuth` 실행 전 오류 | security-context + phase3-bypass(2, 실행계획 INVALID_INPUT) → 19 pass | PASS |
 | 3 | 로컬 설정으로 서버 deny 완화 무시 | phase3-bypass(3/3b/3c: policy>permission, POLICY_DENIED/POLICY_UNAVAILABLE/PLUGIN_DENIED) → 19 pass | PASS |
 | 4 | 인증 실패 시 direct 전환의 게이트 전용 토큰 차단 | phase3-bypass(4a) + **phase3-context-e2e(5)**: direct에서 `shouldAttachToken=false`, capture provider 수신 `authorization` 없음 | PASS |
-| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | **phase3-context-e2e(5)**: 실제 `MessageV2.toModelMessages` 변환 + 실제 POST payload에 `GATE_SECRET_TOKEN`/`abc123` 부재, `continue` 유지. (5b) gate 모드는 동일 메시지 유지 | PASS |
+| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | **fixture 한정 PASS**: `phase3-context-e2e(5)`는 수동으로 `metadata.origin="gate"`를 설정한 fixture만 검증. 실제 Gate 응답 생성·출처 영속화·Direct 재전송은 **NOT TESTED** | PASS(fixture 한정) / 운영 경로 NOT TESTED |
 
 실측 명령: `node --test tests/security-context.test.mjs tests/phase3-bypass.test.mjs tests/phase3-context-e2e.test.mjs` → **tests 19, pass 19, fail 0**
 E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.ts`가 **프로덕션 `MessageV2.toModelMessages`를 호출**하고(node --test에서 TS import 불가하므로 bun 서브프로세스), 그 출력을 실제 HTTP로 capture provider에 전송한다. 프롬프트가 실제로 동일 필터를 호출하는지도 테스트가 소스에서 확인한다(복제 금지 검증).
@@ -74,8 +74,19 @@ E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.
 | recovery 계약 | `node --test tests/recovery.test.mjs` (3) | PASS |
 | Phase 1 복구 E2E | `node --test tests/phase1-recovery.e2e.test.mjs` (3) | PASS |
 
+## 증거 정정 (2026-11-08, SEC-03 검토 후)
+
+§5.4-5의 **"운영 경로 보호 완료" 주장을 철회**한다. 다음이 확인됨:
+
+- `grep -rn "origin.*gate" upstream/packages/opencode/src` (테스트 제외) → **0건**. 런타임은 gate 턴의 text/reasoning/tool 파트에 `metadata.origin="gate"`를 **부여하지 않는다**.
+- `SessionProcessor`의 text part metadata는 `value.providerMetadata`에서만 온다(`processor.ts:660,697`). Provider 응답이 출처를 정하지 않는다.
+- 따라서 `filterMessagesForModeParts`는 실제 Gate 세션의 assistant 텍스트(태그 없음)를 **direct 모드에서 삭제하지 않고 통과**시킨다. 즉 **운영 경로에서 gate→direct 컨텍스트 차단은 현재 동작하지 않는다.**
+- 기존 E2E는 **수동 태그 fixture**로만 증명했으므로 보호 범위를 과대평가했다. 수정 전 증거·테스트 이력은 이 문서와 `docs/superpowers/phase0/evidence/phase3-gate/`에 그대로 보존한다.
+- 상태: §5.4-5 = **PASS(fixture 한정) / 운영 경로 NOT TESTED**. **SEC-03(실제 출처 태그 부여 + 실경로 E2E) 완료 전 Phase 3 제품 수용은 HOLD.**
+
 ## 잔여 리스크 / 명시적 미검증
 
+- **Gate→Direct 출처 추적 공백 (SEC-03, P0)**: 런타임에 `origin:"gate"` 부여 경로가 없다(위 정정 참조). 실경로 차단 미구현.
 - **rhwp 바이너리 미설치**: `hwpCli`의 `exit 0` 경로는 이 환경에서 검증 불가. 테스트는 wrapper 계약(`$ rhwp …` echo, `exit \d+`, read 명령은 ask 없음, write는 ask, blocked 차단)만 확인. 실 바이너리 설치 환경에서 재검증 필요.
 - **플러그인 로더 경로 해석**: `src/session/llm/mode.ts`·`prompt.ts`가 `.croakcode/plugins/lib/connection.js`를 상대 경로로 import한다. Bun 런타임은 `upstream/.croakcode`(레벨 5)로 해석하고 `tsgo`는 `upstream/packages/.croakcode`(레벨 3)로 해석한다. `src/connection.d.ts` 모듈 선언으로 typecheck는 통과하나, 번들링 시 이 경로가 보존되는지는 패키지 빌드에서 확인 필요(Phase 4).
 - **`cancel finalizes interrupted bash tool output`**: baseline(`2f9a1d8` 이전)에서도 실패하는 환경성 flake. 회귀 아님.
