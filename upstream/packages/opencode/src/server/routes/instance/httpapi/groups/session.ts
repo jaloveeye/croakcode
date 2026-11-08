@@ -63,7 +63,13 @@ export const SummarizePayload = Schema.Struct({
   modelID: ModelID,
   auto: Schema.optional(Schema.Boolean),
 })
-export const PromptPayload = Schema.Struct(Struct.omit(SessionPrompt.PromptInput.fields, ["sessionID"]))
+// `inheritedPermission` is an internal security ceiling set only by the task
+// tool (child sessions inherit the parent's denied permissions). It MUST NOT be
+// accepted from the public API, otherwise a client-supplied ruleset could relax
+// the stored session permission. Omit it from the client payload schema.
+export const PromptPayload = Schema.Struct(
+  Struct.omit(SessionPrompt.PromptInput.fields, ["sessionID", "inheritedPermission"]),
+)
 export const CommandPayload = Schema.Struct(Struct.omit(SessionPrompt.CommandInput.fields, ["sessionID"]))
 export const ShellPayload = Schema.Struct(Struct.omit(SessionPrompt.ShellInput.fields, ["sessionID"]))
 export const RevertPayload = Schema.Struct(Struct.omit(SessionRevert.RevertInput.fields, ["sessionID"]))

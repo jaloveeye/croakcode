@@ -2594,3 +2594,19 @@ it.instance(
     }),
   30_000,
 )
+
+// --- SC-01 hardening: inheritedPermission must not be reachable from public API
+it.instance(
+  "SC-01: public prompt payload omits inheritedPermission (client cannot inject the ceiling)",
+  () =>
+    Effect.gen(function* () {
+      const { PromptPayload } = yield* Effect.promise(() =>
+        import("../../src/server/routes/instance/httpapi/groups/session"),
+      )
+      const fields = Object.keys(PromptPayload.fields)
+      expect(fields).not.toContain("inheritedPermission")
+      // sessionID comes from the URL path, never the body.
+      expect(fields).not.toContain("sessionID")
+    }),
+  30_000,
+)
