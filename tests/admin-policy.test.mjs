@@ -27,3 +27,17 @@ test("malformed policy fails even with valid signature", () => {
   const signature = signAdminPolicy(bad, KEY);
   assert.equal(verifyAdminPolicy(bad, signature, { key: KEY }), false);
 });
+
+// Fail-closed when the key is missing: verification must return false, not throw.
+// An empty key is rejected too, because anyone can compute an HMAC with it.
+test("missing or empty key fails closed without throwing", () => {
+  const signature = signAdminPolicy(body, KEY);
+  for (const opts of [undefined, {}, { key: undefined }, { key: null }, { key: "" }, { key: Buffer.alloc(0) }, { key: 42 }]) {
+    assert.equal(verifyAdminPolicy(body, signature, opts), false, `opts=${JSON.stringify(opts)}`);
+  }
+});
+
+test("signature with an empty key cannot verify", () => {
+  const forged = signAdminPolicy(body, "");
+  assert.equal(verifyAdminPolicy(body, forged, { key: "" }), false);
+});
