@@ -21,7 +21,7 @@ import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
-import { connectionFor } from "./llm/mode"
+import { connectionFor, filterMessagesForModeParts, originFor } from "./llm/mode"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -387,7 +387,15 @@ export const layer = Layer.effect(
         ? yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
         : yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)
       const cfg = yield* config.get()
-      const history = compactionPart && messages.at(-1)?.info.id === input.parentID ? messages.slice(0, -1) : messages
+      // SEC-03: one connection snapshot for this compaction. In direct mode the
+      // history is filtered before anything else reads it, so gate-produced turns
+      // never reach the summary request, and a gate-produced summary is not found
+      // as `previousSummary` (its assistant message is withheld with the rest).
+      const connection = connectionFor(cfg)
+      const history = filterMessagesForModeParts(
+        compactionPart && messages.at(-1)?.info.id === input.parentID ? messages.slice(0, -1) : messages,
+        connection.mode,
+      )
       const prior = completedCompactions(history)
       const hidden = new Set(prior.flatMap((item) => [item.userIndex, item.assistantIndex]))
       const previousSummary = prior.at(-1)?.summary
@@ -441,9 +449,9 @@ export const layer = Layer.effect(
         assistantMessage: msg,
         sessionID: input.sessionID,
         model,
-        // SEC-03: compaction summaries inherit the turn's provenance from the
-        // effective connection mode, decided by the runtime (not the model).
-        origin: connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user",
+        // SEC-03: compaction summaries inherit the provenance of the same
+        // snapshot that filtered their input, decided by the runtime (not the model).
+        origin: originFor(connection),
       })
       const result = yield* processor.process({
         user: userMessage,
@@ -459,6 +467,7 @@ export const layer = Layer.effect(
           },
         ],
         model,
+        connection,
       }, { idleTimeoutMs: Flag.CROAKCODE_COMPACTION_IDLE_TIMEOUT_MS ?? 120_000 })
 
       if (result === "compact") {

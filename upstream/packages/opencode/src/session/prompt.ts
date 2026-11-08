@@ -35,7 +35,7 @@ import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { Todo } from "./todo"
 import { LLM } from "./llm"
-import { connectionFor, filterMessagesForModeParts } from "./llm/mode"
+import { connectionFor, filterMessagesForModeParts, originFor } from "./llm/mode"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "@/tool/shell/id"
 import { AppFileSystem } from "@croakcode/core/filesystem"
@@ -271,9 +271,11 @@ export const layer = Layer.effect(
         ? yield* provider.getModel(ag.model.providerID, ag.model.modelID)
         : ((yield* provider.getSmallModel(input.providerID)) ??
           (yield* provider.getModel(input.providerID, input.modelID)))
+      // SEC-03: the title request is another provider call over session history.
+      const connection = connectionFor(yield* config.get())
       const msgs = onlySubtasks
         ? [{ role: "user" as const, content: subtasks.map((p) => p.prompt).join("\n") }]
-        : yield* MessageV2.toModelMessagesEffect(context, mdl)
+        : yield* MessageV2.toModelMessagesEffect(filterMessagesForModeParts(context, connection.mode), mdl)
       const text = yield* llm
         .stream({
           agent: ag,
@@ -284,6 +286,7 @@ export const layer = Layer.effect(
           model: mdl,
           sessionID: input.session.id,
           retries: 2,
+          connection,
           messages: [{ role: "user", content: "Generate a title for this conversation:\n" }, ...msgs],
         })
         .pipe(
@@ -1387,15 +1390,16 @@ export const layer = Layer.effect(
             yield* sessions.updateMessage(msg)
           })
 
-          // SEC-03: the runtime stamps this turn's provenance from the effective
-          // connection mode (trusted, not derived from any provider response).
-          const turnOrigin: "gate" | "user" = connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user"
+          // SEC-03: one connection snapshot per step. The provenance stamp, the
+          // direct-mode history filter, and the outgoing request all use it, so a
+          // config edit mid-step cannot stamp under one mode and send under another.
+          const connection = connectionFor(yield* config.get())
           const handle = yield* processor
             .create({
               assistantMessage: msg,
               sessionID,
               model,
-              origin: turnOrigin,
+              origin: originFor(connection),
             })
             .pipe(Effect.onInterrupt(() => finalizeInterruptedAssistant))
 
@@ -1457,7 +1461,6 @@ export const layer = Layer.effect(
             // gate (and drops assistant parts with unknown provenance). The filter
             // is applied before the transform hook and model conversion so plugins
             // and the provider never see the withheld context.
-            const connection = connectionFor(yield* config.get())
             const msgsForModel: MessageV2.WithParts[] = filterMessagesForModeParts(msgs, connection.mode)
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgsForModel })
 
