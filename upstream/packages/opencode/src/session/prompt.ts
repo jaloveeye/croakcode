@@ -1227,6 +1227,18 @@ export const layer = Layer.effect(
       for (const [t, enabled] of Object.entries(input.tools ?? {})) {
         permissions.push({ permission: t, action: enabled ? "allow" : "deny", pattern: "*" })
       }
+      // SC-01: inherited restrictions from the parent (e.g. a plan agent's
+      // `edit: deny` forwarded by deriveSubagentSessionPermission via the task
+      // tool) are IMMUTABLE. The `tools` map must not be able to relax them —
+      // a `tools: { edit: true }` entry must not re-enable a parent-denied tool.
+      // Permission evaluation uses `findLast` (last matching rule wins), so we
+      // append inherited rules AFTER the tools-map rules. This keeps the
+      // inherited (deny) rule authoritative while still letting a normal
+      // session's tools map enable/disable tools (there, inheritedPermission is
+      // empty, so behaviour is unchanged).
+      if (input.inheritedPermission && input.inheritedPermission.length > 0) {
+        permissions.push(...input.inheritedPermission)
+      }
       if (permissions.length > 0) {
         session.permission = permissions
         yield* sessions.setPermission({ sessionID: session.id, permission: permissions })
@@ -1705,6 +1717,13 @@ export const PromptInput = Schema.Struct({
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)).annotate({
     description:
       "@deprecated tools and permissions have been merged, you can set permissions on the session itself now",
+  }),
+  // SC-01: immutable inherited restrictions forwarded to a spawned sub-agent
+  // (from the parent agent/session via deriveSubagentSessionPermission). These
+  // are appended AFTER the `tools` map so `findLast` precedence keeps them
+  // authoritative; the tools map can never relax them.
+  inheritedPermission: Schema.optional(Permission.Ruleset).annotate({
+    description: "Immutable restrictions inherited from the delegating parent; cannot be relaxed by `tools`.",
   }),
   format: Schema.optional(MessageV2.Format),
   system: Schema.optional(Schema.String),

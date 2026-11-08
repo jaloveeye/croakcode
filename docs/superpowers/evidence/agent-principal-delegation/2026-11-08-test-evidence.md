@@ -9,26 +9,39 @@
 
 ## 실행 결과
 
-### E0. SC-01 통합 재현 — **P0 권한 상승 결함 확정 (FAIL)**
+### E0. SC-01 — P0 권한 상승 결함: 재현(FAIL) → **수정 완료(PASS)**
 
-실제 `prompt()` 경로를 통과하는 재현 테스트를 작성·실행했다(격리 helper 테스트가 아님).
-테스트 위치: `test/session/prompt.test.ts`의 `it.instance.skip("SC-01 (P0 repro): sub-agent session edit-deny must survive child prompt() tools overwrite")` — **skip은 CI 보호 목적**(현재 `it.instance`로 실행하면 FAIL).
+실제 `prompt()` 경로를 통과하는 재현 테스트로 결함을 확정하고, 최소 침습 수정 후 PASS로 전환했다(격리 helper 테스트가 아님).
 
+**재현(수정 전, FAIL):**
 ```
-bun test test/session/prompt.test.ts -t "SC-01"   (it.instance로 실행 시)
-→ FAIL: expect(Permission.evaluate("edit", "/some/file.ts", effective).action).toBe("deny")
-        Expected: "deny"
-        Received: "allow"
+bun test test/session/prompt.test.ts -t "SC-01"
+→ FAIL: Permission.evaluate("edit", "<file>", effective)  Expected "deny", Received "allow"
 ```
+- 자식 세션 **생성 직후**: `edit` = deny(부모 plan deny 전달 정상).
+- 실제 `prompt.prompt({ tools: { task: false }, noReply: true })` **통과 후**: `edit` = **allow**.
+- 원인: `prompt.ts:1226-1233`이 tools 맵이 비어있지 않으면 `session.permission`을 **전체 교체**(`session.ts:735-739`) → 부모 deny 소실 → general `"*": "allow"`가 edit 허용.
 
-**관찰된 사실(2단계):**
-1. 자식 세션 **생성 직후**: `Permission.evaluate("edit", …, child.permission)` = **deny** (부모 plan deny가 정상 전달 — PASS).
-2. 실제 `prompt.prompt({ tools: { task: false }, noReply: true })` **통과 후**: `Permission.merge(general.permission, session.permission)`에서 `edit` = **allow** (FAIL).
-   - 원인: `prompt.ts:1226-1233`이 tools 맵이 비어있지 않으면 `session.permission`을 **덮어씀**, `setPermission`은 전체 교체(`session.ts:735-739`). 부모 deny 소실 → 자식 `general`의 `"*": "allow"`가 edit 허용.
-   - `general`의 tools 맵은 `{task:false}`(이미 `todowrite` 규칙 보유 → `todowrite:false` 생략).
+**수정(최소 침습 — Phase 4 런타임 신설 없음):**
+1. `PromptInput.inheritedPermission` 추가 (`session/prompt.ts`).
+2. `prompt()`: tools 규칙 **뒤에** inherited 규칙 append → `findLast`로 inherited deny 우선( tools `edit:true`도 상속 deny를 완화 불가).
+3. `task.ts`: `deriveSubagentSessionPermission(...)`를 변수로 추출해 세션 생성 + `inheritedPermission` 양쪽에 전달.
 
-**의미**: 서브 에이전트는 부모의 권한을 초과할 수 없다(invariant INV-2/DG-05)는 핵심 불변식이 실제 런타임 경로에서 **위반**된다. 기존 `plan-mode-subagent-bypass.test.ts`(5/5 통과)는 **격리 helper만** 검증해 이 경로를 포착하지 못한다.
-**조치**: 수정은 Phase 4 승인 대상(이 작업은 설계/검증만). 재현 테스트는 증거로 보존.
+**검증(수정 후, PASS):**
+```
+bun test test/session/prompt.test.ts -t "SC-0"   → 7 pass / 0 fail
+  - plan→general edit/write/apply_patch deny (write/apply_patch는 실행 시 permission "edit")
+  - plan→custom subagent edit deny 유지
+  - tools:{edit:true} 우회 불가
+  - 부모 Session deny 유지
+  - read/grep 허용 정상
+  - normal 세션 tools enable/disable 정상 (SC-02)
+  - real Permission.ask → PermissionDeniedError (실행 경로)
+bun test test/tool/task.test.ts                 → 17 pass / 0 fail
+  - SC-01: task가 inheritedPermission(edit-deny) 전달
+  - SC-03: general 서브에이전트 task deny 주입 + 실행 차단
+```
+**회귀**: Phase 0–2 계약 테스트 45 pass / 0 fail; task+bypass+permission 42 pass; session/registry/todo-subagent 10 pass; typecheck clean. `prompt.test.ts` 전체는 61 pass(간헐 flake 1건은 재실행 시 0 fail — 기존 flaky 클래스).
 
 ### E1. `test/agent/plan-mode-subagent-bypass.test.ts`
 ```

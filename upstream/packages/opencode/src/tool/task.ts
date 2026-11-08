@@ -139,17 +139,24 @@ export const TaskTool = Tool.define(
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
+      // SC-01: the restrictions inherited from the parent (plan edit-deny, parent
+      // session denies, default todowrite/task denies) are computed once and are
+      // IMMUTABLE for the child. They are passed both at session creation and as
+      // `inheritedPermission` on the child prompt so the tools map cannot relax
+      // them (prompt.ts appends inherited rules last → findLast keeps them
+      // authoritative).
+      const inheritedPermission = deriveSubagentSessionPermission({
+        parentSessionPermission: parent.permission ?? [],
+        parentAgent,
+        subagent: next,
+      })
       const nextSession =
         session ??
         (yield* sessions.create({
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
           permission: [
-            ...deriveSubagentSessionPermission({
-              parentSessionPermission: parent.permission ?? [],
-              parentAgent,
-              subagent: next,
-            }),
+            ...inheritedPermission,
             ...(cfg.experimental?.primary_tools?.map((item) => ({
               pattern: "*",
               action: "allow" as const,
@@ -190,6 +197,7 @@ export const TaskTool = Tool.define(
             providerID: model.providerID,
           },
           agent: next.name,
+          inheritedPermission,
           tools: {
             ...(next.permission.some((rule) => rule.permission === "todowrite") ? {} : { todowrite: false }),
             ...(next.permission.some((rule) => rule.permission === id) ? {} : { task: false }),
