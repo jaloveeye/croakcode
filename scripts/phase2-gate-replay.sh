@@ -35,8 +35,6 @@ echo "== upstream opencode (provider/tool/session/cli-help/skill) =="
 # billing origin). They fail identically on the pre-Phase-3 baseline, so they are
 # baseline failures, not regressions. Fix in a rebrand follow-up.
 BASELINE_FAIL=(
-  "hosted nvidia provider adds billing origin header"
-  "custom nvidia baseURL adds billing origin header"
   "plugin.xai > buildAuthorizeUrl > includes required OAuth + PKCE + OIDC params"
   "plugin.xai > loader > replaces the dummy bearer, sets User-Agent, and preserves caller headers"
   "plugin.xai > loader > does not mutate caller headers and supports HeadersInit shapes"
