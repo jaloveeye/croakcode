@@ -85,14 +85,29 @@ export function isGateOnlyPart(part) {
 }
 
 /**
+ * Part types that carry no model-visible content and have no `metadata` field
+ * in the MessageV2 schema, so the runtime cannot stamp them. `step-start` is
+ * sent to the provider only as an empty boundary marker; the others are never
+ * sent. Every other type must prove its provenance (fail-closed allowlist).
+ */
+export const STRUCTURAL_PART_TYPES = Object.freeze(["step-start", "step-finish", "snapshot", "patch"]);
+
+/** @param {any} part */
+function isStructuralPart(part) {
+  return !!part && typeof part === "object" && STRUCTURAL_PART_TYPES.includes(part.type);
+}
+
+/**
  * An assistant part that must not be replayed to a direct provider:
  * gate-produced (`origin:"gate"`) or of unprovable provenance (fail-closed).
- * Explicitly user-trusted parts (`origin:"user"`) are safe.
+ * Explicitly user-trusted parts (`origin:"user"`) and content-free structural
+ * parts are safe.
  *
  * @param {any} part
  * @returns {boolean}
  */
 export function isProtectedAssistantPart(part) {
+  if (isStructuralPart(part)) return false;
   return isGateOnlyPart(part) || isUntrustedOrigin(part);
 }
 
@@ -143,4 +158,17 @@ export function filterMessagesForModeParts(messages, mode) {
     }
     return true;
   });
+}
+
+/**
+ * True when a MessageV2 history holds anything the direct filter would
+ * withhold. Used to classify output derived from that history (for example a
+ * sub-agent result): if the producing context saw gate data, the derived
+ * output is gate data too, whatever the mode is when it is consumed.
+ *
+ * @param {any[]} messages
+ * @returns {boolean}
+ */
+export function containsGateContext(messages) {
+  return filterMessagesForModeParts(messages ?? [], "direct").length !== (messages ?? []).length;
 }

@@ -98,23 +98,40 @@ test("production runtime stamps provenance on persisted parts (source check, no 
   // The turn origin is decided by the runtime from connection mode, not by the model.
   assert.match(processor, /origin:\s*input\.origin/, "processor must adopt the caller-supplied turn origin")
 
+  // Origin mapping lives in one helper next to the connection resolver.
+  const mode = read("upstream/packages/opencode/src/session/llm/mode.ts")
+  assert.match(mode, /export function originFor/, "origin must be derived by the shared originFor helper")
+
+  // One connection snapshot per step: stamp, filter, and request share it.
   const prompt = read("upstream/packages/opencode/src/session/prompt.ts")
-  assert.match(prompt, /turnOrigin/, "prompt loop must compute the turn origin from connection mode")
+  assert.match(prompt, /origin: originFor\(connection\)/, "turn origin must derive from the step's connection snapshot")
   assert.match(
     prompt,
-    /connectionFor\(yield\* config\.get\(\)\)\.mode === "gate" \? "gate" : "user"/,
-    "turn origin must derive from the effective connection mode (trusted runtime signal)",
+    /filterMessagesForModeParts\(msgs, connection\.mode\)/,
+    "the direct filter must use the same snapshot as the stamp",
+  )
+  assert.equal(
+    (prompt.match(/connectionFor\(yield\* config\.get\(\)\)/g) ?? []).length,
+    2,
+    "only the loop step snapshot and the title request may read the connection mode",
   )
 
+  // Compaction filters its input and stamps its summary from one snapshot.
   const compaction = read("upstream/packages/opencode/src/session/compaction.ts")
-  assert.match(
-    compaction,
-    /origin:\s*connectionFor\(yield\* config\.get\(\)\)\.mode === "gate" \? "gate" : "user"/,
-    "compaction summaries must inherit the turn provenance, not default to gate",
-  )
+  assert.match(compaction, /const connection = connectionFor\(cfg\)/, "compaction must snapshot the connection once")
+  assert.match(compaction, /filterMessagesForModeParts\(/, "compaction input must pass the direct filter")
+  assert.match(compaction, /origin: originFor\(connection\)/, "summary must inherit the snapshot provenance")
 
+  // Sub-agent results take the provenance of the run that produced them.
   const task = read("upstream/packages/opencode/src/tool/task.ts")
+  assert.match(task, /const launchConnection = connectionFor/, "sub-agent launch mode must be captured")
+  assert.match(task, /containsGateContext/, "child history must decide whether the result is gate data")
   assert.match(task, /metadata: \{ origin \}/, "background sub-agent result injected as user text must be stamped")
+  assert.doesNotMatch(
+    task,
+    /const origin[^\n]*connectionFor\(yield\* config\.get\(\)\)/,
+    "the injected result must not be classified by the mode at injection time",
+  )
 
   const messageV2 = read("upstream/packages/opencode/src/session/message-v2.ts")
   assert.match(
@@ -135,4 +152,40 @@ test("production runtime stamps provenance on persisted parts (source check, no 
     /providerMetadata: providerMeta\(part\.metadata\)/,
     "reasoning provider metadata must be origin-stripped",
   )
+})
+
+// SEC-03 follow-up: the runtime persists content-free structural parts
+// (step-start/step-finish/snapshot/patch) that have no `metadata` field and so
+// can never carry a stamp. They must not make a direct-produced assistant
+// message look unprovable, but every other unstamped type stays fail-closed.
+test("structural parts do not hide direct history; other unstamped parts stay protected", async () => {
+  const { STRUCTURAL_PART_TYPES } = await import(lib)
+  assert.deepEqual([...STRUCTURAL_PART_TYPES].sort(), ["patch", "snapshot", "step-finish", "step-start"])
+  for (const type of STRUCTURAL_PART_TYPES) assert.equal(isProtectedAssistantPart({ type }), false, type)
+  for (const type of ["text", "reasoning", "tool", "file", "retry", "agent", "subtask", "unknown-type"])
+    assert.equal(isProtectedAssistantPart({ type }), true, `${type} without origin must be protected`)
+  // A structural part cannot launder a gate-stamped sibling.
+  const gateTurn = {
+    info: { role: "assistant" },
+    parts: [{ type: "step-start" }, { type: "text", text: "secret", metadata: { origin: "gate" } }, { type: "step-finish" }],
+  }
+  const directTurn = {
+    info: { role: "assistant" },
+    parts: [{ type: "step-start" }, { type: "text", text: "ok", metadata: { origin: "user" } }, { type: "step-finish" }],
+  }
+  assert.deepEqual(filterMessagesForModeParts([gateTurn, directTurn], "direct"), [directTurn])
+})
+
+test("containsGateContext classifies a producing history fail-closed", async () => {
+  const { containsGateContext } = await import(lib)
+  const user = { info: { role: "user" }, parts: [{ type: "text", text: "q" }] }
+  const direct = { info: { role: "assistant" }, parts: [{ type: "step-start" }, { type: "text", text: "a", metadata: { origin: "user" } }] }
+  const gate = { info: { role: "assistant" }, parts: [{ type: "text", text: "s", metadata: { origin: "gate" } }] }
+  const legacy = { info: { role: "assistant" }, parts: [{ type: "text", text: "old" }] }
+  const injected = { info: { role: "user" }, parts: [{ type: "text", synthetic: true, text: "r", metadata: { origin: "gate" } }] }
+  assert.equal(containsGateContext([]), false)
+  assert.equal(containsGateContext([user, direct]), false)
+  assert.equal(containsGateContext([user, gate]), true)
+  assert.equal(containsGateContext([user, legacy]), true, "unstamped assistant content is unprovable")
+  assert.equal(containsGateContext([injected]), true, "nested gate sub-agent result taints the parent run")
 })
