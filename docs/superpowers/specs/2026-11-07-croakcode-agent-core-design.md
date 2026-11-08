@@ -190,8 +190,8 @@ create → prompt(user) → orchestrator loop → stream assistant
 | `permission.reply` | client→core | 응답(allow/deny/always) |
 | `session.status` | core→client | busy/idle/error |
 | `session.error` | core→client | 스트리밍·도구 오류 (idle 타임아웃은 `errorCode=STREAM_IDLE_TIMEOUT`) |
-| `session.todo` | core→client | TODO 항목 추가/갱신/삭제 (§4.8) — 재연결 시 전체 스냅샷 선행 |
-| `session.todo.inconsistent` | core→client | TODO 표시-실행 정합성 경고 (§4.8) |
+| `todo.updated` | core→client | TODO 전체 목록 스냅샷 (§4.8) — 재연결 시에도 전체 목록 전송 |
+| `todo.inconsistent` | core→client | TODO 표시-실행 정합성 경고 (§4.8) |
 | `harness.updated` | core→client | 권한 기반 하네스/스킬 재산정 결과 (§4.7) |
 
 ### 4.3 훅 지점 (contracts)
@@ -274,15 +274,18 @@ opencode는 이미 `ToolState(pending/running/completed/error)`를 영속화하�
   2. 모델이 `todowrite`로 표시만 하고 실제로 실행하지 않음 → TUI는 "완료"인데 부작용 도구 호출 기록이 없음.
   3. 세션 재개(resume) 시 TODO가 재구성되지 않아 이전 상태가 사라짐.
   4. 서브에이전트가 만든 TODO와 부모 세션 TODO가 섞임.
-- **SSOT 원칙(정본)**: TODO 목록은 TUI 로컬 상태가 아니라 **`sessions`/`todos` 영속 테이블 + 이벤트 스트림**이 유일한 출처다. TUI는 `session.todo` 이벤트를 구독해 렌더링만 한다(로컬 낙관적 갱신 금지 — 낙관적 갱신은 이벤트와 어긋날 수 있으므로, 표시는 항상 서버 확인 후 반영).
-- **실행-표시 정합성 검사**: 각 TODO 항목은 `status: pending|in_progress|completed|cancelled`와 `linkedToolCalls: string[]`(callID 목록)를 갖는다. 턴 종료 시 core는 다음을 검증한다:
-  - `completed`인데 `linkedToolCalls`가 비어 있으면 → **경고 이벤트**(`session.todo.inconsistent`)를 내보낸다. TODO를 임의로 되돌리지는 않는다(모델 판단을 덮어쓰지 않음 — 관측만).
-  - `in_progress`인데 해당 턴에 도구 호출이 하나도 없으면 → 동일하게 경고.
+- **SSOT 원칙(정본)**: TODO 목록은 TUI 로컬 상태가 아니라 **`sessions`/`todos` 영속 테이블 + 이벤트 스트림**이 유일한 출처다. TUI는 `todo.updated` 이벤트를 구독해 렌더링만 한다(로컬 낙관적 갱신 금지 — 낙관적 갱신은 이벤트와 어긋날 수 있으므로, 표시는 항상 서버 확인 후 반영).
+- **실행-표시 정합성 검사**: 각 TODO 항목은 `status: pending|in_progress|completed|cancelled`, `linkedToolCalls: string[]`(callID 목록), `evidence: "tool" | "none"`(검증 정책)을 갖는다. 턴 종료 시 core는 다음을 검증한다:
+  - **`evidence: "tool"`인 항목만** 도구 실행 증거를 요구한다. `completed`인데 `linkedToolCalls`가 비어 있으면 → 경고 이벤트(`todo.inconsistent`, warnings: `["completed_without_evidence"]`)를 내보낸다. TODO를 임의로 되돌리지는 않는다(모델 판단을 덮어쓰지 않음 — 관측만).
+  - **`evidence: "none"`인 항목**(설계 검토, 분석, 판단, 문서 비교 등 도구 호출 없이 완료되는 작업)은 `linkedToolCalls`가 비어 있어도 **경고하지 않는다**. 완료에 도구 호출이 반드시 필요하다고 가정하지 않는다.
+  - `in_progress` 항목은 **턴 단위로 판정하지 않는다**. 여러 턴에 걸친 정상 진행을 오탐하지 않도록, 경고는 `evidence: "tool"`이면서 **해당 TODO가 `in_progress`로 진입한 턴에 도구 호출이 전혀 없었던 경우**로 한정한다(`inProgressSinceTurn` 기준).
   - 이 경고는 감사 로그에도 남겨, "에이전트가 TODO를 실제로 수행했는가"를 사후 분석할 수 있게 한다.
-- **부작용 도구 연결**: 부작용 도구(bash/write/hwp_cli 등) 실행 시, 해당 도구 호출이 어느 TODO 항목의 것인지 모델이 명시하지 않아도, **core가 `linkedToolCalls`에 자동 연결**한다(턴 컨텍스트상 그 도구 호출이 진행 중인 TODO 항목에 귀속된다고 판단할 때만). 자동 연결은 보수적으로: 애매하면 연결하지 않고 경고만 낸다.
+  - `evidence` 판정은 모델이 `todowrite` 호출 시 명시하거나, 미지정이면 `"tool"`을 기본값으로 둔다(관측 우선 — 놓치기보다 과탐지가 낫다). 단 **오탐이 반복되는 항목은 모델이 `"none"`으로 표시**할 수 있다.
+- **부작용 도구 연결**: 부작용 도구(bash/write/hwp_cli 등) 실행 시, 해당 도구 호출이 어느 TODO 항목의 것인지 모델이 명시하지 않아도, **core가 `linkedToolCalls`에 자동 연결**한다. 연결 근거는 **같은 턴에서 실행된 부작용 도구의 callID를, 그 턴에 `in_progress`였던 가장 최근 TODO 항목에 귀속**시키는 것이다. 자동 연결은 보수적으로: `in_progress` 항목이 2개 이상이거나 해당 턴에 TODO 변경이 없었으면 **연결하지 않고** 경고만 낸다(추측 귀속 금지).
 - **세션 재개**: resume 시 `todos` 테이블에서 복원하고, `in_progress` 잔존 항목은 §4.5 복구 정책과 동일하게 다룬다 — 도구 결과가 불명확하면 `pending`으로 되돌리고 사용자 확인을 요청한다.
 - **서브에이전트 격리**: 서브세션의 TODO는 부모와 분리된 `sessionID`로 저장한다. TUI에서 서브세션 TODO는 접어서(collapsed) 표시하고, 부모 TODO 목록에 섞지 않는다.
-- **이벤트 확장**: `session.todo`(항목 추가/갱신/삭제), `session.todo.inconsistent`(정합성 경고)를 §4.2 이벤트 모델에 추가한다. SSE 재연결 시 `session.todo`는 **현재 전체 목록 스냅샷**을 먼저 보내고 이후 델타를 보낸다(재연결 시 상태 유실 방지).
+- **이벤트 명명(정본)**: upstream BusEvent 규칙을 따른다 — prefix 없이 **`todo.updated`**, **`todo.inconsistent`**로 정의한다(기존 `todo.updated`와 일관). §4.2 이벤트 모델은 이 이름으로 기술한다. TUI 구독·contracts·테스트가 모두 **`todo.inconsistent`**를 쓴다.
+- **SSE 재연결**: `todo.updated`는 **현재 전체 목록 스냅샷**을 전송하므로 재연결 시 상태 유실이 없다(별도 스냅샷 이벤트 불필요).
 
 > Phase 1에서는 upstream의 기존 `todowrite` 동작을 그대로 계승하고, 이 절의 SSOT/정합성 검사는 Phase 2에서 구현한다.
 
@@ -298,6 +301,11 @@ opencode는 이미 `ToolState(pending/running/completed/error)`를 영속화하�
 - **설계 원칙**: 타임아웃을 **두 단계로 분리**한다.
   1. **첫 응답(head-of-stream) 타임아웃**: 요청 시작 → 첫 토큰/헤더 도착까지. compaction처럼 입력이 큰 경우 일반 턴보다 **넉넉한 값**(설정 가능)을 사용한다.
   2. **본문 inactivity(idle) 타임아웃**: 마지막 델타 수신 이후 다음 델타까지의 간격. **이것이 현재 없는 guard**이며, compaction·일반 턴 모두에 적용한다.
+- **구현 지점(검증된 사실)**: **`Stream.timeout(duration)`** 이 정확히 이 의미다 — Effect 문서: *"Ends the stream if it does not produce a value within the specified duration."* 즉 델타 기반 idle 감시이며, 전체 실행 시간 제한이 **아니다**(그건 `Effect.timeoutOption`). 적용 지점은 `session/processor.ts:791-795`의 스트림 파이프라인으로, `Stream.tap(handleEvent)` **앞**에 `Stream.timeout(idleMs)`을 넣는다. **주의: `Effect.timeoutOption`을 idle guard로 쓰면 델타가 계속 들어와도 중단되므로 오답이다.**
+- **두 타임아웃은 별개 계약**:
+  - `Stream.timeout` → body idle (델타 간격)
+  - `Effect.timeoutOption` → compaction **전체 실행 상한**(안전장치; idle과 구분해 별도 값)
+  - 둘을 함께 걸어도 무방하나, **의미와 기본값을 혼용하지 않는다**.
 - **guard 동작(정본)**:
   - idle 타임아웃 초과 시 → 스트림을 **abort**하고 `errorCode: "STREAM_IDLE_TIMEOUT"` 오류를 방출한다.
   - compaction 중 발생하면 **자동 재시도 금지**(요약 생성은 부작용은 없으나 대화 상태를 소모하므로 무한 재시도는 금지). 대신 compaction을 **중단**하고 세션을 `idle`로 되돌린 뒤, 사용자에게 "compaction 중 응답이 없어 중단됨 — 재시도/수동 /compact 안내"를 표시한다.
@@ -609,7 +617,7 @@ tools:
 - **완료 조건**: 섹션 6의 A + B가 매트릭스에서 PASS(또는 승인된 ACCEPTED DEVIATION).
   - **슬롯 소유권(Phase 2)**: 슬롯 **API를 croakcode contracts로 계약 확정**(패치 0006 `session_message_footer`, 0007 `api.permission.mode` 포함). 슬롯은 여전히 비어 있음(콘텐츠는 Phase 3).
   - **권한 기반 동적 하네스/스킬 할당(§4.7)**: `HarnessResolver` 포트를 contracts에 추가하고 구현. 완료 조건 — ① 권한 스냅샷 변경(gate↔direct 전환, 승인 응답, 서브에이전트 생성) 시 하네스가 재산정된다, ② `deny` 도구/스킬이 모델에 **노출되지 않음을 테스트로 증명**한다, ③ 판정 입력 누락 시 fail-closed(deny), ④ 재산정 근거가 감사 로그에 남는다.
-  - **TUI TODO ↔ 실제 작업 동기화(§4.8)**: TODO를 영속 테이블 + `session.todo` 이벤트의 SSOT로 전환. 완료 조건 — ① TUI가 서버 이벤트만으로 렌더링(로컬 낙관적 갱신 없음), ② 턴 종료 시 `session.todo.inconsistent` 경고가 실제 불일치 케이스(표시만 하고 미실행 / 실행하고 미표시)에서 발생, ③ resume 시 TODO 복원, ④ 서브세션 TODO가 부모 목록에 섞이지 않음.
+  - **TUI TODO ↔ 실제 작업 동기화(§4.8)**: TODO를 영속 테이블 + `todo.updated` 이벤트의 SSOT로 전환. 완료 조건 — ① TUI가 서버 이벤트만으로 렌더링(로컬 낙관적 갱신 없음), ② 턴 종료 시 `todo.inconsistent` 경고가 **도구 증거가 필요한(`evidence:"tool"`) 항목**의 실제 불일치 케이스에서 발생하고 `evidence:"none"` 항목에서는 발생하지 않음, ③ 여러 턴에 걸친 `in_progress`를 오탐하지 않음, ④ resume 시 TODO 복원, ⑤ 서브세션 TODO가 부모 목록에 섞이지 않음(테스트로 증명).
   - **Compaction 응답없음 guard(§4.9)**: 첫 응답 타임아웃과 본문 idle 타임아웃을 분리 구현. 완료 조건 — ① 본문 스트림이 멈춘 상태를 `STREAM_IDLE_TIMEOUT`으로 abort하는 테스트, ② compaction 경로는 기본 guard가 **항상 켜짐**, ③ compaction 중단 시 세션이 `idle`로 정상 복귀하고 무한 재시도 없음, ④ `running` 도구가 있으면 §4.5 규칙으로 `unknown` 복구.
 
 ### 8.4 Phase 3 — 커스텀 플러그인 이식

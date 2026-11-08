@@ -56,8 +56,8 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 
 const log = Log.create({ service: "tool.registry" })
 
-export function webSearchEnabled(providerID: ProviderID, flags = { exa: false, parallel: false }) {
-  return providerID === ProviderID.opencode || flags.exa || flags.parallel
+export function webSearchEnabled(_providerID: ProviderID, flags = { exa: false, parallel: false }) {
+  return flags.exa || flags.parallel
 }
 
 type TaskDef = Tool.InferDef<typeof TaskTool>
@@ -327,8 +327,19 @@ export const layer: Layer.Layer<
         return true
       })
 
+      // Fail-closed permission gate (§4.7). Only explicitly allowed/asked tools
+      // are exposed to the model. Unknown decisions are excluded. This governs
+      // EXPOSURE only; execution still re-checks via ctx.ask (session/tools.ts),
+      // preserving the §3.4 invariant. Listing uses agent.permission only while
+      // execution merges session.permission (conservative over-exposure; the
+      // session-level deny still blocks at execution time).
+      const permitted = filtered.filter((tool) => {
+        const action = Permission.evaluate(tool.id, "*", input.agent.permission).action
+        return action === "allow" || action === "ask"
+      })
+
       return yield* Effect.forEach(
-        filtered,
+        permitted,
         Effect.fnUntraced(function* (tool: Tool.Def) {
           using _ = log.time(tool.id)
           const output = {

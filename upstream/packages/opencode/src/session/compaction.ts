@@ -17,6 +17,7 @@ import * as DateTime from "effect/DateTime"
 import { InstanceState } from "@/effect/instance-state"
 import { isOverflow as overflow, usable } from "./overflow"
 import { serviceUse } from "@croakcode/core/effect/service-use"
+import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
@@ -454,7 +455,7 @@ export const layer = Layer.effect(
           },
         ],
         model,
-      })
+      }, { idleTimeoutMs: Flag.CROAKCODE_COMPACTION_IDLE_TIMEOUT_MS ?? 120_000 })
 
       if (result === "compact") {
         processor.message.error = new MessageV2.ContextOverflowError({

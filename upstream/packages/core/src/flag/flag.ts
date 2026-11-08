@@ -48,6 +48,18 @@ export const Flag = {
   CROAKCODE_WORKSPACE_ID: process.env["CROAKCODE_WORKSPACE_ID"],
   CROAKCODE_EXPERIMENTAL_WORKSPACES: enabledByExperimental("CROAKCODE_EXPERIMENTAL_WORKSPACES"),
 
+  // Body-idle guard (§4.9). Evaluated at access time so tests/runtime overrides
+  // take effect. stream: 0 => disabled, undefined => default 60s in the caller.
+  // compaction: always on; 0/undefined => default 120s in the caller.
+  get CROAKCODE_STREAM_IDLE_TIMEOUT_MS() {
+    const v = Number(process.env["CROAKCODE_STREAM_IDLE_TIMEOUT_MS"])
+    return Number.isFinite(v) && v >= 0 ? v : undefined
+  },
+  get CROAKCODE_COMPACTION_IDLE_TIMEOUT_MS() {
+    const v = Number(process.env["CROAKCODE_COMPACTION_IDLE_TIMEOUT_MS"])
+    return Number.isFinite(v) && v > 0 ? v : undefined
+  },
+
   // Evaluated at access time (not module load) because tests, the CLI, and
   // external tooling set these env vars at runtime.
   get CROAKCODE_DISABLE_PROJECT_CONFIG() {

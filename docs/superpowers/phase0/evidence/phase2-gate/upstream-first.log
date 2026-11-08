@@ -1,0 +1,225 @@
+bun test v1.3.14 (0d9b296a)
+
+test/provider/provider.test.ts:
+[02:18:59.013] ERROR (#4450): 1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+
+1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (unknown:7:39)
+(fail) hosted nvidia provider adds billing origin header [422.07ms]
+[02:18:59.329] ERROR (#4511): 1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+
+1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (native:7:39)
+(fail) custom nvidia baseURL adds billing origin header [315.22ms]
+
+test/session/llm.test.ts:
+(fail) session.llm.stream > service stream cancellation cancels provider response body promptly [6002.52ms]
+  ^ this test timed out after 5000ms.
+[02:20:49.958] ERROR (#65586): 2560 |       })
+2561 |     };
+2562 |   } catch (parseError) {
+2563 |     return {
+2564 |       responseHeaders,
+2565 |       value: new APICallError4({
+                        ^
+AI_APICallError: Internal Server Error
+        url: "http://localhost:57512/v1/chat/completions",
+ requestBodyValues: {
+  model: "qwen-plus",
+  user: undefined,
+  max_tokens: 32000,
+  temperature: 0.55,
+  top_p: 1,
+  frequency_penalty: undefined,
+  presence_penalty: undefined,
+  response_format: undefined,
+  stop: undefined,
+  seed: undefined,
+  reasoning_effort: undefined,
+  verbosity: undefined,
+  messages: [
+    [Object ...], [Object ...]
+  ],
+  tools: [
+    [Object ...]
+  ],
+  tool_choice: "auto",
+  stream: true,
+  stream_options: [Object ...],
+},
+ statusCode: 500,
+ responseHeaders: {
+  "content-length": "18",
+  "content-type": "text/plain;charset=utf-8",
+  date: "Sun, 08 Nov 2026 02:20:49 GMT",
+},
+ responseBody: "unexpected request",
+ isRetryable: true,
+       data: undefined,
+
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@ai-sdk+provider-utils@4.0.23+d6123d32214422cb/node_modules/@ai-sdk/provider-utils/dist/index.mjs:2565:18
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@ai-sdk+provider-utils@4.0.23+d6123d32214422cb/node_modules/@ai-sdk/provider-utils/dist/index.mjs:2394:34
+      at processTicksAndRejections (native:7:39)
+
+2560 |       })
+2561 |     };
+2562 |   } catch (parseError) {
+2563 |     return {
+2564 |       responseHeaders,
+2565 |       value: new APICallError4({
+                        ^
+AI_APICallError: Internal Server Error
+      cause: undefined,
+        url: "http://localhost:57512/v1/chat/completions",
+ requestBodyValues: {
+  model: "qwen-plus",
+  user: undefined,
+  max_tokens: 32000,
+  temperature: 0.55,
+  top_p: 1,
+  frequency_penalty: undefined,
+  presence_penalty: undefined,
+  response_format: undefined,
+  stop: undefined,
+  seed: undefined,
+  reasoning_effort: undefined,
+  verbosity: undefined,
+  messages: [
+    [Object ...], [Object ...]
+  ],
+  tools: [
+    [Object ...]
+  ],
+  tool_choice: "auto",
+  stream: true,
+  stream_options: [Object ...],
+},
+ statusCode: 500,
+ responseHeaders: {
+  "content-length": "18",
+  "content-type": "text/plain;charset=utf-8",
+  date: "Sun, 08 Nov 2026 02:20:49 GMT",
+},
+ responseBody: "unexpected request",
+ isRetryable: true,
+       data: undefined,
+ vercel.ai.error: true,
+ vercel.ai.error.AI_APICallError: true,
+
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@ai-sdk+provider-utils@4.0.23+d6123d32214422cb/node_modules/@ai-sdk/provider-utils/dist/index.mjs:2565:18
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@ai-sdk+provider-utils@4.0.23+d6123d32214422cb/node_modules/@ai-sdk/provider-utils/dist/index.mjs:2394:34
+      at processTicksAndRejections (native:7:39)
+(fail) session.llm.stream > keeps tools enabled by prompt permissions [2207.67ms]
+[02:20:54.694] INFO (#65754): llm runtime selected {
+  "llm.runtime": "ai-sdk",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:20:57.038] INFO (#65839): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:20:59.315] INFO (#65932): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:21:02.152] INFO (#66028): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+
+ 1029 pass
+ 5 skip
+ 1 todo
+ 4 fail
+ 51 snapshots, 2359 expect() calls
+Ran 1039 tests across 55 files. [226.93s]

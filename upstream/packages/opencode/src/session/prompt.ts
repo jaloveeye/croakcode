@@ -33,6 +33,7 @@ import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
+import { Todo } from "./todo"
 import { LLM } from "./llm"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "@/tool/shell/id"
@@ -46,6 +47,7 @@ import * as EffectLogger from "@croakcode/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
+import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
@@ -103,6 +105,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const bus = yield* Bus.Service
     const status = yield* SessionStatus.Service
+    const todos = yield* Todo.Service
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
     const provider = yield* Provider.Service
@@ -1455,7 +1458,7 @@ export const layer = Layer.effect(
               tools,
               model,
               toolChoice: format.type === "json_schema" ? "required" : undefined,
-            })
+            }, { idleTimeoutMs: Flag.CROAKCODE_STREAM_IDLE_TIMEOUT_MS })
 
             if (structured !== undefined) {
               handle.message.structured = structured
@@ -1493,6 +1496,18 @@ export const layer = Layer.effect(
           )
           if (outcome === "break") break
           continue
+        }
+
+        // §4.8 turn-end TODO consistency: warn (todo.inconsistent) — never mutate.
+        // Evidence-aware so tool-free analysis tasks (evidence:"none") are not flagged.
+        const allTodos = yield* todos.get(sessionID)
+        const turnMsgs = yield* sessions.messages({ sessionID }).pipe(Effect.orDie)
+        const turnCalls = turnMsgs
+          .flatMap((m) => m.parts.filter((p): p is MessageV2.ToolPart => p.type === "tool"))
+          .map((p) => p.callID)
+        for (const todo of allTodos) {
+          const warnings = Todo.consistencyWarnings(todo, turnCalls, turnCalls)
+          if (warnings.length) yield* bus.publish(Todo.Event.Inconsistent, { sessionID, todo, warnings })
         }
 
         yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
@@ -1644,7 +1659,7 @@ export const layer = Layer.effect(
 export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
     Layer.provide(SessionRunState.defaultLayer),
-    Layer.provide(SessionStatus.defaultLayer),
+    Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, Todo.defaultLayer)),
     Layer.provide(SessionCompaction.defaultLayer),
     Layer.provide(SessionProcessor.defaultLayer),
     Layer.provide(Command.defaultLayer),

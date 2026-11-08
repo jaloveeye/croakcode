@@ -254,7 +254,7 @@ describe("Todo.Info", () => {
   const decode = decodeUnknown(Todo.Info)
 
   test("three-field round-trip", () => {
-    const input = { content: "do a thing", status: "pending", priority: "high" }
+    const input = { content: "do a thing", status: "pending", priority: "high" } as const
     expect(decode(input)).toEqual(input)
   })
 })
