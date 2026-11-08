@@ -16,10 +16,12 @@ Spec: `docs/superpowers/specs/2026-11-07-croakcode-agent-core-design.md` §6.1, 
 | `scripts/phase2-zen-check.sh` | PASS |
 | `upstream/packages/core` `bun test` | 359/359 PASS |
 | `upstream/packages/opencode` `test/tool` | 293/293 PASS |
-| `upstream/packages/opencode` `test/session` | 370/370 PASS |
-| `upstream/packages/opencode` `test/provider test/cli/help test/skill` | 368/370 — 2 FAIL은 **기존 baseline** |
+| `upstream/packages/opencode` `test/session` | 370/370 PASS (단, 아래 flaky 1건은 회차·환경에 따라 실패 가능) |
+| `upstream/packages/opencode` `test/provider test/cli/help test/skill` | 368/370 — 2 FAIL은 **stale rebrand 테스트** |
 
-> 기존 baseline 실패 2건(Phase 2 무관, 흡수 시점부터 존재): `hosted nvidia provider adds billing origin header`, `custom nvidia baseURL adds billing origin header` (`test/provider/provider.test.ts`). 게이트 스크립트는 이 2건만 허용하고 그 외 새 실패는 차단한다.
+> **Stale rebrand 실패 2건** (`test/provider/provider.test.ts` `hosted nvidia …` / `custom nvidia …`): 테스트는 여전히 `X-Title: "opencode"`, `X-BILLING-INVOKE-ORIGIN: "OpenCode"`를 기대하지만, 로더는 Phase 1 커밋 `8489dbf`부터 `croakcode`를 출력한다. `provider.ts`의 nvidia 블록은 Phase 2 diff(`0299fbb..HEAD`)에 포함되지 않는다 → **Phase 2 회귀 아님, 선재 stale 테스트**. 후속 수정 대상이며 게이트에서는 BASELINE_FAIL로 허용한다.
+
+> **Flaky 1건** (`test/session/prompt.test.ts` `cancel finalizes interrupted bash tool output through normal truncation`): **동일 커밋 `9efe12f`** 기준, phase2 워크트리에서 isolated 10회 실행 시 **3 pass / 7 fail**(비결정적). 실패 지점은 항상 `prompt.ts` 테스트 1691행 `expect(metadata.truncated).toBe(true)` → `received false`. 실패 시점은 abort 경쟁(`shell.ts` 내 `cut` 상태가 스트림 소비 파이버에서 갱신되는데 취소는 150ms 후 발생)에 기인하며, base `0299fbb`에서도 동일하게 실패한다 → **Phase 2 회귀 아님, 선재 타이밍 flake**. 게이트 스크립트는 first-run 실패 → retry 통과 시 `FLAKY_PASS`로만 보고한다(plain PASS와 구분).
 
 ## A. opencode 코어 동작 (§6.1)
 

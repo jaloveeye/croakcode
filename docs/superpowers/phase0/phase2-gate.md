@@ -10,10 +10,11 @@ Replay: `scripts/phase2-gate-replay.sh`
 - [x] zen tier/upsell removed from TUI, retry, provider list (일반 재시도 29/29 유지) — Task 4
 - [x] TUI slot + permission.mode promoted to contracts (patch 0006/0007) — Task 6
 - [x] harness contract + deny-tools-hidden registry gate (§4.7) — fail-closed(`allow`/`ask`만 노출), 목록=`agent.permission`·실행=병합 ruleset — Tasks 7, 10
+  - 노출 정책 실측 확인(C): `src/tool/registry.ts:330-337` 필터는 `Permission.evaluate(tool.id,"*",agent.permission)`만 보며 `allow`/`ask`만 노출. 실행 시 `src/session/tools.ts:70`에서 `Permission.merge(agent.permission, session.permission ?? [])`로 재검사한다. 세션 레벨 `deny`는 실행 시 차단되므로 **노출 과다(over-exposure)일 뿐 보안 구멍 아님**. 목록 필터에 session ruleset을 섞지 않는 것은 의도된 설계 결정(§4.7 기록 참조).
 - [x] harness refresh triggers: 런타임 연결 4종 / Phase 3 이관 2종 근거 기록 (§4.7) — Task 7
 - [x] todo consistency (§4.8) — ① 서버 이벤트만 렌더 ② evidence:"tool"만 경고("none" 미경고) ③ 턴 경계 오탐 없음 ④ resume 복원 ⑤ 서브세션 격리 테스트 증명 — Task 11
 - [x] compaction body-idle guard via `Stream.timeout` (§4.9) — delta-gap idle, compaction 120s always-on(stream은 명시 설정 시만), 무재시도 — Task 12
-- [x] full regression replay PASS (`scripts/phase2-gate-replay.sh`) — baseline 실패 2건(nvidia) 외 전부 PASS
+- [x] full regression replay PASS (`scripts/phase2-gate-replay.sh`) — **BASELINE_FAIL 2건은 stale rebrand 테스트**(Phase 2 무관), **FLAKY 1건은 선재 타이밍 flake**(동일 커밋 3/10 pass, base에서도 실패), 그 외 전부 PASS. 스크립트는 first-run/retry 로그를 보존하고 retry 통과분을 `FLAKY_PASS`로 구분 보고한다.
 - [x] equivalence matrix: §6.1 A + §6.2 B 필수 기능 전부 PASS 또는 ACCEPTED DEVIATION (NOT TESTED 는 Phase 3 이관 명시분만 허용) — Task 13
 
 ## 구현 결정 기록
@@ -33,3 +34,4 @@ Replay: `scripts/phase2-gate-replay.sh`
 
 Phase 3 approved only when every item is checked against real runs, and the equivalence matrix has no unresolved NOT TESTED on required features (§6.6).
 현재: 필수 기능 §6.1 A + §6.2 B 전부 PASS(또는 명시 defer). **Phase 2 승인 조건 충족.**
+비차단 후속: (1) stale rebrand 테스트 2건 수정(provider.test.ts 기대값 → `croakcode`), (2) flaky bash truncation 테스트의 abort 경쟁 완화(`shell.ts` 스트림 종료 대기 또는 테스트 cancel 지연 조정).
