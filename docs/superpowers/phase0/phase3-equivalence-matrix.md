@@ -62,7 +62,7 @@
 | 2 | direct + `requiresAuth` 실행 전 오류 | security-context + phase3-bypass(2, 실행계획 INVALID_INPUT) → 19 pass | PASS |
 | 3 | 로컬 설정으로 서버 deny 완화 무시 | phase3-bypass(3/3b/3c: policy>permission, POLICY_DENIED/POLICY_UNAVAILABLE/PLUGIN_DENIED) → 19 pass | PASS |
 | 4 | 인증 실패 시 direct 전환의 게이트 전용 토큰 차단 | phase3-bypass(4a) + **phase3-context-e2e(5)**: direct에서 `shouldAttachToken=false`, capture provider 수신 `authorization` 없음 | PASS |
-| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | **fixture 한정 PASS**: `phase3-context-e2e(5)`는 수동으로 `metadata.origin="gate"`를 설정한 fixture만 검증. 실제 Gate 응답 생성·출처 영속화·Direct 재전송은 **NOT TESTED** | PASS(fixture 한정) / 운영 경로 NOT TESTED |
+| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | 런타임 provenance 스탬핑 구현(SEC-03) + fail-closed 필터. 실경로 E2E는 여전히 수동 태그 fixture 기반(`phase3-context-e2e(5/5b)`), 런타임 스탬핑 경로는 단위/소스 검사로 검증 | PASS(fixture 한정, 런타임 스탬핑 구현) / 실경로 재전송 E2E NOT TESTED |
 
 실측 명령: `node --test tests/security-context.test.mjs tests/phase3-bypass.test.mjs tests/phase3-context-e2e.test.mjs` → **tests 19, pass 19, fail 0**
 E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.ts`가 **프로덕션 `MessageV2.toModelMessages`를 호출**하고(node --test에서 TS import 불가하므로 bun 서브프로세스), 그 출력을 실제 HTTP로 capture provider에 전송한다. 프롬프트가 실제로 동일 필터를 호출하는지도 테스트가 소스에서 확인한다(복제 금지 검증).
@@ -82,11 +82,51 @@ E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.
 - `SessionProcessor`의 text part metadata는 `value.providerMetadata`에서만 온다(`processor.ts:660,697`). Provider 응답이 출처를 정하지 않는다.
 - 따라서 `filterMessagesForModeParts`는 실제 Gate 세션의 assistant 텍스트(태그 없음)를 **direct 모드에서 삭제하지 않고 통과**시킨다. 즉 **운영 경로에서 gate→direct 컨텍스트 차단은 현재 동작하지 않는다.**
 - 기존 E2E는 **수동 태그 fixture**로만 증명했으므로 보호 범위를 과대평가했다. 수정 전 증거·테스트 이력은 이 문서와 `docs/superpowers/phase0/evidence/phase3-gate/`에 그대로 보존한다.
-- 상태: §5.4-5 = **PASS(fixture 한정) / 운영 경로 NOT TESTED**. **SEC-03(실제 출처 태그 부여 + 실경로 E2E) 완료 전 Phase 3 제품 수용은 HOLD.**
+- 상태(정정 시점): §5.4-5 = **PASS(fixture 한정) / 운영 경로 NOT TESTED**. SEC-03 완료 전 Phase 3 제품 수용 HOLD였음. **후속 SEC-03 수정으로 런타임 스탬핑은 구현됨** — 아래 "SEC-03 수정" 참조. 단, 운영 경로 재전송 E2E는 여전히 fixture 한계가 남아 Phase 3 수용은 HOLD 유지.
+
+## SEC-03 수정 (2026-11-08, 런타임 provenance 스탬핑)
+
+위 정정에서 확인한 "런타임에 `origin:"gate"` 부여 경로가 없다"는 공백을 다음과 같이 닫았다(커밋 `2836e2c`, `ff94249`, `e1778f5`, `b4ed592`).
+
+- **런타임이 턴 출처를 결정**: `SessionProcessor.create`는 필수 `origin: "gate" | "user"`를 받고, `prompt.ts` 루프가 `connectionFor(config).mode`에서 턴 출처를 계산한다. 모델/Provider 응답은 출처를 선택할 수 없다.
+- **스탬핑 범위**: text-start(및 모든 delta/end 재스탬프), reasoning-start/delta/end, tool part metadata(`withOrigin`), compaction summary, background sub-agent 결과를 주입하는 synthetic user 메시지(`task.ts`).
+- **Provider 덮어쓰기 불가**: 스탬핑은 provider metadata보다 항상 우선하며, delta/end에서 provider metadata를 재병합해도 `origin`을 재적용한다.
+- **fail-closed 필터**: `isProtectedAssistantPart`는 `origin:"gate"` 또는 출처 불명(미스탬프/비신뢰 값) assistant 파트를 direct 모드에서 제거한다. 정상 사용자 입력은 과도 제거하지 않는다.
+- **synthetic user 주입**: direct 모드에서 `origin:"gate"`로 스탬프된 user 파트(background sub-agent 결과)는 재전송에서 제외한다.
+- **provider 본문 비유출**: `providerMeta`가 `origin`을 제거하며, text/reasoning 변환도 `providerMeta`를 경유한다(`b4ed592`).
+
+검증:
+- `node --test tests/sec03-origin.test.mjs tests/connection-context.test.mjs` → **16 pass**
+- `node --test 'tests/*.test.mjs'` → **153 pass / 0 fail**
+- `bun test test/session/processor-effect.test.ts` → **13 pass**
+- typecheck(`tsgo`)는 SEC-01/02/03이 건드린 모든 파일에서 clean.
+
+**남은 한계(정직한 표기)**: 런타임 스탬핑 경로 자체는 구현·검증됐으나, "실제 Gate 턴을 생성해 파트를 영속화한 뒤 direct로 재전송"하는 완전한 실경로 E2E는 아직 수동 태그 fixture(`convert-history.ts`)를 사용한다. 저장소 수준 실경로는 단위/소스 검사로, provider 차단은 fixture로 증명된 상태다.
+
+## SEC-01 수정 (2026-11-08, 현재 ruleset 우선)
+
+`Permission.ask`가 ruleset 뒤에 과거 `always` 승인을 붙여 `findLast`로 판정해, 과거 승인이 현재 명시적 `deny`를 덮을 수 있었다(커밋 `790de4f`).
+
+- 현재 ruleset 판정 우선: `deny`면 거부, `allow`면 허용.
+- 저장된 `always` 승인은 현재 판정이 `ask`일 때만 적용.
+- ruleset 내부 `findLast` 의미 유지.
+- 정상 `always` 사용성 유지(ask + 저장 allow → 해소).
+- `plan → general` 부모 deny 우회 불가.
+
+검증: `bun test test/permission/next.test.ts` → **83 pass** (SEC-01 4건 수정 전 RED, 수정 후 GREEN).
+
+## SEC-02 수정 (2026-11-08, 실행 Agent 기준 fail-closed)
+
+`TaskTool`이 `session.agent`만으로 부모 agent를 도출해, 실제 실행 agent(`ctx.agent`)와 불일치하면 plan edit-deny가 누락됐다(커밋 `481d91d`).
+
+- `mergeParentAgents`로 session 기록 agent와 실행 agent의 deny 규칙을 **합집합**으로 취한다(fail-closed).
+- 부모 agent의 edit-class deny(Plan Mode)는 전달한다. 비-edit controller 자기 제한은 executor 권한을 지우지 않는다(#26700 유지).
+
+검증: SEC-02 4건(session=build/ctx=plan, session 미기록/ctx=plan, session=plan/ctx=build, resume/ctx=plan) 수정 전 3건 RED, 수정 후 GREEN; `task + agent` 합계 **28 pass**.
 
 ## 잔여 리스크 / 명시적 미검증
 
-- **Gate→Direct 출처 추적 공백 (SEC-03, P0)**: 런타임에 `origin:"gate"` 부여 경로가 없다(위 정정 참조). 실경로 차단 미구현.
+- **Gate→Direct 실경로 재전송 E2E 미완**: 런타임 스탬핑은 구현·검증됐으나, 실제 Gate 턴 생성→영속화→Direct 재전송을 fixture 없이 증명하는 E2E는 아직 없다(위 SEC-03 남은 한계 참조). Phase 3 제품 수용은 이 한계가 해소될 때까지 HOLD로 둔다.
 - **rhwp 바이너리 미설치**: `hwpCli`의 `exit 0` 경로는 이 환경에서 검증 불가. 테스트는 wrapper 계약(`$ rhwp …` echo, `exit \d+`, read 명령은 ask 없음, write는 ask, blocked 차단)만 확인. 실 바이너리 설치 환경에서 재검증 필요.
 - **플러그인 로더 경로 해석**: `src/session/llm/mode.ts`·`prompt.ts`가 `.croakcode/plugins/lib/connection.js`를 상대 경로로 import한다. Bun 런타임은 `upstream/.croakcode`(레벨 5)로 해석하고 `tsgo`는 `upstream/packages/.croakcode`(레벨 3)로 해석한다. `src/connection.d.ts` 모듈 선언으로 typecheck는 통과하나, 번들링 시 이 경로가 보존되는지는 패키지 빌드에서 확인 필요(Phase 4).
 - **`cancel finalizes interrupted bash tool output`**: baseline(`2f9a1d8` 이전)에서도 실패하는 환경성 flake. 회귀 아님.
