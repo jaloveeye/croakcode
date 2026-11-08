@@ -47,6 +47,7 @@ import * as EffectLogger from "@croakcode/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
+import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
@@ -1457,7 +1458,7 @@ export const layer = Layer.effect(
               tools,
               model,
               toolChoice: format.type === "json_schema" ? "required" : undefined,
-            })
+            }, { idleTimeoutMs: Flag.CROAKCODE_STREAM_IDLE_TIMEOUT_MS })
 
             if (structured !== undefined) {
               handle.message.structured = structured

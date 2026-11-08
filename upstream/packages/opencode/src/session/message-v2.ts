@@ -52,6 +52,12 @@ export const APIError = NamedError.create("APIError", {
   metadata: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 })
 export type APIError = Schema.Schema.Type<typeof APIError.Schema>
+export const StreamIdleTimeoutError = NamedError.create("StreamIdleTimeoutError", {
+  message: Schema.String,
+  errorCode: Schema.Literal("STREAM_IDLE_TIMEOUT"),
+  idleMs: NonNegativeInt,
+})
+export type StreamIdleTimeoutError = Schema.Schema.Type<typeof StreamIdleTimeoutError.Schema>
 export const ContextOverflowError = NamedError.create("ContextOverflowError", {
   message: Schema.String,
   responseBody: Schema.optional(Schema.String),
@@ -1107,6 +1113,18 @@ export function fromError(
       ).toObject()
     case OutputLengthError.isInstance(e):
       return e
+    case StreamIdleTimeoutError.isInstance(e):
+      // Body-idle guard (§4.9): surface STREAM_IDLE_TIMEOUT via the APIError
+      // wire shape (metadata.code) so the assistant message stays schema-valid
+      // and is retry-ineligible.
+      return new APIError(
+        {
+          message: e.message,
+          isRetryable: false,
+          metadata: { code: "STREAM_IDLE_TIMEOUT" },
+        },
+        { cause: e },
+      ).toObject()
     case LoadAPIKeyError.isInstance(e):
       return new AuthError(
         {
