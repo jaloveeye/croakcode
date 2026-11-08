@@ -317,6 +317,23 @@ opencode는 이미 `ToolState(pending/running/completed/error)`를 영속화하�
 > Phase 1에서는 upstream 동작을 그대로 계승하고(guard 없음), Phase 2에서 위 두 단계 타임아웃과 compaction 기본 guard를 구현한다.
 
 
+### 4.10 Agent Principal과 위임(Delegation) 원칙 (Phase 3 설계 — 런타임 없음)
+
+croakcode는 에이전트를 **독립적 작업 주체(Agent Principal)** 로 다루고, 사람→오케스트레이터→개발자→테스트로 이어지는 **정식 다중 에이전트 위임**을 지원한다. 이 절은 **설계 원칙만** 정의하며, **런타임 구현(Principal 레지스트리·위임 실행기)은 Phase 4에서 별도 승인 후** 진행한다(스코프 크리프 방지).
+
+- **정본 문서**: `docs/superpowers/adr/0001-agent-principal-and-delegation.md`, `docs/superpowers/architecture/2026-11-08-agent-principal-delegation.md`, `docs/superpowers/architecture/2026-11-08-security-invariants-and-test-traceability.md`.
+- **핵심 구분**: **Agent Definition(템플릿) ≠ Agent Principal(권한 주체)**, **Session 포함관계(`parentID`) ≠ 위임 관계(Grant)**, **Agent ID ≠ Session ID**.
+- **효과 권한 불변식(정본)**: 서브 에이전트의 효과 권한은 `min(org 상한, 위임자 권한, 부모 Run 유효 권한, 자기 정책, 위임 Grant 범위/제약)`을 초과할 수 없다. **독립 위임 경로 간 합집합 증폭(union amplification) 금지** — 다중 경로는 **교집합**이다.
+- **신원 원칙**: `principalId`/`role`은 **런타임이 부여**하며, 모델 출력/프롬프트에서 신원을 추출·신뢰하지 않는다. 현재 upstream은 세션 `agent` 이름 + 메시지 단위 `lastUser.agent`(`session/prompt.ts:1334`)로 "이름"만 다룬다 — Phase 4에서 Principal 레지스트리로 승격.
+- **capability 분리**: `agent.spawn`(생성) / `agent.delegate`(권한 위임) / `tool.execute`(실행)를 **독립적으로** 교집합한다. 서브 에이전트는 자기 범위를 넘는 Grant를 **발급할 수 없다**(권한 상승 금지).
+- **철회**: Grant/Principal 철회는 하위로 **재귀 캐스케이드**되며 **실행 직전 검사**에서 fail-closed. 철회는 감사 로그에 남는다.
+- **기존 계약과의 관계**: 이 절의 제약은 §3.4 실행 허용 불변식(`Execute = ValidInput ∧ PluginAllow ∧ PolicySatisfied ∧ PermissionAllow`)과 §4.5 복구 계약, §5.4 보안 컨텍스트 전이를 **약화시키지 않고 강화**한다(monotonic tightening). 위임 제약은 **gate/direct 모드와 무관하게 동일**하게 적용된다.
+- **Phase 3 범위(설계·검증만)**: 현재 위임 경로의 실제 동작을 **테스트로 고정**(특히 `docs/superpowers/architecture/2026-11-08-agent-principal-delegation.md` §5.6의 잠재적 권한 상승 경로). **Principal 레지스트리·Grant 저장·revocation 실행기·교집합 계산기 구현은 금지**(Phase 4).
+- **강제 경계(정직성)**: Phase 1~3 강제는 **로컬 정책 강제(정상 클라이언트 기준)**. 변조 클라이언트 강제는 Phase 4 **서버 실행 허가(§5.4)** 에서 완성된다.
+
+> **검증된 사실(참고)**: 현재 upstream의 권한 병합(`merge` = 평탄 연결, `evaluate` = `findLast`)은 **교집합이 아니다**(`upstream/packages/core/src/permission.ts:21-35`). `task` 도구는 자식 세션 생성 시 `deriveSubagentSessionPermission`으로 부모 deny를 전달하지만(`tool/task.ts:142-159`), `prompt()`가 `tools` 맵으로 `session.permission`을 **덮어쓰는** 경로(`session/prompt.ts:1226-1233`, `session/session.ts:735-739`)가 있어 **plan→general 자식의 edit 상승 가능성**이 있다(설계상 추론, Phase 3에서 통합 재현·검증). 이 절은 **결함을 고치지 않는다** — Phase 3 검증 → Phase 4 수정.
+
+
 ## 5. 연결 모드 스위칭 (gate vs direct)
 
 ### 5.1 개념
