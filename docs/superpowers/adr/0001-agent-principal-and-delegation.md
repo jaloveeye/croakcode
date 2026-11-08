@@ -113,7 +113,7 @@ croakcode의 철학은 "에이전트 = 독립적 작업 주체"다. 현재 upstr
 - 오프라인 클라이언트에서 **철회 전파 지연** 가능 → 관리형 실행에서 fail policy 결정 필요(미해결 — Decision Required).
 
 ### 리스크
-- **현재 코드의 실제 위임 경로에 이미 보안 결함 가능성**이 있다(아래 §5 근거). 이 ADR은 결함을 **고치지 않는다** — Phase 3에서 **검증**하고 Phase 4에서 **수정**한다.
+- **현재 코드의 실제 위임 경로에 이미 보안 결함이 있었다**(아래 §5 근거). **2026-11-08 P0 수정 완료**: `PromptInput.inheritedPermission` 도입 + `prompt()`가 inherited 규칙을 tools 규칙 뒤에 append(`findLast` 우선) + `task.ts`가 `deriveSubagentSessionPermission(...)`를 상속 제한으로 전달. 테스트로 검증됨(SC-01 PASS). 상세는 §5 및 증거 문서 참조.
 
 ---
 
@@ -125,17 +125,18 @@ croakcode의 철학은 "에이전트 = 독립적 작업 주체"다. 현재 upstr
 - **자식 세션 저장**(확인된 사실): `SessionTable.parent_id` 컬럼 + `session_parent_idx` 인덱스(`session.sql.ts:25,57`), `children()` 쿼리(`session.ts:584-591`), 삭제 시 재귀(`session.ts:595-616`).
 - **권한 병합 의미**(확인된 사실): `merge(...rulesets) = rulesets.flat()`(평탄 연결), `evaluate`는 `findLast`(마지막 매칭 우선, 기본 `ask`) — `upstream/packages/core/src/permission.ts:21-35`. **합집합도 교집합도 아니다.**
 - **부모→자식 권한 전달**(확인된 사실): `deriveSubagentSessionPermission`은 **부모 에이전트의 edit-deny + 부모 세션의 deny/external_directory + 기본 todowrite/task deny**만 전달한다(`subagent-permissions.ts:17-34`). 부모의 **allow/ask는 전달하지 않는다**.
-- **⚠️ 잠재적 권한 상승 경로**(확인된 사실 + 설계상 추론):
-  1. 자식 세션 생성 시 `permission = deriveSubagentSessionPermission(...)` (edit-deny 포함) — `task.ts:147-158` (확인된 사실).
-  2. 그러나 `ops.prompt({tools:{task:false}})`(`general`은 `todowrite` 규칙을 이미 가져 `todowrite:false`가 생략됨; `explore`/`scout`는 `{todowrite:false, task:false}`) 호출 → `prompt()`가 **`input.tools`가 비어있지 않으면 `session.permission`을 tools 맵으로 덮어쓴다** — `prompt.ts:1226-1233`, `setPermission`은 **전체 교체** `patch({permission: [...input.permission]})` — `session.ts:735-739` (확인된 사실).
-  3. 결과: **부모 plan의 edit-deny가 자식 세션에서 소실**되고, 자식 에이전트(general: `"*": "allow"`)의 own ruleset이 edit을 허용 (설계상 추론).
-  4. `tools` 맵이 비어있으면(예: task/todowrite 규칙 있는 커스텀 서브에이전트) 덮어쓰기가 일어나지 않아 deny가 유지됨 (설계상 추론 — **미검증** 통합 재현 필요).
+- **⚠️ 권한 상승 경로 — P0 수정 완료(2026-11-08)**(확인된 사실):
+  1. 자식 세션 생성 시 `permission = deriveSubagentSessionPermission(...)` (edit-deny 포함) — `task.ts:147-158`.
+  2. `ops.prompt({tools:{task:false}})`(`general`은 `todowrite` 규칙을 이미 가져 `todowrite:false`가 생략됨; `explore`/`scout`는 `{todowrite:false, task:false}`) 호출 → (수정 전) `prompt()`가 tools 맵으로 `session.permission`을 **전체 교체**(`prompt.ts:1226-1233`, `session.ts:735-739`) → 부모 edit-deny 소실 → 자식 general의 `"*": "allow"`가 edit 허용 → **권한 상승**.
+  3. **수정**: `PromptInput.inheritedPermission`을 추가하고 `prompt()`가 tools 규칙 **뒤에** inherited 규칙을 append(`findLast`로 inherited deny 우선). `task.ts`가 `deriveSubagentSessionPermission(...)`를 `inheritedPermission`으로 전달. 이로써 tools 맵(`edit:true` 포함)도 상속 deny를 완화할 수 없다.
+  4. 검증: 실제 `prompt()` 경로 + `Permission.ask` 실행 경로 테스트 PASS(SC-01). 정상 세션의 tools enable/disable은 그대로 유지(SC-02).
 - **손자 생성**(확인된 사실): `task`는 모든 에이전트에 등록된다. `general`/`explore`/`scout`는 defaults `"*": "allow"`를 상속하므로 **노출 게이트(`registry.ts:330-341`)에서 `task`는 allow로 노출된다(기본 deny 아님)**. 실제 제한은 `deriveSubagentSessionPermission`이 자식 세션에 `{permission:"task", pattern:"*", action:"deny"}`를 주입하고(`subagent-permissions.ts:22,32`), 실행 시 `ctx.ask`가 `merge(agent, session)`에서 session-last로 이 deny를 최종 매칭(`findLast`)해 차단하는 것이다(`session/tools.ts:64-72`). 또한 `task.ts:195`가 tools 맵에 `task:false`를 넣는다. **에이전트 config에 `task` 규칙이 명시된 경우에만** 손자 생성이 가능하다.
 - **취소 전파**(확인된 사실): 포그라운드는 `ctx.abort` 리스너 → `ops.cancel(nextSession.id)`(`task.ts:260-269`), 백그라운드는 `SessionRunState.cancel`의 `metadata.parentSessionId` 매칭(`run-state.ts:122-128`).
 - **실행 기록 연결**(확인된 사실): `ToolPart.metadata`에 `{parentSessionId, sessionId, model}`(`task.ts:168-178`) + `x-parent-session-id` 헤더(`session/llm/request.ts:165`). **typed 교차세션 부모/자식 필드는 없음.**
 - **에이전트 vs 세션 분리**(확인된 사실): `Session.Info.id` + `Session.Info.agent`(optional) 분리(`session.ts:209-221`, `session.sql.ts:19,44`). 그러나 실행 시 에이전트는 **메시지 단위 `lastUser.agent`** (`prompt.ts:1334`).
 - **철회 개념 부재**(확인된 사실): 코드베이스에 revocation/authorization 재확인 개념 없음. 실행 직전 검사는 `ctx.ask`(Permission evaluate + live approved list)뿐(`session/tools.ts:64-72`, `permission/index.ts:176-186`). **부모 권한 재검증은 없음.**
-- **기존 보안 회귀 테스트**(확인된 사실): `test/agent/plan-mode-subagent-bypass.test.ts`는 `deriveSubagentSessionPermission` + merge를 **격리 환경에서** 검증하며 5/5 통과. 그러나 이 테스트는 **`prompt()`의 덮어쓰기 경로를 거치지 않으므로** 위 3번 경로를 포착하지 못한다(설계상 추론). `test/tool/task.test.ts`는 15/15 통과하며, 그중 abort 전파(포그라운드 `:290`, 백그라운드 재귀 취소 `:705`)는 검증되지만 **no-task-rule 자식의 task deny**와 **plan→general 통합 상승 경로**는 검증하지 않는다(실행 증거: `docs/superpowers/evidence/agent-principal-delegation/2026-11-08-test-evidence.md`).
+- **기존 보안 회귀 테스트**(확인된 사실): `test/agent/plan-mode-subagent-bypass.test.ts`는 `deriveSubagentSessionPermission` + merge를 **격리 환경에서** 검증하며 5/5 통과. 그러나 이 테스트는 **`prompt()`의 덮어쓰기 경로를 거치지 않으므로** 위 3번 경로를 포착하지 못한다(설계상 추론). `test/tool/task.test.ts`는 abort 전파(포그라운드 `:290`, 백그라운드 재귀 취소 `:705`)를 검증한다.
+- **P0 수정 및 검증(2026-11-08)**: 위 잠재 경로를 실제 `prompt()` 경로로 재현(FAIL) → 수정(`inheritedPermission`) → PASS로 전환. `test/session/prompt.test.ts`의 SC-01/SC-02 suite 7 pass, `test/tool/task.test.ts` SC-01 wiring + SC-03 17 pass. 실행 증거: `docs/superpowers/evidence/agent-principal-delegation/2026-11-08-test-evidence.md`.
 
 ---
 
