@@ -26,10 +26,11 @@ bun test test/session/prompt.test.ts -t "SC-01"
 1. `PromptInput.inheritedPermission` 추가 (`session/prompt.ts`).
 2. `prompt()`: tools 규칙 **뒤에** inherited 규칙 append → `findLast`로 inherited deny 우선( tools `edit:true`도 상속 deny를 완화 불가).
 3. `task.ts`: `deriveSubagentSessionPermission(...)`를 변수로 추출해 세션 생성 + `inheritedPermission` 양쪽에 전달.
+4. (후속 하드닝) 공개 API `PromptPayload`에서 `inheritedPermission`을 `Struct.omit`으로 제외 — 클라이언트가 payload로 권한 상한을 주입하는 경로를 봉쇄(내부 task 경로만 설정 가능).
 
 **검증(수정 후, PASS):**
 ```
-bun test test/session/prompt.test.ts -t "SC-0"   → 7 pass / 0 fail
+bun test test/session/prompt.test.ts -t "SC-0"   → 8 pass / 0 fail
   - plan→general edit/write/apply_patch deny (write/apply_patch는 실행 시 permission "edit")
   - plan→custom subagent edit deny 유지
   - tools:{edit:true} 우회 불가
@@ -37,6 +38,7 @@ bun test test/session/prompt.test.ts -t "SC-0"   → 7 pass / 0 fail
   - read/grep 허용 정상
   - normal 세션 tools enable/disable 정상 (SC-02)
   - real Permission.ask → PermissionDeniedError (실행 경로)
+  - 공개 PromptPayload가 inheritedPermission/sessionID를 포함하지 않음 (API 주입 차단)
 bun test test/tool/task.test.ts                 → 17 pass / 0 fail
   - SC-01: task가 inheritedPermission(edit-deny) 전달
   - SC-03: general 서브에이전트 task deny 주입 + 실행 차단
