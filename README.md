@@ -3,7 +3,7 @@
 `opencode`(MIT)를 fork 흡수·리브랜딩한 **거버넌스 AI 에이전트 코어**. 검증된 opencode 실행 코어(세션 오케스트레이션, SQLite/WAL 영속화, tool state, streaming, retry/abort, partial tool-call)를 유지하고, 그 위에 **제어 경계**(권한/보안 컨텍스트, 연결 어댑터, 복구 계약, 게이트/관리웹 어댑터)를 얇게 얹는 것을 원칙으로 합니다.
 
 > **현재 상태: Phase 3 제품 수용 HOLD.**
-> SEC-01/02/03(P0) 수정은 완료되어 `origin/master`에 merge되었습니다. 다만 운영 경로(Gate→Direct 실경로 재전송) E2E가 아직 수동 태그 fixture에 의존하므로, 이 한계가 해소될 때까지 Phase 3 수용은 HOLD로 둡니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
+> SEC-01/02/03(P0) 수정과 SEC-03 후속 수정은 `master`에 merge되었습니다. Gate→Direct 운영 경로는 무-fixture E2E로 검증했습니다. 리뷰어가 보안 수용을 판정할 때까지 HOLD 표시를 유지합니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
 
 ## 저장소 구조
 
@@ -107,7 +107,7 @@ bun run typecheck
 | SEC-02 — 부모 agent 도출 시 세션 기록 agent만 사용해 실행 agent 제한 누락 | **수정 완료** (`481d91d`) |
 | SEC-03 — 런타임이 gate 출처를 부여하지 않아 direct 필터가 실텍스트 통과 | **수정 완료** (`2836e2c`, 후속 `b4ed592`) |
 | SEC-03 후속 — 압축 요청 필터 누락, 하위 에이전트 결과 출처 재분류, 구조 part로 direct 기록 손실 | **수정** (브랜치 `sec03-compaction-background`) |
-| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답과 압축은 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`). 백그라운드 결과는 도구 단위만 검증 → Phase 3 수용 HOLD 유지 |
+| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답, 압축, 하위 에이전트 결과 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`, 8건) → Phase 3 보안 수용 판정 대기 |
 
 ## 문서
 
