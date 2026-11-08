@@ -106,7 +106,8 @@ bun run typecheck
 | SEC-01 — 과거 `always` 승인이 현재 ruleset `deny`를 덮는 문제 | **수정 완료** (`790de4f`) |
 | SEC-02 — 부모 agent 도출 시 세션 기록 agent만 사용해 실행 agent 제한 누락 | **수정 완료** (`481d91d`) |
 | SEC-03 — 런타임이 gate 출처를 부여하지 않아 direct 필터가 실텍스트 통과 | **수정 완료** (`2836e2c`, 후속 `b4ed592`) |
-| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | **미완** (fixture 기반) → Phase 3 수용 HOLD |
+| SEC-03 후속 — 압축 요청 필터 누락, 하위 에이전트 결과 출처 재분류, 구조 part로 direct 기록 손실 | **수정** (브랜치 `sec03-compaction-background`) |
+| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답과 압축은 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`). 백그라운드 결과는 도구 단위만 검증 → Phase 3 수용 HOLD 유지 |
 
 ## 문서
 
