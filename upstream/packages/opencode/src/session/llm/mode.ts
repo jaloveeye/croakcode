@@ -1,4 +1,8 @@
-import { resolveConnectionMode, filterMessagesForModeParts } from "../../../../../.croakcode/plugins/lib/connection.js"
+import {
+  resolveConnectionMode,
+  filterMessagesForModeParts,
+  markOrigin,
+} from "../../../../../.croakcode/plugins/lib/connection.js"
 
 export type ConnectionMode = "gate" | "direct"
 
@@ -13,4 +17,4 @@ export function connectionFor(config: { connection?: { mode?: unknown } } | unde
 
 // Re-exported so the request path imports the exact same implementation the
 // plugin-side tests exercise (single source of truth, no copy).
-export { filterMessagesForModeParts }
+export { filterMessagesForModeParts, markOrigin }

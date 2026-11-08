@@ -224,6 +224,7 @@ it.live("session.processor effect tests capture llm input cleanly", () =>
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const input = {
@@ -295,6 +296,7 @@ it.live("session.processor effect tests preserve text start time", () =>
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const run = yield* handle
@@ -354,6 +356,7 @@ it.live("session.processor effect tests stop after token overflow requests compa
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -399,6 +402,7 @@ it.live("session.processor effect tests capture reasoning from http mock", () =>
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -447,6 +451,7 @@ it.live("session.processor effect tests reset reasoning state across retries", (
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -494,6 +499,7 @@ it.live("session.processor effect tests do not retry unknown json errors", () =>
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -538,6 +544,7 @@ it.live("session.processor effect tests retry recognized structured json errors"
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -591,6 +598,7 @@ it.live("session.processor effect tests publish retry status updates", () =>
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -636,6 +644,7 @@ it.live("session.processor effect tests compact on structured context overflow",
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -679,6 +688,7 @@ it.live("session.processor effect tests complete AI SDK tool calls when native f
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const value = yield* handle.process({
@@ -720,7 +730,8 @@ it.live("session.processor effect tests complete AI SDK tool calls when native f
         expect(call.state.input).toEqual({ query: "weather" })
         expect(call.state.output).toBe("result:weather")
         expect(call.state.title).toBe("Weather lookup")
-        expect(call.state.metadata).toEqual({ source: "test" })
+        // SEC-03: tool-result metadata now carries the runtime provenance stamp.
+        expect(call.state.metadata).toEqual({ source: "test", origin: "gate" })
         expect(call.state.time.start).toBeDefined()
         expect(call.state.time.end).toBeDefined()
       }),
@@ -744,6 +755,7 @@ it.live("session.processor effect tests mark pending tools as aborted on cleanup
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const run = yield* handle
@@ -818,6 +830,7 @@ it.live("session.processor effect tests record aborted errors and idle state", (
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const run = yield* handle
@@ -881,6 +894,7 @@ it.live("session.processor effect tests mark interruptions aborted without manua
           assistantMessage: msg,
           sessionID: chat.id,
           model: mdl,
+          origin: "gate",
         })
 
         const run = yield* handle
