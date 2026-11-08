@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: lingering running resolves to unknown (spec §4.5)
+ok 1 - lingering running resolves to unknown (spec §4.5)
+  ---
+  duration_ms: 1.326617
+  ...
+# Subtest: unknown never auto-reexecutes side-effect tools
+ok 2 - unknown never auto-reexecutes side-effect tools
+  ---
+  duration_ms: 0.22855
+  ...
+# Subtest: unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+ok 3 - unknown auto-reexecutes only side-effect-free + reexecution-safe tools
+  ---
+  duration_ms: 0.231922
+  ...
+# Subtest: T1 running is committed BEFORE execute, T2 result AFTER
+ok 4 - T1 running is committed BEFORE execute, T2 result AFTER
+  ---
+  duration_ms: 1.580438
+  ...
+# Subtest: process dies between T1 and T2 => running survives => resume yields unknown
+ok 5 - process dies between T1 and T2 => running survives => resume yields unknown
+  ---
+  duration_ms: 1.099422
+  ...
+# Subtest: side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+ok 6 - side-effect tool never auto-reexecutes, even if marked reexecutionSafe
+  ---
+  duration_ms: 0.326151
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 137.453865
