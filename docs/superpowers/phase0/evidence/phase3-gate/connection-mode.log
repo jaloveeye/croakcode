@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: mode precedence: agentForce > session > global > default gate
+ok 1 - mode precedence: agentForce > session > global > default gate
+  ---
+  duration_ms: 1.420119
+  ...
+# Subtest: invalid/unknown mode values fall back to gate (fail-closed)
+ok 2 - invalid/unknown mode values fall back to gate (fail-closed)
+  ---
+  duration_ms: 0.28557
+  ...
+# Subtest: gate-only part detection uses metadata.origin, not string guessing
+ok 3 - gate-only part detection uses metadata.origin, not string guessing
+  ---
+  duration_ms: 0.217051
+  ...
+# Subtest: direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+ok 4 - direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all
+  ---
+  duration_ms: 1.971721
+  ...
+# Subtest: user message that mentions secrets is kept in direct mode
+ok 5 - user message that mentions secrets is kept in direct mode
+  ---
+  duration_ms: 0.284371
+  ...
+# Subtest: filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+ok 6 - filterMessagesForModeParts drops gate-origin and unlabeled assistant messages
+  ---
+  duration_ms: 0.287278
+  ...
+# Subtest: unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+ok 7 - unlabeled non-text assistant part (tool/reasoning) is dropped in direct mode
+  ---
+  duration_ms: 0.855498
+  ...
+# Subtest: filterMessagesForModeParts treats a message with zero parts as safe
+ok 8 - filterMessagesForModeParts treats a message with zero parts as safe
+  ---
+  duration_ms: 0.424401
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 144.165201

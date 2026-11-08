@@ -1,0 +1,85 @@
+TAP version 13
+# Subtest: 1. force gate beats session direct switch
+ok 1 - 1. force gate beats session direct switch
+  ---
+  duration_ms: 1.208294
+  ...
+# Subtest: 2. requiresAuth on direct fails closed
+ok 2 - 2. requiresAuth on direct fails closed
+  ---
+  duration_ms: 0.283643
+  ...
+# Subtest: 3. local config cannot relax server gate deny
+ok 3 - 3. local config cannot relax server gate deny
+  ---
+  duration_ms: 1.261125
+  ...
+# Subtest: 3b. gate policy unavailable is fail-closed
+ok 4 - 3b. gate policy unavailable is fail-closed
+  ---
+  duration_ms: 0.186093
+  ...
+# Subtest: 3c. plugin deny stops before policy (order §3.4)
+ok 5 - 3c. plugin deny stops before policy (order §3.4)
+  ---
+  duration_ms: 0.173135
+  ...
+# Subtest: 4a. gate-only tool stays gate-gated during auth failure
+ok 6 - 4a. gate-only tool stays gate-gated during auth failure
+  ---
+  duration_ms: 0.185677
+  ...
+# Subtest: 4a'. missing/unknown mode resolves to gate
+ok 7 - 4a'. missing/unknown mode resolves to gate
+  ---
+  duration_ms: 0.140887
+  ...
+# Subtest: agent.force gate beats session direct (with warning)
+ok 8 - agent.force gate beats session direct (with warning)
+  ---
+  duration_ms: 1.211234
+  ...
+# Subtest: session direct overrides global gate
+ok 9 - session direct overrides global gate
+  ---
+  duration_ms: 0.171115
+  ...
+# Subtest: requiresAuth + direct (global) => error
+ok 10 - requiresAuth + direct (global) => error
+  ---
+  duration_ms: 0.249408
+  ...
+# Subtest: requiresAuth + session direct + global gate => error
+ok 11 - requiresAuth + session direct + global gate => error
+  ---
+  duration_ms: 1.11423
+  ...
+# Subtest: requiresAuth + global gate => ok
+ok 12 - requiresAuth + global gate => ok
+  ---
+  duration_ms: 0.180971
+  ...
+# Subtest: agent.force gate alone (no overrides, not auth) => gate ok, no warning
+ok 13 - agent.force gate alone (no overrides, not auth) => gate ok, no warning
+  ---
+  duration_ms: 0.143443
+  ...
+# Subtest: requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+ok 14 - requiresAuth + forced gate over session direct => ok (forced gate satisfies auth)
+  ---
+  duration_ms: 0.227929
+  ...
+# Subtest: no mode resolvable (all absent) => fail-closed, mode undefined
+ok 15 - no mode resolvable (all absent) => fail-closed, mode undefined
+  ---
+  duration_ms: 0.153835
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.73268

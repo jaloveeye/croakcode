@@ -140,19 +140,23 @@ test("5b. gate mode keeps the very same gate-origin message", async () => {
   assert.ok(raw.includes(SECRET), "gate mode must keep the gate-origin content")
 })
 
-test("5c. gate token is attached in gate mode for the configured gate origin", () => {
+test("5c. gate token is attached in gate mode for the configured gate origin", async () => {
   // The 3-way condition (provider + origin + mode) is exercised by
   // tests/croak-auth-server.test.mjs; this pins the runtime call shape.
+  // Import session lib lazily: tests/croak-auth-session.test.mjs sets
+  // CROAK_AUTH_URL before importing it, and module env is read at call time.
+  const S = await import(path.join(root, "upstream/.croakcode/plugins/lib/croak-auth-session.js"))
+  const gateBase = `${S.authUrl()}/v1`
   const ok = shouldAttachToken({
     model: { providerID: "litellm-head" },
-    provider: { id: "litellm-head", options: { baseURL: "https://172.16.0.201:8443/v1" } },
+    provider: { id: "litellm-head", options: { baseURL: gateBase } },
     connection: { mode: "gate" },
   })
   const missingMode = shouldAttachToken({
     model: { providerID: "litellm-head" },
-    provider: { id: "litellm-head", options: { baseURL: "https://172.16.0.201:8443/v1" } },
+    provider: { id: "litellm-head", options: { baseURL: gateBase } },
   })
-  // The default CROAK_AUTH_URL origin is https://172.16.0.201:8443.
+  // gateBase uses the current authUrl() origin, so origin equality holds.
   assert.equal(ok, true)
   assert.equal(missingMode, false, "missing mode must fail closed (no token)")
 })

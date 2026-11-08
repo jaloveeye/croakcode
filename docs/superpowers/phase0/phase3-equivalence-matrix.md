@@ -81,3 +81,26 @@ E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.
 - **`cancel finalizes interrupted bash tool output`**: baseline(`2f9a1d8` 이전)에서도 실패하는 환경성 flake. 회귀 아님.
 - **plugin.xai / parsePluginSpecifier 테스트**: `@opencode`→`@croakcode` 브랜딩 패치 관련 기존 실패(baseline 동일). 회귀 아님.
 - **usage-panel typecheck 범위**: tsconfig `include`에 `usage-panel/**/*.ts`를 추가하지 않았다(원본 tsconfig 유지). `croak-auth-tui.tsx`는 `readPolicy` 결과 타입을 명시해 tsgo를 통과시킨다.
+
+## Phase 3 gate replay 실측 (scripts/phase3-gate-replay.sh)
+
+로그 보존: `docs/superpowers/phase0/evidence/phase3-gate/*.log`
+
+| 스위트 | 결과 |
+|---|---|
+| phase2-regression (scripts/phase2-gate-replay.sh) | PASS — 1055 tests, 2 failures 모두 BASELINE_FAIL(rebrand stale). **359 pass** 1차 core + 재시도 없이 baseline 판정 |
+| rebrand / zen removal | PASS |
+| plugin-units-node (`node --test 'tests/*.test.mjs'`) | **145 pass / 0 fail** |
+| plugin-units-bun (`bun test tests`) | **145 pass / 0 fail** |
+| usage-panel (`bun test test/usage-panel`) | **55 pass / 0 fail** |
+| plugin-registration-tests (`bun test test/plugins`) | **3 pass / 0 fail** |
+| bypass-unit (security-context + phase3-bypass) | **15 pass / 0 fail** |
+| bypass-e2e (phase3-context-e2e) | **4 pass / 0 fail** |
+| connection-mode | **8 pass / 0 fail** |
+| recovery (recovery + phase1-recovery.e2e) | **6 pass / 0 fail** |
+| contracts (§3.4/§4.8/§4.9/§4.7 등) | **46 pass / 0 fail** |
+| typecheck (`tsgo --noEmit`) | PASS (출력 없음) |
+| loader-smoke (`scripts/phase3-loader-smoke.sh`) | PASS — 7개 서버 플러그인 자동 스캔·로드, 실패 로그 0 |
+
+> gate 스크립트는 각 단계를 `tee`로 로그 보존하며 `PIPESTATUS[0]`로 원래 종료 코드를 검사한다.
+> `load plugin` 0건이면 FAIL, `failed to load plugin|must export id|...` 라인 존재 시 FAIL.
