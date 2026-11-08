@@ -3,3 +3,4 @@ bun.lock
 dist/
 .DS_Store
 .worktrees/
+.turbo/

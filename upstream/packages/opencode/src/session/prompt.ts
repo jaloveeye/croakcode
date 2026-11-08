@@ -1387,11 +1387,15 @@ export const layer = Layer.effect(
             yield* sessions.updateMessage(msg)
           })
 
+          // SEC-03: the runtime stamps this turn's provenance from the effective
+          // connection mode (trusted, not derived from any provider response).
+          const turnOrigin: "gate" | "user" = connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user"
           const handle = yield* processor
             .create({
               assistantMessage: msg,
               sessionID,
               model,
+              origin: turnOrigin,
             })
             .pipe(Effect.onInterrupt(() => finalizeInterruptedAssistant))
 

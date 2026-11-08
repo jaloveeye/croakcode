@@ -21,6 +21,7 @@ import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
+import { connectionFor } from "./llm/mode"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -440,6 +441,9 @@ export const layer = Layer.effect(
         assistantMessage: msg,
         sessionID: input.sessionID,
         model,
+        // SEC-03: compaction summaries inherit the turn's provenance from the
+        // effective connection mode, decided by the runtime (not the model).
+        origin: connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user",
       })
       const result = yield* processor.process({
         user: userMessage,

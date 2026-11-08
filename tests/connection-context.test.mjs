@@ -31,43 +31,49 @@ test("gate-only part detection uses metadata.origin, not string guessing", () =>
 
 // --- direct mode drops gate-origin / unlabeled assistant parts; gate keeps all ---
 
-test("direct mode drops gate-origin parts and unknown-origin parts; gate mode keeps all", () => {
+test("direct mode drops gate-origin and unstamped parts (fail-closed); gate keeps all", () => {
   const msgs = [
     { role: "user", parts: [{ type: "text", text: "hi", metadata: {} }] },
     { role: "assistant", parts: [{ type: "text", text: "secret", metadata: { origin: "gate" } }] },
-    { role: "assistant", parts: [{ type: "text", text: "unlabeled" }] }, // unknown origin
+    // No origin stamp: cannot be proven safe to replay to a direct provider.
+    { role: "assistant", parts: [{ type: "text", text: "unlabeled" }] },
+    // Explicitly user-trusted assistant text is safe.
+    { role: "assistant", parts: [{ type: "text", text: "trusted", metadata: { origin: "user" } }] },
   ];
   const direct = filterMessagesForMode(msgs, "direct");
-  // gate-origin 제거 (fail-closed). 메타데이터가 아예 없는 assistant *text* part는
-  // 평범한 모델 출력이므로 남긴다 — 제외 조건은 gate-origin 또는 비-text 무metadata다.
   assert.deepEqual(direct.map((m) => m.role), ["user", "assistant"]);
   assert.equal(direct[0].parts[0].text, "hi");
-  assert.equal(direct[1].parts[0].text, "unlabeled");
+  assert.equal(direct[1].parts[0].text, "trusted");
   const gate = filterMessagesForMode(msgs, "gate");
-  assert.equal(gate.length, 3);
+  assert.equal(gate.length, 4);
   assert.equal(gate, msgs, "gate mode must return the same array (no copy)");
 });
 
-test("user message that mentions secrets is kept in direct mode", () => {
-  const msgs = [{ role: "user", parts: [{ type: "text", text: "C:\\secret.txt", metadata: { origin: "gate" } }] }];
+test("genuine user message that mentions secrets is kept in direct mode", () => {
+  const msgs = [{ role: "user", parts: [{ type: "text", text: "C:\\secret.txt", metadata: { origin: "user" } }] }];
   assert.equal(filterMessagesForMode(msgs, "direct").length, 1);
+});
+
+test("synthetic user turn injecting gate-stamped sub-agent output is withheld in direct mode", () => {
+  const msgs = [{ role: "user", parts: [{ type: "text", text: "subagent secret", metadata: { origin: "gate" } }] }];
+  assert.equal(filterMessagesForMode(msgs, "direct").length, 0);
 });
 
 // --- part-level variant used by the real runtime (MessageV2 messages) ---
 
-test("filterMessagesForModeParts drops gate-origin and unlabeled assistant messages", () => {
+test("filterMessagesForModeParts drops gate-origin and unstamped assistant messages (fail-closed)", () => {
   const msgs = [
     { info: { role: "user", id: "u1" }, parts: [{ type: "text", text: "hi", metadata: {} }] },
     { info: { role: "assistant", id: "a1" }, parts: [{ type: "text", text: "secret", metadata: { origin: "gate" } }] },
+    // a2 has no origin stamp → fail-closed drop in direct mode.
     { info: { role: "assistant", id: "a2" }, parts: [{ type: "text", text: "unlabeled" }] },
     { info: { role: "assistant", id: "a3" }, parts: [{ type: "text", text: "ok", metadata: { origin: "user" } }] },
     { info: { role: "assistant", id: "a4" }, parts: [{ type: "reasoning", text: "r", metadata: { origin: "user" } }] },
   ];
   const direct = filterMessagesForModeParts(msgs, "direct");
-  // a2 (metadata 없는 assistant *text*) 는 모델 출력이므로 남는다.
   assert.deepEqual(
     direct.map((m) => m.info.id),
-    ["u1", "a2", "a3", "a4"],
+    ["u1", "a3", "a4"],
   );
   const gate = filterMessagesForModeParts(msgs, "gate");
   assert.equal(gate.length, 5);
