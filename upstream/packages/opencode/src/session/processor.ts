@@ -9,6 +9,7 @@ import { Plugin } from "@/plugin"
 import { Snapshot } from "@/snapshot"
 import * as Session from "./session"
 import { LLM } from "./llm"
+import { markOrigin } from "./llm/mode"
 import { MessageV2 } from "./message-v2"
 import { isOverflow } from "./overflow"
 import { PartID } from "./schema"
@@ -70,6 +71,10 @@ type Input = {
   assistantMessage: MessageV2.Assistant
   sessionID: SessionID
   model: Provider.Model
+  // SEC-03: the runtime decides this turn's provenance from the effective
+  // connection mode. It is a required input so no caller can silently fall
+  // back to a weaker provenance.
+  origin: "gate" | "user"
 }
 
 export interface Interface {
@@ -93,6 +98,9 @@ interface ProcessorContext extends Input {
   idleTimedOut: boolean
   currentText: MessageV2.TextPart | undefined
   reasoningMap: Record<string, MessageV2.ReasoningPart>
+  // SEC-03: provenance of everything this turn writes. The runtime decides it
+  // from the effective connection mode; the provider/model cannot choose it.
+  origin: "gate" | "user"
 }
 
 type StreamEvent = LLMEvent
@@ -134,6 +142,7 @@ export const layer = Layer.effect(
         idleTimedOut: false,
         currentText: undefined,
         reasoningMap: {},
+        origin: input.origin,
       }
       let aborted = false
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
@@ -143,6 +152,15 @@ export const layer = Layer.effect(
           providerID: input.model.providerID,
           aborted,
         })
+
+      // SEC-03: stamp the runtime-decided provenance onto persisted tool-part
+      // metadata. Tool parts carry model-adjacent content (inputs the model
+      // produced, outputs the model can influence), so they must be attributable
+      // and the provider can never overwrite the trusted stamp.
+      const withOrigin = (metadata: Record<string, any> | undefined): Record<string, any> => ({
+        ...(metadata ?? {}),
+        origin: ctx.origin,
+      })
 
       const settleToolCall = Effect.fn("SessionProcessor.settleToolCall")(function* (toolCallID: string) {
         const done = ctx.toolcalls[toolCallID]?.done
@@ -198,7 +216,7 @@ export const layer = Layer.effect(
             status: "completed",
             input: match.part.state.input,
             output: output.output,
-            metadata: output.metadata,
+            metadata: withOrigin(output.metadata),
             title: output.title,
             time: { start: match.part.state.time.start, end: Date.now() },
             attachments: output.attachments,
@@ -254,7 +272,7 @@ export const layer = Layer.effect(
           if (!input.providerExecuted || existing.part.metadata?.providerExecuted) return existing
           const part = yield* session.updatePart({
             ...existing.part,
-            metadata: { ...existing.part.metadata, providerExecuted: true },
+            metadata: withOrigin({ ...existing.part.metadata, providerExecuted: true }),
           })
           ctx.toolcalls[input.id] = {
             ...existing.call,
@@ -281,7 +299,7 @@ export const layer = Layer.effect(
           tool: input.name,
           callID: input.id,
           state: { status: "pending", input: {}, raw: "" },
-          metadata: input.providerExecuted ? { providerExecuted: true } : undefined,
+          metadata: withOrigin(input.providerExecuted ? { providerExecuted: true } : undefined),
         } satisfies MessageV2.ToolPart)
         ctx.toolcalls[input.id] = {
           done: yield* Deferred.make<void>(),
@@ -330,15 +348,18 @@ export const layer = Layer.effect(
                 timestamp: DateTime.makeUnsafe(Date.now()),
               })
             }
-            ctx.reasoningMap[value.id] = {
-              id: PartID.ascending(),
-              messageID: ctx.assistantMessage.id,
-              sessionID: ctx.assistantMessage.sessionID,
-              type: "reasoning",
-              text: "",
-              time: { start: Date.now() },
-              metadata: value.providerMetadata,
-            }
+            ctx.reasoningMap[value.id] = markOrigin(
+              {
+                id: PartID.ascending(),
+                messageID: ctx.assistantMessage.id,
+                sessionID: ctx.assistantMessage.sessionID,
+                type: "reasoning",
+                text: "",
+                time: { start: Date.now() },
+                metadata: value.providerMetadata,
+              },
+              ctx.origin,
+            )
             yield* session.updatePart(ctx.reasoningMap[value.id])
             return
 
@@ -346,7 +367,10 @@ export const layer = Layer.effect(
             // Match dev: silently drop orphan deltas (no preceding reasoning-start).
             if (!(value.id in ctx.reasoningMap)) return
             ctx.reasoningMap[value.id].text += value.text
-            if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
+            // SEC-03: provider metadata may add keys, but it must never replace
+            // the runtime's trusted `origin` stamp.
+            if (value.providerMetadata)
+              ctx.reasoningMap[value.id].metadata = { ...value.providerMetadata, origin: ctx.origin }
             yield* session.updatePartDelta({
               sessionID: ctx.reasoningMap[value.id].sessionID,
               messageID: ctx.reasoningMap[value.id].messageID,
@@ -358,7 +382,7 @@ export const layer = Layer.effect(
 
           case "reasoning-end":
             if (value.providerMetadata && value.id in ctx.reasoningMap) {
-              ctx.reasoningMap[value.id].metadata = value.providerMetadata
+              ctx.reasoningMap[value.id].metadata = { ...value.providerMetadata, origin: ctx.origin }
             }
             yield* finishReasoning(value.id)
             return
@@ -432,9 +456,11 @@ export const layer = Layer.effect(
                       input,
                       time: { start: Date.now() },
                     },
-              metadata: match.metadata?.providerExecuted
-                ? { ...value.providerMetadata, providerExecuted: true }
-                : value.providerMetadata,
+              metadata: withOrigin(
+                match.metadata?.providerExecuted
+                  ? { ...value.providerMetadata, providerExecuted: true }
+                  : value.providerMetadata,
+              ),
             }))
 
             const parts = MessageV2.parts(ctx.assistantMessage.id)
@@ -642,22 +668,25 @@ export const layer = Layer.effect(
                 })
               }
             }
-            ctx.currentText = {
-              id: PartID.ascending(),
-              messageID: ctx.assistantMessage.id,
-              sessionID: ctx.assistantMessage.sessionID,
-              type: "text",
-              text: "",
-              time: { start: Date.now() },
-              metadata: value.providerMetadata,
-            }
+            ctx.currentText = markOrigin(
+              {
+                id: PartID.ascending(),
+                messageID: ctx.assistantMessage.id,
+                sessionID: ctx.assistantMessage.sessionID,
+                type: "text",
+                text: "",
+                time: { start: Date.now() },
+                metadata: value.providerMetadata,
+              },
+              ctx.origin,
+            )
             yield* session.updatePart(ctx.currentText)
             return
 
           case "text-delta":
             if (!ctx.currentText) return
             ctx.currentText.text += value.text
-            if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
+            if (value.providerMetadata) ctx.currentText.metadata = { ...value.providerMetadata, origin: ctx.origin }
             yield* session.updatePartDelta({
               sessionID: ctx.currentText.sessionID,
               messageID: ctx.currentText.messageID,
@@ -694,7 +723,8 @@ export const layer = Layer.effect(
               const end = Date.now()
               ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
             }
-            if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
+            if (value.providerMetadata) ctx.currentText.metadata = { ...value.providerMetadata, origin: ctx.origin }
+            ctx.currentText = markOrigin(ctx.currentText, ctx.origin)
             yield* session.updatePart(ctx.currentText)
             ctx.currentText = undefined
             return
@@ -754,7 +784,7 @@ export const layer = Layer.effect(
               ...part.state,
               status: "error",
               error: "Tool execution aborted",
-              metadata: { ...metadata, interrupted: true },
+              metadata: withOrigin({ ...metadata, interrupted: true }),
               time: { start: "time" in part.state ? part.state.time.start : end, end },
             },
           })
