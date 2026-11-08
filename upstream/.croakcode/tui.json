@@ -1,4 +1,7 @@
 {
   "$schema": "https://croakcode.ai/tui.json",
-  "plugin": ["./plugins/croak-auth-tui.tsx", { "avatar": true }]
+  "plugin": [
+    ["./plugins/croak-auth-tui.tsx", {}],
+    ["./plugins/usage-panel/index.tsx", { "avatar": true }]
+  ]
 }

@@ -20,6 +20,10 @@ test("tui.json registers the croak-auth TUI plugin by relative path", () => {
 
   const target = path.join(configDir, "./plugins/croak-auth-tui.tsx")
   assert.ok(existsSync(target), `registered plugin file missing: ${target}`)
+
+  assert.ok(specs.includes("./plugins/usage-panel/index.tsx"), `expected usage-panel registration, got ${specs.join(",")}`)
+  const panel = path.join(configDir, "./plugins/usage-panel/index.tsx")
+  assert.ok(existsSync(panel), `registered plugin file missing: ${panel}`)
 })
 
 test("croak-auth TUI sources import ported libs, not the original .mjs paths", () => {
