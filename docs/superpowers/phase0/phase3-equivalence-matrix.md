@@ -8,6 +8,13 @@
 - local-stability의 `experimental.session.compacting` 훅은 `output.prompt`만 설정한다. 코어는 `compacting.prompt ?? buildPrompt(...)`로 **plugin prompt가 기본 prompt를 대체**한다(`upstream/packages/opencode/src/session/compaction.ts:404`). 즉 `context`는 미설정 시 코어 기본 경로로 처리되어 append 충돌이 없다.
 - local-stability는 `CROAKCODE_STREAM_IDLE_TIMEOUT_MS`/`CROAKCODE_COMPACTION_IDLE_TIMEOUT_MS` 플래그를 **변경하지 않는다** → §4.9 내장 idle guard는 그대로 유지된다(plugin compaction prompt와 독립).
 
+## stall-recovery 폐기 결정 (§6.6 ACCEPTED DEVIATION)
+
+- 타깃의 내장 스트림 유휴 가드는 `StreamIdleTimeoutError`(`errorCode: "STREAM_IDLE_TIMEOUT"`)로 오류를 방출한다(`upstream/packages/opencode/src/session/message-v2.ts:55-60`, `:1116-1124`; `contracts/src/stream-guard.mjs:5`).
+- 기존 stall-recovery는 `"SSE read timed out after response data was received"` 같은 **문자열 매치**로 스톨을 탐지하고 재프롬프트를 최대 2회 수행했다. 이 문자열은 더 이상 발생하지 않는다.
+- 또한 재프롬프트는 `experimental.compaction.autocontinue`/재시도 규칙과 의미가 중복된다.
+- **결정**: stall-recovery는 **폐기(ACCEPTED DEVIATION)**. 사유: 동일 기능이 아니며(내장 가드는 "탐지 후 안전 중단", 플러그인은 "스톨 후 재프롬프트") 정책 변경임을 명시한다. 결함이 아니다. 필요 시 Phase 4에서 `metadata.code` 기반으로 재도입 검토.
+
 ## C. 커스텀 플러그인 동작 (골격 — Task 16에서 실측 채움)
 
 | 기능 | 증거 | 상태 |
