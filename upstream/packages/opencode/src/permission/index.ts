@@ -174,7 +174,12 @@ export const layer = Layer.effect(
       let needsAsk = false
 
       for (const pattern of request.patterns) {
-        const rule = evaluate(request.permission, pattern, ruleset, approved)
+        // SEC-01: the current ruleset (agent + session permissions) is the
+        // source of truth. A stored "always" approval may only fill a gap when
+        // the current judgement is "ask"; it must never override an explicit
+        // deny (or allow) already present in the ruleset.
+        const current = evaluate(request.permission, pattern, ruleset)
+        const rule = current.action === "ask" ? evaluate(request.permission, pattern, ruleset, approved) : current
         log.info("evaluated", { permission: request.permission, pattern, action: rule })
         if (rule.action === "deny") {
           return yield* new DeniedError({

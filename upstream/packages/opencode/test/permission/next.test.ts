@@ -693,6 +693,119 @@ it.instance(
   { git: true },
 )
 
+// SEC-01: historical "always" approvals must never override a current explicit
+// deny in the ruleset. The ruleset (agent + session permissions) is the current
+// source of truth; a stored approval only fills the gap when the current verdict
+// is "ask".
+
+it.instance(
+  "SEC-01: a past always-approval cannot override a current ruleset deny",
+  () =>
+    Effect.gen(function* () {
+      // Establish a persisted "always" approval for bash "*".
+      const fiber = yield* ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["*"],
+        metadata: {},
+        always: ["*"],
+        ruleset: [],
+      }).pipe(Effect.forkScoped)
+      const [pending] = yield* waitForPending(1)
+      yield* reply({ requestID: pending.id, reply: "always" })
+      yield* Fiber.await(fiber)
+
+      // A later turn carries a current explicit deny. The stale approval must
+      // not resurrect the request: it must be denied outright, not asked.
+      const err = yield* fail(
+        ask({
+          sessionID: SessionID.make("session_test"),
+          permission: "bash",
+          patterns: ["rm -rf /"],
+          metadata: {},
+          always: ["*"],
+          ruleset: [{ permission: "bash", pattern: "rm -rf /", action: "deny" }],
+        }),
+      )
+      expect(err).toBeInstanceOf(Permission.DeniedError)
+      expect(yield* list()).toHaveLength(0)
+    }),
+  { git: true },
+)
+
+it.instance(
+  "SEC-01: a current ruleset deny still wins when it is followed by a broader ask (findLast preserved)",
+  () =>
+    Effect.gen(function* () {
+      // Current ruleset resolves to deny via findLast on the specific pattern;
+      // the catch-all "ask" comes first, the specific deny last.
+      const err = yield* fail(
+        ask({
+          sessionID: SessionID.make("session_test"),
+          permission: "bash",
+          patterns: ["rm -rf /"],
+          metadata: {},
+          always: ["*"],
+          ruleset: [
+            { permission: "bash", pattern: "*", action: "ask" },
+            { permission: "bash", pattern: "rm -rf /", action: "deny" },
+          ],
+        }),
+      )
+      expect(err).toBeInstanceOf(Permission.DeniedError)
+    }),
+  { git: true },
+)
+
+it.instance(
+  "SEC-01: a past always-approval still applies when the current ruleset verdict is ask (usability)",
+  () =>
+    Effect.gen(function* () {
+      const fiber = yield* ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["*"],
+        metadata: {},
+        always: ["*"],
+        ruleset: [],
+      }).pipe(Effect.forkScoped)
+      const [pending] = yield* waitForPending(1)
+      yield* reply({ requestID: pending.id, reply: "always" })
+      yield* Fiber.await(fiber)
+
+      // Current ruleset yields "ask"; the stored always-approval should settle it.
+      const result = yield* ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["ls -la"],
+        metadata: {},
+        always: ["ls -la"],
+        ruleset: [{ permission: "bash", pattern: "*", action: "ask" }],
+      })
+      expect(result).toBeUndefined()
+      expect(yield* list()).toHaveLength(0)
+    }),
+  { git: true },
+)
+
+it.instance(
+  "SEC-01: a current ruleset allow is not downgraded by any stored approval",
+  () =>
+    Effect.gen(function* () {
+      const result = yield* ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["ls"],
+        metadata: {},
+        always: ["ls"],
+        ruleset: [{ permission: "bash", pattern: "*", action: "allow" }],
+      })
+      expect(result).toBeUndefined()
+      expect(yield* list()).toHaveLength(0)
+    }),
+  { git: true },
+)
+
 // reply tests
 
 it.instance(
