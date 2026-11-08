@@ -6,6 +6,7 @@ import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
 import { NamedError } from "@croakcode/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
+import { deriveSubagentSessionPermission } from "../../src/agent/subagent-permissions"
 import { BackgroundJob } from "@/background/job"
 import { Bus } from "../../src/bus"
 import { Command } from "../../src/command"
@@ -2340,6 +2341,79 @@ noLLMServer.instance(
           expect(err.data.message).toContain("init")
         }
       }
+    }),
+  30_000,
+)
+
+
+// ---------------------------------------------------------------------------
+// SC-01 (Agent Principal / delegation) — P0 REPRODUCTION (currently SKIPPED).
+//
+// This test reproduces a CONFIRMED sub-agent authority escalation through the
+// REAL `prompt()` path (not the isolated helper test `plan-mode-subagent-bypass`).
+//
+// Flow (mirrors task.ts:142-159 → prompt.ts:1226-1233):
+//   1. parent plan session: plan agent carries `edit: deny` in its AGENT ruleset.
+//   2. task tool creates a child session with
+//        permission = deriveSubagentSessionPermission(parentPlanAgent, generalAgent, ...)
+//      which forwards the parent agent's `edit: deny` into the child SESSION.
+//   3. task tool then calls ops.prompt({ tools: { task: false } }) on the child.
+//   4. prompt() sees a non-empty tools map and REPLACES session.permission
+//      (prompt.ts:1226-1233; session.ts:735-739 full replace).
+//
+// OBSERVED (2026-11-08): at creation `edit` => deny (PASS at line marked "created");
+// after prompt() `edit` => ALLOW (FAIL). The forwarded parent deny is dropped and
+// the child's own `*: allow` default permits edit.
+//
+// It is SKIPPED so it does not break CI. Do NOT delete — it is the repro evidence.
+// The FIX is Phase 4 (approved separately): prevent the tools-map overwrite from
+// relaxing inherited parent denies (no union/overwrite amplification).
+// ---------------------------------------------------------------------------
+it.instance.skip(
+  "SC-01 (P0 repro): sub-agent session edit-deny must survive child prompt() tools overwrite",
+  () =>
+    Effect.gen(function* () {
+      const agents = yield* AgentSvc.Service
+      const sessions = yield* Session.Service
+      const prompt = yield* SessionPrompt.Service
+      yield* useServerConfig(providerCfg)
+
+      const plan = yield* agents.get("plan")
+      const general = yield* agents.get("general")
+      expect(plan).toBeDefined()
+      expect(general).toBeDefined()
+
+      const parent = yield* sessions.create({ title: "plan-parent" })
+      yield* sessions.setPermission({ sessionID: parent.id, permission: [] })
+
+      const child = yield* sessions.create({
+        title: "child",
+        parentID: parent.id,
+        permission: deriveSubagentSessionPermission({
+          parentSessionPermission: [],
+          parentAgent: plan,
+          subagent: general!,
+        }),
+      })
+
+      // At creation the forwarded edit-deny IS present.
+      const created = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/some/file.ts", created.permission ?? []).action).toBe("deny")
+
+      // Drive the REAL prompt() path with the tools map task.ts passes for `general`.
+      yield* prompt.prompt({
+        sessionID: child.id,
+        agent: "general",
+        noReply: true,
+        tools: { task: false },
+        parts: [{ type: "text", text: "look into the cache key path" }],
+      })
+
+      const after = yield* sessions.get(child.id)
+      const effective = Permission.merge(general!.permission, after.permission ?? [])
+
+      // FAILS on current code (returns "allow") → escalation confirmed.
+      expect(Permission.evaluate("edit", "/some/file.ts", effective).action).toBe("deny")
     }),
   30_000,
 )
