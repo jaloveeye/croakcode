@@ -46,7 +46,7 @@
 |---|---|---|---|
 | 1 | 골든 동작 테스트 — 각 테스트 파일 통과 | Phase 0–2 계약 51 pass + 위 C 표 | PASS |
 | 2 | UX 스냅샷 (슬롯/푸터/아바타/승인모드/타이틀) | 슬롯 등록 계약 테스트로 등록만 검증; 실제 렌더 UX는 수동 | NOT TESTED(수동) |
-| 3 | 통합 E2E (로그인→세션→도구→정책차단→usage→스톨복구) | 부분: 로그인 세션은 HTTP fixture로 검증; 전체 라이브 E2E 미실행 | NOT TESTED |
+| 3 | 통합 E2E (로그인→세션→도구→정책차단→usage→스톨복구) | 부분: 로그인 세션(HTTP fixture)·정책차단(§5.4)·usage(usage-panel/meter)·gate→direct 컨텍스트 E2E 검증. 라이브 LLM 부팅 통합·스톨복구(폐기)는 미실행 | NOT TESTED(부분) |
 | 4 | 패치 동작 단위테스트 (Phase 2) | Phase 2 결과 상속 — 51 pass 재실행 확인 | PASS |
 | 5 | 수동 체크리스트 | 릴리스 게이트 항목, 본 세션 미수행 | NOT TESTED(수동) |
 
@@ -58,11 +58,14 @@
 
 | # | 시나리오 | 증거 | 상태 |
 |---|---|---|---|
-| 1 | `force:gate` + direct 전환 거부 | security-context + phase3-bypass(1) | (16a/16b에서 확정) |
-| 2 | direct + `requiresAuth` 실행 전 오류 | security-context + phase3-bypass(2) | (16a에서 확정) |
-| 3 | 로컬 설정으로 서버 deny 완화 무시 | phase3-bypass(3/3b) | (16a에서 확정) |
-| 4 | 인증 실패 시 direct 전환의 게이트 전용 토큰 차단 | phase3-bypass(4a, 판정) + **phase3-context-e2e(토큰 미주입 E2E)** | (16b 이후 확정) |
-| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | **phase3-context-e2e (실제 변환·전송 payload)** | (16b 이후 확정) |
+| 1 | `force:gate` + direct 전환 거부 | `node --test tests/security-context.test.mjs tests/phase3-bypass.test.mjs` → **19 pass** (phase3-bypass 1) | PASS |
+| 2 | direct + `requiresAuth` 실행 전 오류 | security-context + phase3-bypass(2, 실행계획 INVALID_INPUT) → 19 pass | PASS |
+| 3 | 로컬 설정으로 서버 deny 완화 무시 | phase3-bypass(3/3b/3c: policy>permission, POLICY_DENIED/POLICY_UNAVAILABLE/PLUGIN_DENIED) → 19 pass | PASS |
+| 4 | 인증 실패 시 direct 전환의 게이트 전용 토큰 차단 | phase3-bypass(4a) + **phase3-context-e2e(5)**: direct에서 `shouldAttachToken=false`, capture provider 수신 `authorization` 없음 | PASS |
+| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | **phase3-context-e2e(5)**: 실제 `MessageV2.toModelMessages` 변환 + 실제 POST payload에 `GATE_SECRET_TOKEN`/`abc123` 부재, `continue` 유지. (5b) gate 모드는 동일 메시지 유지 | PASS |
+
+실측 명령: `node --test tests/security-context.test.mjs tests/phase3-bypass.test.mjs tests/phase3-context-e2e.test.mjs` → **tests 19, pass 19, fail 0**
+E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.ts`가 **프로덕션 `MessageV2.toModelMessages`를 호출**하고(node --test에서 TS import 불가하므로 bun 서브프로세스), 그 출력을 실제 HTTP로 capture provider에 전송한다. 프롬프트가 실제로 동일 필터를 호출하는지도 테스트가 소스에서 확인한다(복제 금지 검증).
 
 ## §4.5 복구
 
