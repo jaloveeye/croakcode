@@ -45,6 +45,39 @@ bun test test/tool/task.test.ts                 → 17 pass / 0 fail
 ```
 **회귀**: Phase 0–2 계약 테스트 45 pass / 0 fail; task+bypass+permission 42 pass; session/registry/todo-subagent 10 pass; typecheck clean. `prompt.test.ts` 전체는 61 pass(간헐 flake 1건은 재실행 시 0 fail — 기존 flaky 클래스).
 
+### E0-b. SC-01 P0-A/B/C — 상한 우회 잔여 경로 봉쇄: 재현(FAIL) → **수정 완료(PASS)**
+
+코드 검토에서 같은 상한을 우회할 수 있는 3개 경로를 확인하고 각각 실패 테스트 → 최소 수정으로 닫았다.
+
+**(A) 공개 Session Update API** — `handlers/session.ts:188-192`가 `current.permission` 뒤에 클라이언트 규칙을 merge. `findLast`라 클라이언트 `allow`가 상속 `deny`를 이김.
+**(B) 공개 Prompt API 직접 전송** — `prompt()`가 `inheritedPermission` 없이 `tools`만으로 `session.permission`을 **전체 교체**(`prompt.ts:1226-1244`).
+**(C) `task_id` 소유권** — `task.ts`가 조회한 세션의 `parentID`/`agent` 일치를 검사하지 않음.
+
+**재현(수정 전, RED):**
+```
+bun test test/session/prompt.test.ts -t "cannot relax inherited"  → 2 fail
+  - SC-01(A): Expected "deny", Received "allow"
+  - SC-01(B): ProviderNoProvidersError (permission 교체 경로 진입 확인)
+bun test test/tool/task.test.ts -t "task_id owned|agent differs"  → 2 fail (재개가 성공해버림)
+```
+
+**수정(최소 침습 — 스키마 마이그레이션 없음):**
+1. `session.ts`: 프로세스 스코프 **불변 상속 상한 레지스트리** `inheritedCeilings` 추가. 신뢰 런타임만 `setInheritedPermission`으로 기록.
+2. `fromRow`: 매 읽기마다 저장 규칙 중 상한이 덮는 규칙을 제거하고 상한을 **끝에 append** → `findLast`에서 항상 상한이 우선. (permission/tools 쓰기와 무관하게 강제)
+3. `task.ts`: 세션 생성 시 `agent: next.name` 설정, 매 실행(생성·재개)마다 `setInheritedPermission` 호출.
+4. `task.ts`: `task_id` 재개 시 `parentID` 불일치 거부, `agent`가 기록되어 있고 다르면 거부.
+5. `session.remove`: 해당 세션 상한 레지스트리 정리.
+
+**검증(수정 후, PASS):**
+```
+bun test test/session/prompt.test.ts -t "cannot relax inherited"  → 2 pass / 0 fail
+bun test test/tool/task.test.ts                                   → 19 pass / 0 fail (A/B/C 포함)
+bun test test/session/prompt.test.ts -t "SC-0"                    → 10 pass / 0 fail
+Phase 0–2 계약(node --test)                                        → 45 pass / 0 fail
+bun run typecheck                                                  → clean
+```
+**비고**: 기존 "execute shapes child permissions" 단언은 순서 의존이었으므로 규칙 **집합** 비교로 완화(상한을 끝에 append하는 보안 속성에 따른 정당한 순서 변화). `cancel finalizes interrupted bash tool output`은 **baseline `434c79d`에서도 실패**함을 확인 — 기존 환경/flaky 실패이지 회귀 아님.
+
 ### E1. `test/agent/plan-mode-subagent-bypass.test.ts`
 ```
 bun test test/agent/plan-mode-subagent-bypass.test.ts
@@ -68,10 +101,10 @@ bun test test/tool/task.test.ts
 
 | ID | 상태 | 근거 |
 |---|---|---|
-| SC-04 | **PASS** | E2 (15 pass) — `task.test.ts:290` + `:705` |
-| SC-01 | **NOT TESTED** | E1은 격리 helper만; 덮어쓰기 경로 미검증 |
-| SC-02 | **NOT TESTED** | 덮어쓰기 경로 테스트 없음 |
-| SC-03 | **NOT TESTED** | no-task-rule 케이스 테스트 없음(E2의 shapes 테스트는 task:allow 케이스) |
+| SC-04 | **PASS** | E2 — `task.test.ts:290` + `:705` (포그라운드+백그라운드 abort) |
+| SC-01 | **PASS** | E0 (FAIL→PASS) + E0-b(A/B/C) — `prompt.test.ts -t SC-0` 10 pass, `task.test.ts` 19 pass |
+| SC-02 | **PASS** | `prompt.test.ts` "SC-02: normal (non-subagent) session honours tools map enable/disable" |
+| SC-03 | **PASS** | `task.test.ts` "SC-03: general subagent has task denied" + E0-b |
 | CX-01 | **NOT TESTED** | 실행 기록 없음(E2는 parts 단언이 주목적 아님) |
 
 ## 후속(Phase 3에서 실행할 항목)

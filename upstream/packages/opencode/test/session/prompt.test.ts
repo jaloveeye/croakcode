@@ -2610,3 +2610,66 @@ it.instance(
     }),
   30_000,
 )
+
+// --- SC-01 P0-A: Update API must not relax an inherited ceiling --------------
+// The public `PATCH /session/:id` route merges the client's ruleset AFTER the
+// stored rules and persists them (handlers/session.ts:188-192). With findLast,
+// a client `allow` would win over an inherited `deny` unless the ceiling is
+// re-applied on every read/write. The trusted task path registers the ceiling
+// via `setInheritedPermission`; after any `setPermission`, edits stay denied.
+it.instance(
+  "SC-01(A): client permission update on a child cannot relax inherited edit deny",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      yield* useServerConfig(providerCfg)
+      const { parent, child, inherited } = yield* spawnPlanChild()
+      // Trusted runtime registers the immutable ceiling for the child.
+      yield* sessions.setInheritedPermission({ sessionID: child.id, permission: inherited })
+
+      // Attacker: public Update API merges an `allow edit` rule after stored ones.
+      const current = yield* sessions.get(child.id)
+      yield* sessions.setPermission({
+        sessionID: child.id,
+        permission: Permission.merge(current.permission ?? [], [
+          { permission: "edit", pattern: "*", action: "allow" },
+        ]),
+      })
+
+      const after = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/etc/passwd", after.permission ?? []).action).toBe("deny")
+      // sanity: the parent is untouched and the child still records the parent.
+      expect(after.parentID).toBe(parent.id)
+    }),
+  30_000,
+)
+
+// --- SC-01 P0-B: public prompt (no inheritedPermission) must keep ceiling ----
+// A direct `prompt()` on a child session (what the public prompt API does) has
+// no `inheritedPermission` in its payload, yet `prompt()` rebuilds
+// `session.permission` from the `tools` map and REPLACES it. Without the
+// registry re-appending the ceiling, `tools:{edit:true}` would re-open edit.
+it.instance(
+  "SC-01(B): public prompt on a child with tools:{edit:true} cannot relax inherited deny",
+  () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const prompt = yield* SessionPrompt.Service
+      yield* useServerConfig(providerCfg)
+      const { child, inherited } = yield* spawnPlanChild()
+      yield* sessions.setInheritedPermission({ sessionID: child.id, permission: inherited })
+
+      // Public API shape: no inheritedPermission, attacker-controlled tools map.
+      yield* prompt.prompt({
+        sessionID: child.id,
+        agent: "general",
+        noReply: true,
+        tools: { edit: true, task: false },
+        parts: [{ type: "text", text: "look into the cache key path" }],
+      })
+
+      const after = yield* sessions.get(child.id)
+      expect(Permission.evaluate("edit", "/etc/passwd", after.permission ?? []).action).toBe("deny")
+    }),
+  30_000,
+)

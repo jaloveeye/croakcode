@@ -242,6 +242,74 @@ describe("tool.task", () => {
     }),
   )
 
+  // --- SC-01 P0-C: task_id must not cross parent/agent ownership -----------
+  it.instance("execute rejects a task_id owned by a different parent session", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      // A child belonging to a DIFFERENT parent session.
+      const foreignParent = yield* sessions.create({ title: "foreign-parent" })
+      const foreignChild = yield* sessions.create({ parentID: foreignParent.id, title: "foreign child" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+      const promptOps = stubOps({ onPrompt: () => (prompted = true) })
+
+      const exit = yield* def
+        .execute(
+          { description: "hijack", prompt: "do something", subagent_type: "general", task_id: foreignChild.id },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+      // The foreign child still belongs to its original parent.
+      const still = yield* sessions.get(foreignChild.id)
+      expect(still.parentID).toBe(foreignParent.id)
+    }),
+  )
+
+  it.instance("execute rejects a task_id whose session agent differs from subagent_type", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const child = yield* sessions.create({ parentID: chat.id, title: "explore child", agent: "explore" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+      const promptOps = stubOps({ onPrompt: () => (prompted = true) })
+
+      const exit = yield* def
+        .execute(
+          { description: "mismatch", prompt: "do something", subagent_type: "general", task_id: child.id },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+    }),
+  )
+
   it.instance("execute asks by default and skips checks when bypassed", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()
@@ -406,23 +474,18 @@ describe("tool.task", () => {
 
         const child = yield* sessions.get(result.metadata.sessionId)
         expect(child.parentID).toBe(chat.id)
-        expect(child.permission).toEqual([
-          {
-            permission: "todowrite",
-            pattern: "*",
-            action: "deny",
-          },
-          {
-            permission: "bash",
-            pattern: "*",
-            action: "allow",
-          },
-          {
-            permission: "read",
-            pattern: "*",
-            action: "allow",
-          },
-        ])
+        // SC-01: the inherited ceiling is appended LAST (so findLast makes it
+        // authoritative), which may reorder rules relative to creation order.
+        // Assert the rule set, not the order.
+        const normalize = (rules: { permission: string; pattern: string; action: string }[]) =>
+          [...rules].sort((a, b) => (a.permission + a.pattern + a.action).localeCompare(b.permission + b.pattern + b.action))
+        expect(normalize(child.permission ?? [])).toEqual(
+          normalize([
+            { permission: "todowrite", pattern: "*", action: "deny" },
+            { permission: "bash", pattern: "*", action: "allow" },
+            { permission: "read", pattern: "*", action: "allow" },
+          ]),
+        )
         expect(seen?.tools).toEqual({
           todowrite: false,
           bash: false,
