@@ -62,7 +62,7 @@
 | 2 | direct + `requiresAuth` 실행 전 오류 | security-context + phase3-bypass(2, 실행계획 INVALID_INPUT) → 19 pass | PASS |
 | 3 | 로컬 설정으로 서버 deny 완화 무시 | phase3-bypass(3/3b/3c: policy>permission, POLICY_DENIED/POLICY_UNAVAILABLE/PLUGIN_DENIED) → 19 pass | PASS |
 | 4 | 인증 실패 시 direct 전환의 게이트 전용 토큰 차단 | phase3-bypass(4a) + **phase3-context-e2e(5)**: direct에서 `shouldAttachToken=false`, capture provider 수신 `authorization` 없음 | PASS |
-| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | 런타임 provenance 스탬핑 구현(SEC-03) + fail-closed 필터. 실경로 E2E는 여전히 수동 태그 fixture 기반(`phase3-context-e2e(5/5b)`), 런타임 스탬핑 경로는 단위/소스 검사로 검증 | PASS(fixture 한정, 런타임 스탬핑 구현) / 실경로 재전송 E2E NOT TESTED |
+| 5 | 전환 후 비밀 컨텍스트 재주입 없음 | 무-fixture E2E 5건으로 일반 응답과 압축 경로를 검증했다. 백그라운드 결과는 task 도구 테스트 4건으로 검증했다. 상세는 "SEC-03 후속 수정"에 있다 | PASS(일반 응답, 압축) / 백그라운드 결과는 도구 단위 PASS |
 
 실측 명령: `node --test tests/security-context.test.mjs tests/phase3-bypass.test.mjs tests/phase3-context-e2e.test.mjs` → **tests 19, pass 19, fail 0**
 E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.ts`가 **프로덕션 `MessageV2.toModelMessages`를 호출**하고(node --test에서 TS import 불가하므로 bun 서브프로세스), 그 출력을 실제 HTTP로 capture provider에 전송한다. 프롬프트가 실제로 동일 필터를 호출하는지도 테스트가 소스에서 확인한다(복제 금지 검증).
@@ -103,6 +103,44 @@ E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.
 
 **남은 한계(정직한 표기)**: 런타임 스탬핑 경로 자체는 구현·검증됐으나, "실제 Gate 턴을 생성해 파트를 영속화한 뒤 direct로 재전송"하는 완전한 실경로 E2E는 아직 수동 태그 fixture(`convert-history.ts`)를 사용한다. 저장소 수준 실경로는 단위/소스 검사로, provider 차단은 fixture로 증명된 상태다.
 
+## SEC-03 후속 수정 (2026-11-09, 압축 경로와 하위 에이전트 결과)
+
+외부 리뷰가 SEC-03의 추가 경로 두 개를 지적했다. 압축 요청에 direct 필터가 없었고, 백그라운드 결과의 출처를 주입 시점의 모드로 정했다. 두 경로를 확인하려고 무-fixture E2E를 먼저 작성했다. 이 테스트는 `TestLLMServer`로 실제 HTTP 요청 본문을 받는다. 메시지는 실제 prompt 루프가 만들고, processor가 출처를 찍고, SQLite에 저장된다. 테스트가 바꾸는 값은 `connection.mode` 하나다.
+
+수정 전에는 리뷰의 두 지적이 모두 재현됐고, 결함 하나가 더 나왔다(표 1). `step-start`, `step-finish`, `patch` part에는 스키마상 `metadata` 필드가 없어서 출처를 찍을 수 없다. 필터는 이런 part를 출처 불명으로 보고 assistant 메시지 전체를 버렸다. 이 때문에 direct 모드는 자기가 만든 응답까지 잃었다. 수동 태그 fixture는 text part만 담아서 이 결함을 드러내지 못했다.
+
+| 시나리오 | 수정 전 | 수정 후 |
+|---|---|---|
+| direct 요청에서 gate 응답 제외 | 제외됨 | 제외됨 |
+| direct 요청에서 direct 응답 유지 | 빠짐 (FAIL) | 유지 |
+| direct 압축 요청에서 gate 원문 제외 | 포함됨 (FAIL) | 제외됨 |
+| direct 압축에서 gate 이전 요약 제외 | 포함됨 (FAIL) | 제외됨 |
+| gate 시작 백그라운드 결과를 direct 전환 뒤 주입 | `origin:"user"` (FAIL) | `origin:"gate"` |
+| 하위 세션에 gate 내용이 있는 백그라운드 결과 | `origin:"user"` (FAIL) | `origin:"gate"` |
+| 하위 세션에 gate 내용이 있는 동기 task 결과 | 출처 표시 없음 (FAIL) | 도구 part를 gate로 올림 |
+
+표 1. SEC-03 후속 시나리오별 수정 전후 결과
+
+조치는 다섯 가지다.
+
+- 필터: `connection.js`에 `STRUCTURAL_PART_TYPES`를 두었다. 내용이 없는 네 종류(`step-start`, `step-finish`, `snapshot`, `patch`)만 출처 검사에서 뺐다. 나머지 종류는 출처가 없으면 계속 차단한다.
+- 압축: `compaction.ts`가 연결 모드를 한 번 읽는다. 그 값으로 기록을 걸러낸 뒤에 이전 요약과 압축 대상을 고른다. 요약의 출처와 요청의 연결 모드도 같은 값을 쓴다.
+- 하위 에이전트: `task.ts`가 시작 시점의 연결 모드를 보관한다. 결과의 출처는 이 값과 하위 세션 기록으로 정한다. 하위 세션에 gate 내용이나 출처 불명 내용이 있으면 결과도 gate로 본다. 하위 세션을 읽지 못하면 gate로 본다.
+- 도구 결과: 도구가 `origin:"gate"`를 보고하면 processor가 도구 part의 출처를 gate로 올린다. 도구는 gate 턴의 출처를 `user`로 낮출 수 없다.
+- 턴 스냅샷: `prompt.ts`는 단계마다 연결 모드를 한 번 읽는다. 출처 스탬프와 필터, 요청이 이 값을 함께 쓴다. 제목 생성 요청에도 같은 필터를 걸었다.
+
+각 테스트는 수정 전후로 실행했고, 전체 스위트는 master와 비교했다.
+
+- `bun test test/session/sec03-gate-direct-e2e.test.ts` → **5 pass** (수정 전 3 fail)
+- `bun test test/tool/task.test.ts -t SEC-03` → **4 pass** (수정 전 3 fail)
+- `bun test test/session/processor-effect.test.ts -t SEC-03` → **2 pass** (수정 전 1 fail)
+- `node --test tests/sec03-origin.test.mjs` → **9 pass**
+- 패키지 전체 `bun test`: 브랜치 3220 pass / 22 fail, master 3209 pass / 22 fail이다. 실패 목록이 같아서 신규 회귀는 0건이다.
+- 루트 `node --test 'tests/*.test.mjs'`: 브랜치 153 pass / 2 fail, master 151 pass / 2 fail이다. 실패 2건은 두 쪽 모두 `phase1-sqlite.e2e`다.
+- `tsgo --noEmit`: 브랜치와 master 모두 73건이다. 전부 `usage-panel`과 `croak-auth-tui`의 기존 JSX 오류다.
+
+direct 모드에서 압축하면 gate 기록은 요약에 들어가지 않는다. 압축 뒤에는 이전 기록이 숨겨지므로, 다시 gate로 전환해도 그 gate 기록은 요약으로 복원되지 않는다. 보안 쪽으로 기우는 동작으로 판단해 그대로 두었다.
+
 ## SEC-01 수정 (2026-11-08, 현재 ruleset 우선)
 
 `Permission.ask`가 ruleset 뒤에 과거 `always` 승인을 붙여 `findLast`로 판정해, 과거 승인이 현재 명시적 `deny`를 덮을 수 있었다(커밋 `790de4f`).
@@ -126,7 +164,7 @@ E2E는 변환을 손으로 만들지 않는다: `tests/fixtures/convert-history.
 
 ## 잔여 리스크 / 명시적 미검증
 
-- **Gate→Direct 실경로 재전송 E2E 미완**: 런타임 스탬핑은 구현·검증됐으나, 실제 Gate 턴 생성→영속화→Direct 재전송을 fixture 없이 증명하는 E2E는 아직 없다(위 SEC-03 남은 한계 참조). Phase 3 제품 수용은 이 한계가 해소될 때까지 HOLD로 둔다.
+- **Gate→Direct 실경로 재전송 E2E**: 일반 응답과 압축 경로는 무-fixture E2E로 검증했다. 백그라운드 하위 에이전트 결과는 task 도구 단위에서 검증했고, prompt 루프 전체를 거치는 E2E는 아직 없다. 실제 Gate 서버 대신 `TestLLMServer`를 썼으므로 Gate 쪽 헤더와 인증은 이 E2E 범위 밖이다.
 - **rhwp 바이너리 미설치**: `hwpCli`의 `exit 0` 경로는 이 환경에서 검증 불가. 테스트는 wrapper 계약(`$ rhwp …` echo, `exit \d+`, read 명령은 ask 없음, write는 ask, blocked 차단)만 확인. 실 바이너리 설치 환경에서 재검증 필요.
 - **플러그인 로더 경로 해석**: `src/session/llm/mode.ts`·`prompt.ts`가 `.croakcode/plugins/lib/connection.js`를 상대 경로로 import한다. Bun 런타임은 `upstream/.croakcode`(레벨 5)로 해석하고 `tsgo`는 `upstream/packages/.croakcode`(레벨 3)로 해석한다. `src/connection.d.ts` 모듈 선언으로 typecheck는 통과하나, 번들링 시 이 경로가 보존되는지는 패키지 빌드에서 확인 필요(Phase 4).
 - **`cancel finalizes interrupted bash tool output`**: baseline(`2f9a1d8` 이전)에서도 실패하는 환경성 flake. 회귀 아님.
