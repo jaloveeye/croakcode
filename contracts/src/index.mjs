@@ -4,3 +4,4 @@ export * from "./server-auth.mjs";
 export * from "./phase1-hooks.mjs";
 export * from "./tui-surface.mjs";
 export * from "./harness.mjs";
+export * from "./todo-sync.mjs";
