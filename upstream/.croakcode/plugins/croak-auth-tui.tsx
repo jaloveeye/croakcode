@@ -189,7 +189,9 @@ const tui = async (api: any) => {
       me = await S.whoami()
     } catch {}
     const tierDenied: string[] = me?.rules?.deny_tools ?? []
-    const policy = await readPolicy()
+    // readPolicy() is untyped JavaScript (plugins/lib/policy-state.js). The host
+    // type checker sees only the declared JSDoc-free shape, so pin it here.
+    const policy = await readPolicy() as { deny: string[]; sessions: Record<string, string[]> }
     const off = new Set<string>(policy.sessions[sessionID] ?? [])
     const globalOff = new Set<string>(policy.deny)
     const DialogSelect = api.ui.DialogSelect
@@ -203,7 +205,7 @@ const tui = async (api: any) => {
           return { title: tool, value: tool, description: state, disabled: byTier || globalOff.has(tool) }
         })}
         onSelect={async (opt: { value: string }) => {
-          const next = await readPolicy()
+          const next = await readPolicy() as { deny: string[]; sessions: Record<string, string[]> }
           const list = new Set<string>(next.sessions[sessionID] ?? [])
           if (list.has(opt.value)) list.delete(opt.value)
           else list.add(opt.value)

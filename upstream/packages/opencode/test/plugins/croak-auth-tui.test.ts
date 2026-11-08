@@ -37,7 +37,7 @@ test("croak-auth TUI registers /login /logout /whoami /agent-perm and both slots
   expect(mod.id).toBe("croak-auth-tui")
   expect(typeof mod.tui).toBe("function")
 
-  await mod.tui(api, {})
+  await mod.tui(api)
 
   const slash = layers.flatMap((l) => (l.commands ?? []).map((c) => c.slashName)).filter((s): s is string => !!s)
   for (const name of ["login", "logout", "whoami", "agent-perm"]) {
@@ -62,7 +62,7 @@ test("croak-auth TUI slash commands are callable palette entries", async () => {
     } as never,
   })
   const mod = (await import("../../../../.croakcode/plugins/croak-auth-tui.tsx")).default
-  await mod.tui(api, {})
+  await mod.tui(api)
   const commands = layers.flatMap((l) => l.commands ?? [])
   for (const cmd of commands) expect(typeof cmd.run).toBe("function")
 })
