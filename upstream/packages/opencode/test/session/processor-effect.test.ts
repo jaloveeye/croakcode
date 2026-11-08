@@ -739,6 +739,120 @@ it.live("session.processor effect tests complete AI SDK tool calls when native f
   ),
 )
 
+it.live("session.processor SEC-03 lets a tool raise its result origin to gate, never lower it", () =>
+  provideTmpdirServer(
+    ({ dir, llm }) =>
+      Effect.gen(function* () {
+        const { processors, session, provider } = yield* boot()
+
+        yield* llm.tool("lookup", { query: "weather" })
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "tool")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        // A direct-mode turn whose tool (e.g. a sub-agent) returned gate-produced content.
+        const handle = yield* processors.create({
+          assistantMessage: msg,
+          sessionID: chat.id,
+          model: mdl,
+          origin: "user",
+        })
+
+        yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies MessageV2.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "tool" }],
+          tools: {
+            lookup: tool({
+              description: "Look up information",
+              inputSchema: z.object({ query: z.string() }),
+              execute: async (input) => ({
+                title: "Sub-agent result",
+                output: `result:${input.query}`,
+                metadata: { origin: "gate" },
+              }),
+            }),
+          },
+        })
+
+        const call = MessageV2.parts(msg.id).find((part): part is MessageV2.ToolPart => part.type === "tool")
+        expect(call?.state.status).toBe("completed")
+        if (call?.state.status !== "completed") return
+        expect(call.state.metadata.origin).toBe("gate")
+        // The direct filter reads the part-level stamp, so it must be raised too.
+        expect(call.metadata?.origin).toBe("gate")
+      }),
+    { config: (url) => providerCfg(url) },
+  ),
+)
+
+it.live("session.processor SEC-03 ignores a tool trying to lower a gate turn to user", () =>
+  provideTmpdirServer(
+    ({ dir, llm }) =>
+      Effect.gen(function* () {
+        const { processors, session, provider } = yield* boot()
+
+        yield* llm.tool("lookup", { query: "weather" })
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "tool")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        const handle = yield* processors.create({
+          assistantMessage: msg,
+          sessionID: chat.id,
+          model: mdl,
+          origin: "gate",
+        })
+
+        yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies MessageV2.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "tool" }],
+          tools: {
+            lookup: tool({
+              description: "Look up information",
+              inputSchema: z.object({ query: z.string() }),
+              execute: async (input) => ({
+                title: "Lookup",
+                output: `result:${input.query}`,
+                metadata: { origin: "user" },
+              }),
+            }),
+          },
+        })
+
+        const call = MessageV2.parts(msg.id).find((part): part is MessageV2.ToolPart => part.type === "tool")
+        expect(call?.state.status).toBe("completed")
+        if (call?.state.status !== "completed") return
+        expect(call.state.metadata.origin).toBe("gate")
+        expect(call.metadata?.origin).toBe("gate")
+      }),
+    { config: (url) => providerCfg(url) },
+  ),
+)
+
 it.live("session.processor effect tests mark pending tools as aborted on cleanup", () =>
   provideTmpdirServer(
     ({ dir, llm }) =>

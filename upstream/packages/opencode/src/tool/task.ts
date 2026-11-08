@@ -9,7 +9,7 @@ import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
-import { connectionFor } from "@/session/llm/mode"
+import { connectionFor, containsGateContext, originFor } from "@/session/llm/mode"
 import { Cause, Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -255,6 +255,24 @@ export const TaskTool = Tool.define(
       const ops = ctx.extra?.promptOps as TaskPromptOps
       if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
 
+      // SEC-03: the security context the sub-agent runs under, captured at launch.
+      const launchConnection = connectionFor(yield* config.get())
+
+      // SEC-03: provenance of the sub-agent's result is decided by the context
+      // that produced it, never by the mode at the moment it is consumed. It is
+      // gate if the run was launched under gate, or if the child session holds
+      // any gate-stamped or unprovable content (the mode can change during a
+      // long run; each child step stamps its own snapshot). Fail-closed: if the
+      // child history cannot be read, the result is treated as gate.
+      const resultOrigin = Effect.fn("TaskTool.resultOrigin")(function* () {
+        if (originFor(launchConnection) === "gate") return "gate" as const
+        const tainted = yield* sessions.messages({ sessionID: nextSession.id }).pipe(
+          Effect.map(containsGateContext),
+          Effect.catch(() => Effect.succeed(true)),
+        )
+        return tainted ? ("gate" as const) : ("user" as const)
+      })
+
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
         const parts = yield* ops.resolvePromptParts(params.prompt)
         const result = yield* ops.prompt({
@@ -282,9 +300,9 @@ export const TaskTool = Tool.define(
       ) {
         const currentParent = yield* sessions.get(ctx.sessionID)
         // SEC-03: the injected sub-agent result is model/tool output. Stamp it
-        // with the runtime-decided provenance of the receiving turn so a later
-        // direct-mode request cannot replay gate context as trusted user input.
-        const origin: "gate" | "user" = connectionFor(yield* config.get()).mode === "gate" ? "gate" : "user"
+        // with the provenance of the run that produced it so a later direct-mode
+        // request cannot replay gate context as trusted user input.
+        const origin = yield* resultOrigin()
         yield* ops
           .prompt({
             sessionID: ctx.sessionID,
@@ -352,9 +370,12 @@ export const TaskTool = Tool.define(
         () =>
           Effect.gen(function* () {
             const text = yield* runTask()
+            const origin = yield* resultOrigin()
             return {
               title: params.description,
-              metadata,
+              // SEC-03: the processor raises this tool part to gate when the
+              // child produced gate context; it never lowers a gate turn.
+              metadata: origin === "gate" ? { ...metadata, origin } : metadata,
               output: output(nextSession.id, text),
             }
           }),

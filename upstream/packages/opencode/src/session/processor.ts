@@ -210,13 +210,22 @@ export const layer = Layer.effect(
       ) {
         const match = yield* readToolCall(toolCallID)
         if (!match || match.part.state.status !== "running") return
+        // SEC-03: a tool whose output derives from gate context (a sub-agent run
+        // under gate) reports `origin:"gate"`. That may only make the stamp
+        // stricter: a tool can raise a user turn's result to gate, never lower a
+        // gate turn to user. The part-level stamp (read by the direct filter) is
+        // raised together with the state stamp.
+        const raised = ctx.origin !== "gate" && output.metadata?.origin === "gate"
+        const stamp = (metadata: Record<string, any> | undefined) =>
+          raised ? { ...(metadata ?? {}), origin: "gate" } : withOrigin(metadata)
         yield* session.updatePart({
           ...match.part,
+          metadata: stamp(match.part.metadata),
           state: {
             status: "completed",
             input: match.part.state.input,
             output: output.output,
-            metadata: withOrigin(output.metadata),
+            metadata: stamp(output.metadata),
             title: output.title,
             time: { start: match.part.state.time.start, end: Date.now() },
             attachments: output.attachments,
