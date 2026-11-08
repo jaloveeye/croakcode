@@ -680,6 +680,7 @@ export const layer = Layer.effect(
               },
               ctx.origin,
             )
+            if (!ctx.currentText) return
             yield* session.updatePart(ctx.currentText)
             return
 
@@ -724,8 +725,8 @@ export const layer = Layer.effect(
               ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
             }
             if (value.providerMetadata) ctx.currentText.metadata = { ...value.providerMetadata, origin: ctx.origin }
-            ctx.currentText = markOrigin(ctx.currentText, ctx.origin)
-            yield* session.updatePart(ctx.currentText)
+            const endedText = markOrigin(ctx.currentText, ctx.origin)
+            yield* session.updatePart(endedText)
             ctx.currentText = undefined
             return
 
