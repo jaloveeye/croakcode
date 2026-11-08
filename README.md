@@ -28,15 +28,27 @@
 git clone https://github.com/jaloveeye/croakcode.git
 cd croakcode
 
-# 워크스페이스 의존성 설치 (필수)
+# 루트 워크스페이스 설치 (필수): contracts, control 패키지를 연결합니다
+bun install
+
+# upstream 의존성 설치 (필수)
 cd upstream
 bun install
 ```
 
-> **주의:** `upstream`에서 `bun install`을 하지 않으면 `bun test`가
+> **주의:** 루트에서 `bun install`을 하지 않으면 루트 테스트가
+> `Cannot find package '@croakcode/control'` 오류로 실패합니다.
+> `upstream`에서 `bun install`을 하지 않으면 `bun test`가
 > `preload not found "@opentui/solid/preload"` 오류로 실패합니다.
 > 일부 네이티브 모듈(`tree-sitter-powershell` 등)의 postinstall 빌드가 실패해도
-> 테스트/타입체크에는 영향이 없습니다.
+> 테스트는 실행됩니다.
+
+### 환경 변수
+
+| 변수 | 필수 | 설명 |
+|---|---|---|
+| `CROAK_AUTH_URL` | 로그인을 쓸 때 | croak-gate 로그인 서버 주소입니다. 기본값이 없으므로 설정하지 않으면 `/login`이 오류를 표시하고, 모델 요청에 토큰을 싣지 않습니다 |
+| `LITELLM_BASE_URL` | `litellm-head` 공급자를 쓸 때 | `croakcode.jsonc`의 공급자 주소입니다 |
 
 ## 테스트
 
@@ -78,8 +90,6 @@ bun run typecheck
 아래 항목은 **baseline에서도 실패**하는 것으로 확인된 기존 이슈입니다. 새 변경의 회귀와 구분하세요.
 
 `BASELINE_FAIL` (브랜딩 패치로 인한 stale 테스트):
-- `hosted nvidia provider adds billing origin header`
-- `custom nvidia baseURL adds billing origin header`
 - `plugin.xai > ...` (OAuth/PKCE/loader/device code 관련 다수)
 - `parsePluginSpecifier > ...` (npm protocol specifier 2건)
 
