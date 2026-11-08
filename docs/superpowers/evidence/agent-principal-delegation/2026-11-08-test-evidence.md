@@ -9,13 +9,34 @@
 
 ## 실행 결과
 
+### E0. SC-01 통합 재현 — **P0 권한 상승 결함 확정 (FAIL)**
+
+실제 `prompt()` 경로를 통과하는 재현 테스트를 작성·실행했다(격리 helper 테스트가 아님).
+테스트 위치: `test/session/prompt.test.ts`의 `it.instance.skip("SC-01 (P0 repro): sub-agent session edit-deny must survive child prompt() tools overwrite")` — **skip은 CI 보호 목적**(현재 `it.instance`로 실행하면 FAIL).
+
+```
+bun test test/session/prompt.test.ts -t "SC-01"   (it.instance로 실행 시)
+→ FAIL: expect(Permission.evaluate("edit", "/some/file.ts", effective).action).toBe("deny")
+        Expected: "deny"
+        Received: "allow"
+```
+
+**관찰된 사실(2단계):**
+1. 자식 세션 **생성 직후**: `Permission.evaluate("edit", …, child.permission)` = **deny** (부모 plan deny가 정상 전달 — PASS).
+2. 실제 `prompt.prompt({ tools: { task: false }, noReply: true })` **통과 후**: `Permission.merge(general.permission, session.permission)`에서 `edit` = **allow** (FAIL).
+   - 원인: `prompt.ts:1226-1233`이 tools 맵이 비어있지 않으면 `session.permission`을 **덮어씀**, `setPermission`은 전체 교체(`session.ts:735-739`). 부모 deny 소실 → 자식 `general`의 `"*": "allow"`가 edit 허용.
+   - `general`의 tools 맵은 `{task:false}`(이미 `todowrite` 규칙 보유 → `todowrite:false` 생략).
+
+**의미**: 서브 에이전트는 부모의 권한을 초과할 수 없다(invariant INV-2/DG-05)는 핵심 불변식이 실제 런타임 경로에서 **위반**된다. 기존 `plan-mode-subagent-bypass.test.ts`(5/5 통과)는 **격리 helper만** 검증해 이 경로를 포착하지 못한다.
+**조치**: 수정은 Phase 4 승인 대상(이 작업은 설계/검증만). 재현 테스트는 증거로 보존.
+
 ### E1. `test/agent/plan-mode-subagent-bypass.test.ts`
 ```
 bun test test/agent/plan-mode-subagent-bypass.test.ts
 → 5 pass / 0 fail (17 expect() calls)
 ```
 - **의미**: `deriveSubagentSessionPermission` + merge를 **격리 환경**에서 검증. plan 부모에서 general/explore/custom 자식의 edit deny가 유지되는지 helper 단위 확인.
-- **한계(중요)**: 이 테스트는 **`prompt()`의 `session.permission` 덮어쓰기 경로를 거치지 않는다**(stub/격리). 따라서 **SC-01(통합 상승 경로)은 여전히 NOT TESTED**.
+- **한계(중요)**: 이 테스트는 **`prompt()`의 `session.permission` 덮어쓰기 경로를 거치지 않는다**(stub/격리). 따라서 실제 런타임 상승 경로는 **E0로 별도 재현**했다.
 
 ### E2. `test/tool/task.test.ts`
 ```

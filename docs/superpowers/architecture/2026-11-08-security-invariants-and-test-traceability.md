@@ -138,7 +138,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| SC-01 | plan 부모 → general/explore/custom 자식 edit 상승 경로(아키텍처 문서 §5.6) 통합 재현; deny 유지 여부 확인 | **NOT TESTED** | **이 작업에서 실행하지 않음**. 기존 `test/agent/plan-mode-subagent-bypass.test.ts`는 격리 helper만 검증(덮어쓰기 경로 미포함). → Phase 3에서 통합 재현 테스트 추가 후 상태 확정 |
+| SC-01 | plan 부모 → general/explore/custom 자식 edit 상승 경로(아키텍처 문서 §5.6) 통합 재현; deny 유지 여부 확인 | **FAIL** | **실행 재현 완료(2026-11-08)** — 실제 `prompt()` 경로 통과: 생성 직후 `edit`=deny(PASS), `prompt({tools:{task:false}})` 이후 `edit`=**allow**(FAIL). 즉 부모 plan의 deny가 덮어쓰기로 소실. 재현 테스트: `test/session/prompt.test.ts`의 `it.instance.skip("SC-01 (P0 repro)…")`(CI 보호 위해 skip, 증거 보존). 기존 `plan-mode-subagent-bypass.test.ts`는 격리 helper만 검증해 이 경로를 못 잡음. **P0 보안 결함 확정** — 수정은 Phase 4 승인 대상. |
 | SC-02 | `session.permission` 덮어쓰기(`prompt.ts:1226-1233`)가 턴 스냅샷(§5.4)을 깨지 않음 | **NOT TESTED** | 잠재적 위반. Phase 3 검증 대상 |
 | SC-03 | 손자 생성 제한(task 규칙 없는 subagent는 task 비활성) | **NOT TESTED** | **메커니즘 정정**: `general`은 `"*": "allow"` defaults를 상속하므로 노출 게이트(`registry.ts:330-341`)에서 `task`는 **allow로 노출된다**. 제한은 `deriveSubagentSessionPermission`이 자식 세션에 `{task:deny}`를 주입하고 실행 시 `ctx.ask`(session-last merge → `findLast`)에서 deny되는 것(`subagent-permissions.ts:22,32`, `session/tools.ts:64-72`). `test/agent/agent.test.ts`는 이 동작을 검증하지 않음(Definition/config만) → NOT TESTED. 실제 검증은 `test/tool/task.test.ts` "execute shapes child permissions" 류를 실행해야 함 |
 | SC-04 | 부모 취소 → 자식 abort 전파(포그라운드 abort chain + 백그라운드 metadata 매칭) | **PASS** | **실행 결과**: `bun test test/tool/task.test.ts` → **15 pass / 0 fail** (2026-11-08). 근거 테스트: `task.test.ts:290` "execute cancels child session when abort signal fires"(포그라운드), `task.test.ts:705` "cancelling a parent run recursively cancels descendant background tasks"(백그라운드 metadata 매칭, `expect(...status).toBe("cancelled")`). |
@@ -153,8 +153,9 @@
 |---|---|
 | `task` 자식 세션 `parentID` 설정(`task.ts:142-159`) | (세션생성 코드 확인 — **대응 테스트 행 없음**, AG-01과 무관) |
 | `merge` = 평탄 + `findLast`(`packages/core/src/permission.ts:21-35`) | DG-05 **NOT TESTED**(교집합 미구현) |
-| `deriveSubagentSessionPermission` deny 전달(`subagent-permissions.ts:17-34`) | SC-01 **NOT TESTED**(통합 미검증) |
+| `deriveSubagentSessionPermission` deny 전달(`subagent-permissions.ts:17-34`) | 생성 직후에는 deny 유지, `prompt()` 덮어쓰기 후 **SC-01 FAIL** (재현 완료) |
 | `prompt()` session.permission 덮어쓰기(`prompt.ts:1226-1233`) | SC-02 **NOT TESTED** |
+| plan 부모 → general 자식 edit 상승(실제 `prompt()` 경로) | SC-01 **FAIL**(재현 완료 2026-11-08) |
 | `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **NOT TESTED** |
 | abort 전파(포그라운드 `task.test.ts:290`, 백그라운드 `task.test.ts:705`) | SC-04 **PASS**(15 pass / 0 fail 실행) |
 | revocation 부재 | RV-01~05 **FUTURE CONTRACT** |
@@ -162,15 +163,16 @@
 
 ---
 
-## H. Phase 3에서 상태를 확정할 항목(실행 대상)
+## H. 상태 확정 진행 상황
 
-다음 항목은 **Phase 3에서 실제 테스트를 실행**해 PASS/FAIL을 확정한다. 이 작업(설계)에서는 실행하지 않았으므로 **NOT TESTED**로 둔다:
+- **SC-01**: **재현 완료(FAIL)** — 실제 `prompt()` 경로에서 edit=allow를 반환. 재현 테스트는 `it.instance.skip`으로 보존(CI 보호), Phase 4 수정 후 `it.instance`로 전환해 PASS 확인.
+- **SC-04**: **완료(PASS)** — `test/tool/task.test.ts` → 15 pass / 0 fail (포그라운드 abort + 백그라운드 재귀 취소).
+
+다음 항목은 **아직 실행/기록하지 않았으므로 NOT TESTED**로 둔다(Phase 3에서 실행해 PASS/FAIL 확정):
 
 - **CX-01**: `test/tool/task.test.ts` 실행 → 자식 프롬프트 전달 확인.
-- **SC-01**: plan→general 통합 재현 테스트 **신규 작성** 후 실행.
-- **SC-02**: `session.permission` 덮어쓰기 턴 스냅샷 테스트 **신규 작성** 후 실행.
+- **SC-02**: `session.permission` 덮어쓰기 턴 스냅샷 테스트 신규 작성 후 실행.
 - **SC-03**: `test/tool/task.test.ts`의 "execute shapes child permissions" 류 실행(손자 제한 = 세션 task deny + ctx.ask). `test/agent/agent.test.ts`는 사용하지 않음(Definition/config만).
-- **SC-04**: 완료됨(`test/tool/task.test.ts` → 15 pass / 0 fail; 포그라운드 abort + 백그라운드 재귀 취소 검증).
 - **CX-02**: Phase 3 Task 16b E2E 실행.
 
 > **주의**: 위 테스트를 **실행하지 않고** PASS로 승격하지 말 것. 상태 승격은 `docs/superpowers/plans/2026-11-08-phase3-plugin-port.md`의 Task 16/16a/16b/17 게이트에서만 한다.
