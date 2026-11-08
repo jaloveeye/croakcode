@@ -822,7 +822,7 @@ const scenarios: Scenario[] = [
     .seeded((ctx) =>
       Effect.gen(function* () {
         const session = yield* ctx.session({ title: "Todo session" })
-        const todos = [{ content: "cover session todo", status: "pending", priority: "high" }]
+        const todos = [{ content: "cover session todo", status: "pending" as const, priority: "high" }]
         yield* ctx.todos(session.id, todos)
         return { session, todos }
       }),

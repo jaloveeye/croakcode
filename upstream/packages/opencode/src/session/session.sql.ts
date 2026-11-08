@@ -100,6 +100,8 @@ export const TodoTable = sqliteTable(
     content: text().notNull(),
     status: text().notNull(),
     priority: text().notNull(),
+    linkedToolCalls: text("linked_tool_calls").notNull().default("[]"),
+    evidence: text().notNull().default("tool"),
     position: integer().notNull(),
     ...Timestamps,
   },

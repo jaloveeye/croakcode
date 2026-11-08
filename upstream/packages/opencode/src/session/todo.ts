@@ -9,10 +9,18 @@ import { TodoTable } from "./session.sql"
 
 export const Info = Schema.Struct({
   content: Schema.String.annotate({ description: "Brief description of the task" }),
-  status: Schema.String.annotate({
+  status: Schema.Literals(["pending", "in_progress", "completed", "cancelled"]).annotate({
     description: "Current status of the task: pending, in_progress, completed, cancelled",
   }),
-  priority: Schema.String.annotate({ description: "Priority level of the task: high, medium, low" }),
+  priority: Schema.optional(Schema.String).annotate({
+    description: "Priority level of the task: high, medium, low",
+  }),
+  linkedToolCalls: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Tool call IDs this todo is backed by (evidence linkage)",
+  }),
+  evidence: Schema.optional(Schema.Literals(["tool", "none"])).annotate({
+    description: 'Evidence policy: "tool" requires linked tool calls, "none" exempts them',
+  }),
 }).annotate({ identifier: "Todo" })
 export type Info = Schema.Schema.Type<typeof Info>
 
@@ -24,6 +32,35 @@ export const Event = {
       todos: Schema.Array(Info),
     }),
   ),
+  Inconsistent: BusEvent.define(
+    "todo.inconsistent",
+    Schema.Struct({
+      sessionID: SessionID,
+      todo: Info,
+      warnings: Schema.Array(Schema.String),
+    }),
+  ),
+}
+
+/**
+ * 턴 종료 정합성 판정. evidence:"none" 은 도구 증거를 요구하지 않는다(오탐 방지).
+ * in_progress 는 턴 단위 판정 금지 — 진입 턴(turnStartCalls)에만 확인한다.
+ * upstream 내부 헬퍼(contracts import 금지 — 의존 규칙).
+ */
+export function consistencyWarnings(todo: Info, turnCalls: string[], turnStartCalls: string[]): string[] {
+  const warnings: string[] = []
+  const evidence = todo.evidence ?? "tool"
+  const linked = todo.linkedToolCalls ?? []
+  if (evidence === "tool" && todo.status === "completed" && linked.length === 0) {
+    warnings.push("completed_without_evidence")
+  }
+  if (evidence === "tool" && todo.status === "in_progress") {
+    const calledInEntryTurn = turnStartCalls.some((id) => linked.includes(id))
+    if (turnStartCalls.length > 0 && !calledInEntryTurn && linked.length === 0) {
+      warnings.push("in_progress_without_evidence")
+    }
+  }
+  return warnings
 }
 
 export interface Interface {
@@ -49,7 +86,9 @@ export const layer = Layer.effect(
                 session_id: input.sessionID,
                 content: todo.content,
                 status: todo.status,
-                priority: todo.priority,
+                priority: todo.priority ?? "medium",
+                linkedToolCalls: JSON.stringify(todo.linkedToolCalls ?? []),
+                evidence: todo.evidence ?? "tool",
                 position,
               })),
             )
@@ -67,8 +106,10 @@ export const layer = Layer.effect(
       )
       return rows.map((row) => ({
         content: row.content,
-        status: row.status,
+        status: row.status as Info["status"],
         priority: row.priority,
+        linkedToolCalls: JSON.parse(row.linkedToolCalls) as string[],
+        evidence: row.evidence as NonNullable<Info["evidence"]>,
       }))
     })
 

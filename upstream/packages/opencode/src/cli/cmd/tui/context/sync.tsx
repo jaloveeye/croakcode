@@ -63,6 +63,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       todo: {
         [sessionID: string]: Todo[]
       }
+      todo_warnings: {
+        [sessionID: string]: { content: string; warnings: string[] }[]
+      }
       message: {
         [sessionID: string]: Message[]
       }
@@ -98,6 +101,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_status: {},
       session_diff: {},
       todo: {},
+      todo_warnings: {},
       message: {},
       part: {},
       lsp: [],
@@ -212,6 +216,16 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
         case "todo.updated":
           setStore("todo", event.properties.sessionID, event.properties.todos)
+          break
+
+        case "todo.inconsistent":
+          setStore(
+            "todo_warnings",
+            event.properties.sessionID,
+            produce((draft) => {
+              draft.push({ content: event.properties.todo.content, warnings: event.properties.warnings })
+            }),
+          )
           break
 
         case "session.diff":
