@@ -58,6 +58,37 @@ export function isDefaultTitle(title: string) {
 
 type SessionRow = typeof SessionTable.$inferSelect
 
+// SC-01 (Agent Principal): the inherited security ceiling of a delegated child
+// session is the set of restrictions derived from its parent (parent agent edit
+// deny, parent session denies, default todowrite/task denies). It is a HARD
+// CEILING: no public API (session permission update, prompt tools map) may
+// relax it. Storing it only in the mutable `session.permission` column is not
+// enough, because every writer of that column would be able to drop/override
+// it. We therefore keep a process-scoped registry, writable ONLY by the trusted
+// runtime (task tool via `setInheritedPermission`), and re-append it on every
+// read (`fromRow`) so `findLast` evaluation always sees it last.
+const inheritedCeilings = new Map<string, Permission.Ruleset>()
+
+function applyInheritedCeiling(sessionID: string, permission: Permission.Ruleset | undefined) {
+  const ceiling = inheritedCeilings.get(sessionID)
+  if (!ceiling || ceiling.length === 0) return permission ? [...permission] : permission
+  const base = permission ? [...permission] : []
+  // Remove any stored rule that the ceiling supersedes (same permission and a
+  // pattern the ceiling covers), then append the ceiling rules LAST. This
+  // guarantees the inherited ceiling is authoritative under
+  // Permission.evaluate's `findLast`, even if a client appended conflicting
+  // rules after it.
+  const survivors = base.filter(
+    (existing) =>
+      !ceiling.some(
+        (rule) =>
+          existing.permission === rule.permission &&
+          (rule.pattern === "*" || existing.pattern === rule.pattern),
+      ),
+  )
+  return [...survivors, ...ceiling.map((rule) => ({ ...rule }))]
+}
+
 export function fromRow(row: SessionRow): Info {
   const summary =
     row.summary_additions !== null || row.summary_deletions !== null || row.summary_files !== null
@@ -101,7 +132,7 @@ export function fromRow(row: SessionRow): Info {
     },
     share,
     revert,
-    permission: row.permission ? [...row.permission] : undefined,
+    permission: applyInheritedCeiling(row.id, row.permission ?? undefined),
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -464,6 +495,16 @@ export interface Interface {
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
+  /**
+   * SC-01: register the IMMUTABLE inherited security ceiling for a delegated
+   * child session. Only the trusted runtime (task tool) may call this. The
+   * ceiling is re-appended on every read so no permission/tools write can relax
+   * it.
+   */
+  readonly setInheritedPermission: (input: {
+    sessionID: SessionID
+    permission: Permission.Ruleset
+  }) => Effect.Effect<void>
   readonly setRevert: (input: {
     sessionID: SessionID
     revert: Info["revert"]
@@ -595,6 +636,9 @@ export const layer: Layer.Layer<
     const remove: Interface["remove"] = Effect.fnUntraced(function* (sessionID: SessionID) {
       const session = yield* get(sessionID)
       try {
+        // SC-01: drop any registered inherited ceiling for this session so a
+        // deleted child can never leak restrictions onto a future session id.
+        inheritedCeilings.delete(sessionID)
         // `remove` needs to work in all cases, such as broken sessions that
         // run cleanup without instance state.
         const hasInstance = yield* InstanceState.directory.pipe(
@@ -739,6 +783,17 @@ export const layer: Layer.Layer<
       yield* patch(input.sessionID, { permission: [...input.permission], time: { updated: Date.now() } })
     })
 
+    const setInheritedPermission = Effect.fn("Session.setInheritedPermission")(function* (input: {
+      sessionID: SessionID
+      permission: Permission.Ruleset
+    }) {
+      if (input.permission.length === 0) {
+        inheritedCeilings.delete(input.sessionID)
+        return
+      }
+      inheritedCeilings.set(input.sessionID, input.permission.map((rule) => ({ ...rule })))
+    })
+
     const setRevert = Effect.fn("Session.setRevert")(function* (input: {
       sessionID: SessionID
       revert: Info["revert"]
@@ -845,6 +900,7 @@ export const layer: Layer.Layer<
       setTitle,
       setArchived,
       setPermission,
+      setInheritedPermission,
       setRevert,
       clearRevert,
       setSummary,
