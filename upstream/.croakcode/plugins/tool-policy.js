@@ -86,3 +86,4 @@ export const server = async () => {
     },
   };
 };
+export default { id: "croak-tool-policy", server };
