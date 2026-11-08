@@ -23,6 +23,15 @@ export function resolveHarnessInclusion(decision) {
   return "exclude"; // deny / not_applicable / undefined / unknown
 }
 
+/**
+ * 도구 목록 노출 판정 — fail-closed. allow/ask 만 노출, 그 외 전부 제외.
+ * 런타임의 Permission.evaluate 는 항상 유효한 action 을 반환하지만,
+ * 방어적으로 알 수 없는 값도 제외한다.
+ */
+export function shouldExposeTool(decision) {
+  return decision === "allow" || decision === "ask";
+}
+
 export const HARNESS_EVENT = Object.freeze({
   name: "harness.updated",
   direction: "core→client",
