@@ -20,4 +20,8 @@ declare module "*/connection.js" {
   ): T[]
 
   export function filterMessagesForModeParts<T>(messages: T[], mode: ConnectionMode): T[]
+
+  export function markOrigin<T>(part: T, origin: "gate" | "user"): T
+
+  export function containsGateContext(messages: readonly unknown[]): boolean
 }

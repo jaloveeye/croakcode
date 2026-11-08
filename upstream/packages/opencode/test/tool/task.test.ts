@@ -47,6 +47,50 @@ const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
 const it = testEffect(layer())
 const background = testEffect(layer({ experimentalBackgroundSubagents: true }))
 
+// SEC-03: operator-controlled connection mode, read on every Config.get().
+const connMode: { current: "gate" | "direct" } = { current: "gate" }
+afterEach(() => {
+  connMode.current = "gate"
+})
+const ModeConfig = Layer.effect(
+  Config.Service,
+  Effect.gen(function* () {
+    const real = yield* Config.Service
+    return Config.Service.of({
+      ...real,
+      get: () => real.get().pipe(Effect.map((cfg) => ({ ...cfg, connection: { mode: connMode.current } }))),
+    })
+  }),
+).pipe(Layer.provide(Config.defaultLayer))
+const modeBackground = testEffect(
+  Layer.mergeAll(
+    Agent.defaultLayer,
+    BackgroundJob.defaultLayer,
+    Bus.defaultLayer,
+    ModeConfig,
+    CrossSpawnSpawner.defaultLayer,
+    Session.defaultLayer,
+    SessionRunState.defaultLayer,
+    SessionStatus.defaultLayer,
+    Truncate.defaultLayer,
+    ToolRegistry.defaultLayer,
+    RuntimeFlags.layer({ experimentalBackgroundSubagents: true }),
+  ),
+)
+
+// Persist a child assistant reply stamped with `origin`, as the real prompt loop does.
+const persistChildReply = Effect.fn("TaskToolTest.persistChildReply")(function* (
+  input: SessionPrompt.PromptInput,
+  text: string,
+  origin: "gate" | "user",
+) {
+  const session = yield* Session.Service
+  const message = reply(input, text)
+  yield* session.updateMessage(message.info)
+  for (const part of message.parts) yield* session.updatePart({ ...part, metadata: { origin } } as MessageV2.Part)
+  return message
+})
+
 function defer<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   const promise = new Promise<T>((done) => {
@@ -646,6 +690,113 @@ describe("tool.task", () => {
       const waited = yield* jobs.wait({ id: result.metadata.sessionId, timeout: 1_000 })
       expect(waited.timedOut).toBe(false)
       expect(waited.info?.status).toBe("completed")
+    }),
+  )
+
+  // SEC-03: provenance is decided by the security context that produced the
+  // result, not by the mode at the moment it is injected into the parent.
+  const runBackground = Effect.fn("TaskToolTest.runBackground")(function* (
+    child: (input: SessionPrompt.PromptInput) => Effect.Effect<MessageV2.WithParts, never, Session.Service>,
+  ) {
+    const jobs = yield* BackgroundJob.Service
+    const session = yield* Session.Service
+    const { chat, assistant } = yield* seed()
+    const def = yield* (yield* TaskTool).init()
+    const injected = defer<SessionPrompt.PromptInput>()
+
+    const result = yield* def.execute(
+      { description: "inspect bug", prompt: "look", subagent_type: "general", background: true },
+      {
+        sessionID: chat.id,
+        messageID: assistant.id,
+        agent: "build",
+        abort: new AbortController().signal,
+        extra: {
+          promptOps: {
+            ...stubOps(),
+            prompt: (input) => {
+              if (input.sessionID !== chat.id) return child(input).pipe(Effect.provideService(Session.Service, session))
+              injected.resolve(input)
+              return Effect.succeed(reply(input, "ack"))
+            },
+          } satisfies TaskPromptOps,
+        },
+        messages: [],
+        metadata: () => Effect.void,
+        ask: () => Effect.void,
+      },
+    )
+    const waited = yield* jobs.wait({ id: result.metadata.sessionId, timeout: 2_000 })
+    expect(waited.info?.status).toBe("completed")
+    const input = yield* Effect.promise(() => injected.promise)
+    const part = input.parts[0] as { metadata?: { origin?: string } }
+    return part.metadata?.origin
+  })
+
+  modeBackground.instance("SEC-03 background result launched under gate stays gate after a switch to direct", () =>
+    Effect.gen(function* () {
+      connMode.current = "gate"
+      const origin = yield* runBackground((input) =>
+        Effect.sync(() => {
+          // The operator switches to direct while the sub-agent is still running.
+          connMode.current = "direct"
+          return reply(input, "GATE_CONTEXT_RESULT")
+        }),
+      )
+      expect(origin).toBe("gate")
+    }),
+  )
+
+  modeBackground.instance("SEC-03 background result is gate when the child produced gate content", () =>
+    Effect.gen(function* () {
+      connMode.current = "direct"
+      const origin = yield* runBackground((input) =>
+        Effect.gen(function* () {
+          // Mode flipped to gate and back during the run; the child's own turn was gate-stamped.
+          return yield* persistChildReply(input, "GATE_CONTEXT_RESULT", "gate")
+        }),
+      )
+      expect(origin).toBe("gate")
+    }),
+  )
+
+  modeBackground.instance("SEC-03 background result from a pure direct run stays user", () =>
+    Effect.gen(function* () {
+      connMode.current = "direct"
+      const origin = yield* runBackground((input) => persistChildReply(input, "direct result", "user"))
+      expect(origin).toBe("user")
+    }),
+  )
+
+  modeBackground.instance("SEC-03 foreground result reports gate provenance when the child produced gate content", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const def = yield* (yield* TaskTool).init()
+      connMode.current = "direct"
+
+      const result = yield* def.execute(
+        { description: "inspect bug", prompt: "look", subagent_type: "general" },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: {
+            promptOps: {
+              ...stubOps(),
+              prompt: (input) =>
+                persistChildReply(input, "GATE_CONTEXT_RESULT", "gate").pipe(
+                  Effect.provideService(Session.Service, session),
+                ),
+            } satisfies TaskPromptOps,
+          },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+      expect((result.metadata as { origin?: string }).origin).toBe("gate")
     }),
   )
 

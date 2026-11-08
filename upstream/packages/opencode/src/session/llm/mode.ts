@@ -2,6 +2,7 @@ import {
   resolveConnectionMode,
   filterMessagesForModeParts,
   markOrigin,
+  containsGateContext,
 } from "../../../../../.croakcode/plugins/lib/connection.js"
 
 export type ConnectionMode = "gate" | "direct"
@@ -15,6 +16,11 @@ export function connectionFor(config: { connection?: { mode?: unknown } } | unde
   return { mode: resolveConnectionMode({ global: config?.connection?.mode }) }
 }
 
+// Trusted provenance for content produced under `connection`.
+export function originFor(connection: { mode: ConnectionMode }): "gate" | "user" {
+  return connection.mode === "gate" ? "gate" : "user"
+}
+
 // Re-exported so the request path imports the exact same implementation the
 // plugin-side tests exercise (single source of truth, no copy).
-export { filterMessagesForModeParts, markOrigin }
+export { filterMessagesForModeParts, markOrigin, containsGateContext }
