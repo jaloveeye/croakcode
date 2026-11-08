@@ -24,6 +24,13 @@ test("server auth stub exposes interface descriptor but no enforcement", () => {
   assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.implemented, false);
 });
 
+test("TUI surface contract promotes patch 0006/0007", () => {
+  assert.ok(contracts.TUI_HOST_SLOTS.includes("session_message_footer"));
+  assert.deepEqual(contracts.SESSION_MESSAGE_FOOTER_PROPS, ["session_id", "message_id"]);
+  assert.deepEqual(contracts.TUI_PERMISSION_MODES, ["ask", "auto"]);
+  assert.equal(contracts.TUI_PERMISSION_API.readOnly, true);
+});
+
 test("phase 1 hook stubs are declared no-op", () => {
   assert.equal(contracts.PHASE1_HOOK_STUBS.phase, 1);
   assert.equal(contracts.PHASE1_HOOK_STUBS.implemented, false);

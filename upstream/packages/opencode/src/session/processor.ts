@@ -1,5 +1,5 @@
 import { Image } from "@/image/image"
-import { Cause, Deferred, Effect, Exit, Layer, Context, Scope, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Layer, Context, Scope, Schema, Duration } from "effect"
 import * as Stream from "effect/Stream"
 import { Agent } from "@/agent/agent"
 import { Bus } from "@/bus"
@@ -34,6 +34,20 @@ const log = Log.create({ service: "session.processor" })
 
 export type Result = "compact" | "stop" | "continue"
 
+/**
+ * Body-idle guard predicate (§4.9). True when the gap since the last streamed
+ * event reached the configured idle window and no compaction was requested.
+ * Pure so it can be unit-tested independently of the processor harness.
+ */
+export function shouldHaltForIdle(input: {
+  idleMs: number
+  lastEventAt: number
+  now: number
+  needsCompaction: boolean
+}) {
+  return input.idleMs > 0 && !input.needsCompaction && input.now - input.lastEventAt >= input.idleMs
+}
+
 export interface Handle {
   readonly message: MessageV2.Assistant
   readonly updateToolCall: (
@@ -49,7 +63,7 @@ export interface Handle {
       attachments?: MessageV2.FilePart[]
     },
   ) => Effect.Effect<void>
-  readonly process: (streamInput: LLM.StreamInput) => Effect.Effect<Result>
+  readonly process: (streamInput: LLM.StreamInput, opts?: { idleTimeoutMs?: number }) => Effect.Effect<Result>
 }
 
 type Input = {
@@ -76,6 +90,7 @@ interface ProcessorContext extends Input {
   snapshot: string | undefined
   blocked: boolean
   needsCompaction: boolean
+  idleTimedOut: boolean
   currentText: MessageV2.TextPart | undefined
   reasoningMap: Record<string, MessageV2.ReasoningPart>
 }
@@ -116,6 +131,7 @@ export const layer = Layer.effect(
         snapshot: initialSnapshot,
         blocked: false,
         needsCompaction: false,
+        idleTimedOut: false,
         currentText: undefined,
         reasoningMap: {},
       }
@@ -777,9 +793,13 @@ export const layer = Layer.effect(
         yield* status.set(ctx.sessionID, { type: "idle" })
       })
 
-      const process = Effect.fn("SessionProcessor.process")(function* (streamInput: LLM.StreamInput) {
+      const process = Effect.fn("SessionProcessor.process")(function* (
+        streamInput: LLM.StreamInput,
+        opts?: { idleTimeoutMs?: number },
+      ) {
         slog.info("process")
         ctx.needsCompaction = false
+        ctx.idleTimedOut = false
         ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
 
         return yield* Effect.gen(function* () {
@@ -787,13 +807,34 @@ export const layer = Layer.effect(
             ctx.currentText = undefined
             ctx.reasoningMap = {}
             yield* status.set(ctx.sessionID, { type: "busy" })
-            const stream = llm.stream(streamInput)
+            const idleMs = opts?.idleTimeoutMs ?? 0
+            // Body-idle guard (§4.9): Stream.timeout ends the stream if no value
+            // arrives within the duration, i.e. it watches the gap between deltas
+            // (NOT total runtime). It completes normally, so we detect the idle
+            // case via the last-event timestamp to distinguish it from natural end.
+            let lastEventAt = Date.now()
+            const base = llm.stream(streamInput)
+            const stream = idleMs > 0 ? base.pipe(Stream.timeout(Duration.millis(idleMs))) : base
 
             yield* stream.pipe(
-              Stream.tap((event) => handleEvent(event)),
+              Stream.tap((event) => {
+                lastEventAt = Date.now()
+                return handleEvent(event)
+              }),
               Stream.takeUntil(() => ctx.needsCompaction),
               Stream.runDrain,
             )
+
+            if (shouldHaltForIdle({ idleMs, lastEventAt, now: Date.now(), needsCompaction: ctx.needsCompaction })) {
+              ctx.idleTimedOut = true
+              yield* halt(
+                new MessageV2.StreamIdleTimeoutError({
+                  message: `stream produced no data for ${idleMs}ms`,
+                  errorCode: "STREAM_IDLE_TIMEOUT",
+                  idleMs,
+                }),
+              )
+            }
           }).pipe(
             Effect.onInterrupt(() =>
               Effect.gen(function* () {
@@ -842,6 +883,7 @@ export const layer = Layer.effect(
             Effect.ensuring(cleanup()),
           )
 
+          if (ctx.idleTimedOut) return "stop"
           if (ctx.needsCompaction) return "compact"
           if (ctx.blocked || ctx.assistantMessage.error) return "stop"
           return "continue"

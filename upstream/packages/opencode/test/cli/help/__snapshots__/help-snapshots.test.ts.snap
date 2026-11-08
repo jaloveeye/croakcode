@@ -1,660 +1,660 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode acp --help 1`] = `
-"opencode acp
+"cc acp
 
 start ACP (Agent Client Protocol) server
 
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-      --port         port to listen on                                         [number] [default: 0]
-      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+옵션:
+  -h, --help         show help                                                              [불리언]
+  -v, --version      show version number                                                    [불리언]
+      --print-logs   print logs to stderr                                                   [불리언]
+      --log-level    log level                   [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                           [불리언]
+      --port         port to listen on                                            [숫자] [기본값: 0]
+      --hostname     hostname to listen on                            [문자열] [기본값: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
-      --cors         additional domains to allow for CORS                      [array] [default: []]
-      --cwd          working directory [string] [default: "<HOME>"]"
+                                                                            [불리언] [기본값: false]
+      --mdns-domain  custom domain name for mDNS service (default: croakcode.local)
+                                                                [문자열] [기본값: "croakcode.local"]
+      --cors         additional domains to allow for CORS                        [배열] [기본값: []]
+      --cwd          working directory
+         [문자열] [기본값: "<HOME>"]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp --help 1`] = `
-"opencode mcp
+"cc mcp
 
 manage MCP (Model Context Protocol) servers
 
-Commands:
-  opencode mcp add            add an MCP server
-  opencode mcp list           list MCP servers and their status                        [aliases: ls]
-  opencode mcp auth [name]    authenticate with an OAuth-enabled MCP server
-  opencode mcp logout [name]  remove OAuth credentials for an MCP server
-  opencode mcp debug <name>   debug OAuth connection for an MCP server
+명령:
+  cc mcp add            add an MCP server
+  cc mcp list           list MCP servers and their status                                 [별칭: ls]
+  cc mcp auth [name]    authenticate with an OAuth-enabled MCP server
+  cc mcp logout [name]  remove OAuth credentials for an MCP server
+  cc mcp debug <name>   debug OAuth connection for an MCP server
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode resume --help 1`] = `
-"opencode resume [project]
+"cc resume [project]
 
-resume an opencode session
+resume a croakcode session
 
-Positionals:
-  project  path to start opencode in                                                        [string]
+위치:
+  project  path to start croakcode in                                                       [문자열]
 
-Options:
-  -h, --help                          show help                                            [boolean]
-  -v, --version                       show version number                                  [boolean]
-      --print-logs                    print logs to stderr                                 [boolean]
-      --log-level                     log level [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure                          run without external plugins                         [boolean]
-      --port                          port to listen on                        [number] [default: 0]
-      --hostname                      hostname to listen on          [string] [default: "127.0.0.1"]
+옵션:
+  -h, --help                          show help                                             [불리언]
+  -v, --version                       show version number                                   [불리언]
+      --print-logs                    print logs to stderr                                  [불리언]
+      --log-level                     log level  [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure                          run without external plugins                          [불리언]
+      --port                          port to listen on                           [숫자] [기본값: 0]
+      --hostname                      hostname to listen on           [문자열] [기본값: "127.0.0.1"]
       --mdns                          enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain                   custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
-      --cors                          additional domains to allow for CORS     [array] [default: []]
-  -l, --last                          resume the most recently updated session             [boolean]
-  -s, --session                       session id to resume                                  [string]
+                                                                            [불리언] [기본값: false]
+      --mdns-domain                   custom domain name for mDNS service (default: croakcode.local)
+                                                                [문자열] [기본값: "croakcode.local"]
+      --cors                          additional domains to allow for CORS       [배열] [기본값: []]
+  -l, --last                          resume the most recently updated session              [불리언]
+  -s, --session                       session id to resume                                  [문자열]
       --fork                          fork the session when resuming (use with --last or --session)
-                                                                                           [boolean]
-  -m, --model                         model to use in the format of provider/model          [string]
-      --prompt                        prompt to use                                         [string]
-      --agent                         agent to use                                          [string]
+                                                                                            [불리언]
+  -m, --model                         model to use in the format of provider/model          [문자열]
+      --prompt                        prompt to use                                         [문자열]
+      --agent                         agent to use                                          [문자열]
       --dangerously-skip-permissions  start with automatic permission approval enabled (dangerous!)
-                                                                          [boolean] [default: false]"
+                                                                            [불리언] [기본값: false]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode attach --help 1`] = `
-"opencode attach <url>
+"cc attach <url>
 
-attach to a running opencode server
+attach to a running croakcode server
 
-Positionals:
-  url  http://localhost:4096                                                     [string] [required]
+위치:
+  url  http://localhost:4096                                                         [문자열] [필수]
 
-Options:
-  -h, --help                          show help                                            [boolean]
-  -v, --version                       show version number                                  [boolean]
-      --print-logs                    print logs to stderr                                 [boolean]
-      --log-level                     log level [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure                          run without external plugins                         [boolean]
-      --dir                           directory to run in                                   [string]
-  -c, --continue                      continue the last session                            [boolean]
-  -s, --session                       session id to continue                                [string]
+옵션:
+  -h, --help                          show help                                             [불리언]
+  -v, --version                       show version number                                   [불리언]
+      --print-logs                    print logs to stderr                                  [불리언]
+      --log-level                     log level  [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure                          run without external plugins                          [불리언]
+      --dir                           directory to run in                                   [문자열]
+  -c, --continue                      continue the last session                             [불리언]
+  -s, --session                       session id to continue                                [문자열]
       --fork                          fork the session when continuing (use with --continue or
-                                      --session)                                           [boolean]
-  -p, --password                      basic auth password (defaults to OPENCODE_SERVER_PASSWORD)
-                                                                                            [string]
-  -u, --username                      basic auth username (defaults to OPENCODE_SERVER_USERNAME or
-                                      'opencode')                                           [string]
+                                      --session)                                            [불리언]
+  -p, --password                      basic auth password (defaults to CROAKCODE_SERVER_PASSWORD)
+                                                                                            [문자열]
+  -u, --username                      basic auth username (defaults to CROAKCODE_SERVER_USERNAME or
+                                      'croakcode')                                          [문자열]
       --dangerously-skip-permissions  start with automatic permission approval enabled (dangerous!)
-                                                                          [boolean] [default: false]"
+                                                                            [불리언] [기본값: false]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode run --help 1`] = `
-"opencode run [message..]
+"cc run [message..]
 
-run opencode with a message
+run croakcode with a message
 
-Positionals:
-  message  message to send                                                     [array] [default: []]
+위치:
+  message  message to send                                                       [배열] [기본값: []]
 
-Options:
-  -h, --help                          show help                                            [boolean]
-  -v, --version                       show version number                                  [boolean]
-      --print-logs                    print logs to stderr                                 [boolean]
-      --log-level                     log level [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure                          run without external plugins                         [boolean]
-      --command                       the command to run, use message for args              [string]
-  -c, --continue                      continue the last session                            [boolean]
-  -s, --session                       session id to continue                                [string]
+옵션:
+  -h, --help                          show help                                             [불리언]
+  -v, --version                       show version number                                   [불리언]
+      --print-logs                    print logs to stderr                                  [불리언]
+      --log-level                     log level  [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure                          run without external plugins                          [불리언]
+      --command                       the command to run, use message for args              [문자열]
+  -c, --continue                      continue the last session                             [불리언]
+  -s, --session                       session id to continue                                [문자열]
       --fork                          fork the session before continuing (requires --continue or
-                                      --session)                                           [boolean]
-      --share                         share the session                                    [boolean]
-  -m, --model                         model to use in the format of provider/model          [string]
-      --agent                         agent to use                                          [string]
+                                      --session)                                            [불리언]
+      --share                         share the session                                     [불리언]
+  -m, --model                         model to use in the format of provider/model          [문자열]
+      --agent                         agent to use                                          [문자열]
       --format                        format: default (formatted) or json (raw JSON events)
-                                          [string] [choices: "default", "json"] [default: "default"]
-  -f, --file                          file(s) to attach to message                           [array]
+                                            [문자열] [선택지: "default", "json"] [기본값: "default"]
+  -f, --file                          file(s) to attach to message                            [배열]
       --title                         title for the session (uses truncated prompt if no value
-                                      provided)                                             [string]
-      --attach                        attach to a running opencode server (e.g.,
-                                      http://localhost:4096)                                [string]
-  -p, --password                      basic auth password (defaults to OPENCODE_SERVER_PASSWORD)
-                                                                                            [string]
-  -u, --username                      basic auth username (defaults to OPENCODE_SERVER_USERNAME or
-                                      'opencode')                                           [string]
+                                      provided)                                             [문자열]
+      --attach                        attach to a running croakcode server (e.g.,
+                                      http://localhost:4096)                                [문자열]
+  -p, --password                      basic auth password (defaults to CROAKCODE_SERVER_PASSWORD)
+                                                                                            [문자열]
+  -u, --username                      basic auth username (defaults to CROAKCODE_SERVER_USERNAME or
+                                      'croakcode')                                          [문자열]
       --dir                           directory to run in, path on remote server if attaching
-                                                                                            [string]
+                                                                                            [문자열]
       --port                          port for the local server (defaults to random port if no value
-                                      provided)                                             [number]
+                                      provided)                                               [숫자]
       --variant                       model variant (provider-specific reasoning effort, e.g., high,
-                                      max, minimal)                                         [string]
-      --thinking                      show thinking blocks                                 [boolean]
+                                      max, minimal)                                         [문자열]
+      --thinking                      show thinking blocks                                  [불리언]
       --replay                        replay visible session history on interactive resume
-                                                                          [boolean] [default: false]
-      --replay-limit                  cap visible interactive replay to the newest N messages
-                                                                                            [number]
+                                                                            [불리언] [기본값: false]
+      --replay-limit                  cap visible interactive replay to the newest N messages [숫자]
   -i, --interactive                   run in direct interactive split-footer mode
-                                                                          [boolean] [default: false]
+                                                                            [불리언] [기본값: false]
       --dangerously-skip-permissions  auto-approve permissions that are not explicitly denied
-                                      (dangerous!)                        [boolean] [default: false]
+                                      (dangerous!)                          [불리언] [기본값: false]
       --demo                          enable direct interactive demo slash commands; pass one as the
-                                      message to run it immediately       [boolean] [default: false]"
+                                      message to run it immediately         [불리언] [기본값: false]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode debug --help 1`] = `
-"opencode debug
+"cc debug
 
 debugging and troubleshooting tools
 
-Commands:
-  opencode debug config        show resolved configuration
-  opencode debug lsp           LSP debugging utilities
-  opencode debug rg            ripgrep debugging utilities
-  opencode debug file          file system debugging utilities
-  opencode debug scrap         list all known projects
-  opencode debug skill         list all available skills
-  opencode debug snapshot      snapshot debugging utilities
-  opencode debug startup       print startup timing
-  opencode debug agent <name>  show agent configuration details
-  opencode debug v2            debug v2 catalog and built-in plugins
-  opencode debug info          show debug information
-  opencode debug paths         show global paths (data, config, cache, state)
-  opencode debug wait          wait indefinitely (for debugging)
+명령:
+  cc debug config        show resolved configuration
+  cc debug lsp           LSP debugging utilities
+  cc debug rg            ripgrep debugging utilities
+  cc debug file          file system debugging utilities
+  cc debug scrap         list all known projects
+  cc debug skill         list all available skills
+  cc debug snapshot      snapshot debugging utilities
+  cc debug startup       print startup timing
+  cc debug agent <name>  show agent configuration details
+  cc debug v2            debug v2 catalog and built-in plugins
+  cc debug info          show debug information
+  cc debug paths         show global paths (data, config, cache, state)
+  cc debug wait          wait indefinitely (for debugging)
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers --help 1`] = `
-"opencode providers
+"cc providers
 
 manage AI providers and credentials
 
-Commands:
-  opencode providers list         list providers and credentials                       [aliases: ls]
-  opencode providers login [url]  log in to a provider
-  opencode providers logout       log out from a configured provider
+명령:
+  cc providers list         list providers and credentials                                [별칭: ls]
+  cc providers login [url]  log in to a provider
+  cc providers logout       log out from a configured provider
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent --help 1`] = `
-"opencode agent
+"cc agent
 
 manage agents
 
-Commands:
-  opencode agent create  create a new agent
-  opencode agent list    list all available agents
+명령:
+  cc agent create  create a new agent
+  cc agent list    list all available agents
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode upgrade --help 1`] = `
-"opencode upgrade [target]
+"cc upgrade [target]
 
-upgrade opencode to the latest or a specific version
+upgrade croakcode to the latest or a specific version
 
-Positionals:
-  target  version to upgrade to, for ex '0.1.48' or 'v0.1.48'                               [string]
+위치:
+  target  version to upgrade to, for ex '0.1.48' or 'v0.1.48'                               [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
   -m, --method      installation method to use
-                          [string] [choices: "curl", "npm", "pnpm", "bun", "brew", "choco", "scoop"]"
+                           [문자열] [선택지: "curl", "npm", "pnpm", "bun", "brew", "choco", "scoop"]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode uninstall --help 1`] = `
-"opencode uninstall
+"cc uninstall
 
-uninstall opencode and remove all related files
+uninstall croakcode and remove all related files
 
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-  -c, --keep-config  keep configuration files                             [boolean] [default: false]
-  -d, --keep-data    keep session data and snapshots                      [boolean] [default: false]
-      --dry-run      show what would be removed without removing          [boolean] [default: false]
-  -f, --force        skip confirmation prompts                            [boolean] [default: false]"
+옵션:
+  -h, --help         show help                                                              [불리언]
+  -v, --version      show version number                                                    [불리언]
+      --print-logs   print logs to stderr                                                   [불리언]
+      --log-level    log level                   [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                           [불리언]
+  -c, --keep-config  keep configuration files                               [불리언] [기본값: false]
+  -d, --keep-data    keep session data and snapshots                        [불리언] [기본값: false]
+      --dry-run      show what would be removed without removing            [불리언] [기본값: false]
+  -f, --force        skip confirmation prompts                              [불리언] [기본값: false]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode serve --help 1`] = `
-"opencode serve
+"cc serve
 
-starts a headless opencode server
+starts a headless croakcode server
 
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-      --port         port to listen on                                         [number] [default: 0]
-      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+옵션:
+  -h, --help         show help                                                              [불리언]
+  -v, --version      show version number                                                    [불리언]
+      --print-logs   print logs to stderr                                                   [불리언]
+      --log-level    log level                   [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                           [불리언]
+      --port         port to listen on                                            [숫자] [기본값: 0]
+      --hostname     hostname to listen on                            [문자열] [기본값: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
-      --cors         additional domains to allow for CORS                      [array] [default: []]"
+                                                                            [불리언] [기본값: false]
+      --mdns-domain  custom domain name for mDNS service (default: croakcode.local)
+                                                                [문자열] [기본값: "croakcode.local"]
+      --cors         additional domains to allow for CORS                        [배열] [기본값: []]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode web --help 1`] = `
-"opencode web
+"cc web
 
-start opencode server and open web interface
+start croakcode server and open web interface
 
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-      --port         port to listen on                                         [number] [default: 0]
-      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+옵션:
+  -h, --help         show help                                                              [불리언]
+  -v, --version      show version number                                                    [불리언]
+      --print-logs   print logs to stderr                                                   [불리언]
+      --log-level    log level                   [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                           [불리언]
+      --port         port to listen on                                            [숫자] [기본값: 0]
+      --hostname     hostname to listen on                            [문자열] [기본값: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
-      --cors         additional domains to allow for CORS                      [array] [default: []]"
+                                                                            [불리언] [기본값: false]
+      --mdns-domain  custom domain name for mDNS service (default: croakcode.local)
+                                                                [문자열] [기본값: "croakcode.local"]
+      --cors         additional domains to allow for CORS                        [배열] [기본값: []]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode models --help 1`] = `
-"opencode models [provider]
+"cc models [provider]
 
 list all available models
 
-Positionals:
-  provider  provider ID to filter models by                                                 [string]
+위치:
+  provider  provider ID to filter models by                                                 [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --verbose     use more verbose model output (includes metadata like costs)           [boolean]
-      --refresh     refresh the models cache from models.dev                               [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+      --verbose     use more verbose model output (includes metadata like costs)            [불리언]
+      --refresh     refresh the models cache from models.dev                                [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode stats --help 1`] = `
-"opencode stats
+"cc stats
 
 show token usage and cost statistics
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --days        show stats for the last N days (default: all time)                      [number]
-      --tools       number of tools to show (default: all)                                  [number]
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+      --days        show stats for the last N days (default: all time)                        [숫자]
+      --tools       number of tools to show (default: all)                                    [숫자]
       --models      show model statistics (default: hidden). Pass a number to show top N, otherwise
                     shows all
-      --project     filter by project (default: all projects, empty string: current project)[string]"
+      --project     filter by project (default: all projects, empty string: current project)[문자열]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode export --help 1`] = `
-"opencode export [sessionID]
+"cc export [sessionID]
 
 export session data as JSON
 
-Positionals:
-  sessionID  session id to export                                                           [string]
+위치:
+  sessionID  session id to export                                                           [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --sanitize    redact sensitive transcript and file data                              [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+      --sanitize    redact sensitive transcript and file data                               [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode import --help 1`] = `
-"opencode import <file>
+"cc import <file>
 
 import session data from JSON file or URL
 
-Positionals:
-  file  path to JSON file or share URL                                           [string] [required]
+위치:
+  file  path to JSON file or share URL                                               [문자열] [필수]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github --help 1`] = `
-"opencode github
+"cc github
 
 manage GitHub agent
 
-Commands:
-  opencode github install  install the GitHub agent
-  opencode github run      run the GitHub agent
+명령:
+  cc github install  install the GitHub agent
+  cc github run      run the GitHub agent
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode pr --help 1`] = `
-"opencode pr <number>
+"cc pr <number>
 
-fetch and checkout a GitHub PR branch, then run opencode
+fetch and checkout a GitHub PR branch, then run cc
 
-Positionals:
-  number  PR number to checkout                                                  [number] [required]
+위치:
+  number  PR number to checkout                                                        [숫자] [필수]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session --help 1`] = `
-"opencode session
+"cc session
 
 manage sessions
 
-Commands:
-  opencode session list                list sessions
-  opencode session delete <sessionID>  delete a session
+명령:
+  cc session list                list sessions
+  cc session delete <sessionID>  delete a session
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode plugin --help 1`] = `
-"opencode plugin <module>
+"cc plugin <module>
 
 install plugin and update config
 
-Positionals:
-  module  npm module name                                                        [string] [required]
+위치:
+  module  npm module name                                                            [문자열] [필수]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-  -g, --global      install in global config                              [boolean] [default: false]
-  -f, --force       replace existing plugin version                       [boolean] [default: false]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+  -g, --global      install in global config                                [불리언] [기본값: false]
+  -f, --force       replace existing plugin version                         [불리언] [기본값: false]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db --help 1`] = `
-"opencode db
+"cc db
 
 database tools
 
-Commands:
-  opencode db [query]     open an interactive sqlite3 shell or run a query                 [default]
-  opencode db path        print the database path
-  opencode db migrate     migrate JSON data to SQLite (merges with existing data)
+명령:
+  cc db [query]     open an interactive sqlite3 shell or run a query                        [기본값]
+  cc db path        print the database path
+  cc db migrate     migrate JSON data to SQLite (merges with existing data)
 
-Positionals:
-  query  SQL query to execute                                                               [string]
+위치:
+  query  SQL query to execute                                                               [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --format      Output format                 [string] [choices: "json", "tsv"] [default: "tsv"]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+      --format      Output format                   [문자열] [선택지: "json", "tsv"] [기본값: "tsv"]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp list --help 1`] = `
-"opencode mcp list
+"cc mcp list
 
 list MCP servers and their status
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp add --help 1`] = `
-"opencode mcp add
+"cc mcp add
 
 add an MCP server
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp auth --help 1`] = `
-"opencode mcp auth [name]
+"cc mcp auth [name]
 
 authenticate with an OAuth-enabled MCP server
 
-Commands:
-  opencode mcp auth list  list OAuth-capable MCP servers and their auth status         [aliases: ls]
+명령:
+  cc mcp auth list  list OAuth-capable MCP servers and their auth status                  [별칭: ls]
 
-Positionals:
-  name  name of the MCP server                                                              [string]
+위치:
+  name  name of the MCP server                                                              [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp logout --help 1`] = `
-"opencode mcp logout [name]
+"cc mcp logout [name]
 
 remove OAuth credentials for an MCP server
 
-Positionals:
-  name  name of the MCP server                                                              [string]
+위치:
+  name  name of the MCP server                                                              [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers list --help 1`] = `
-"opencode providers list
+"cc providers list
 
 list providers and credentials
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers login --help 1`] = `
-"opencode providers login [url]
+"cc providers login [url]
 
 log in to a provider
 
-Positionals:
-  url  opencode auth provider                                                               [string]
+위치:
+  url  cc auth provider                                                                     [문자열]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-  -p, --provider    provider id or name to log in to (skips provider selection)             [string]
-  -m, --method      login method label (skips method selection)                             [string]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+  -p, --provider    provider id or name to log in to (skips provider selection)             [문자열]
+  -m, --method      login method label (skips method selection)                             [문자열]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers logout --help 1`] = `
-"opencode providers logout
+"cc providers logout
 
 log out from a configured provider
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent create --help 1`] = `
-"opencode agent create
+"cc agent create
 
 create a new agent
 
-Options:
-  -h, --help                  show help                                                    [boolean]
-  -v, --version               show version number                                          [boolean]
-      --print-logs            print logs to stderr                                         [boolean]
-      --log-level             log level         [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure                  run without external plugins                                 [boolean]
-      --path                  directory path to generate the agent file                     [string]
-      --description           what the agent should do                                      [string]
-      --mode                  agent mode            [string] [choices: "all", "primary", "subagent"]
+옵션:
+  -h, --help                  show help                                                     [불리언]
+  -v, --version               show version number                                           [불리언]
+      --print-logs            print logs to stderr                                          [불리언]
+      --log-level             log level          [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure                  run without external plugins                                  [불리언]
+      --path                  directory path to generate the agent file                     [문자열]
+      --description           what the agent should do                                      [문자열]
+      --mode                  agent mode             [문자열] [선택지: "all", "primary", "subagent"]
       --permissions, --tools  comma-separated list of permissions to allow (default: all).
                               Available: "bash, read, edit, glob, grep, webfetch, task, todowrite,
-                              websearch, lsp, skill"                                        [string]
-  -m, --model                 model to use in the format of provider/model                  [string]"
+                              websearch, lsp, skill"                                        [문자열]
+  -m, --model                 model to use in the format of provider/model                  [문자열]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent list --help 1`] = `
-"opencode agent list
+"cc agent list
 
 list all available agents
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session list --help 1`] = `
-"opencode session list
+"cc session list
 
 list sessions
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-  -n, --max-count   limit to N most recent sessions                                         [number]
-      --format      output format             [string] [choices: "table", "json"] [default: "table"]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+  -n, --max-count   limit to N most recent sessions                                           [숫자]
+      --format      output format               [문자열] [선택지: "table", "json"] [기본값: "table"]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session delete --help 1`] = `
-"opencode session delete <sessionID>
+"cc session delete <sessionID>
 
 delete a session
 
-Positionals:
-  sessionID  session ID to delete                                                [string] [required]
+위치:
+  sessionID  session ID to delete                                                    [문자열] [필수]
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github install --help 1`] = `
-"opencode github install
+"cc github install
 
 install the GitHub agent
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github run --help 1`] = `
-"opencode github run
+"cc github run
 
 run the GitHub agent
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --event       GitHub mock event to run the agent for                                  [string]
-      --token       GitHub personal access token (github_pat_********)                      [string]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]
+      --event       GitHub mock event to run the agent for                                  [문자열]
+      --token       GitHub personal access token (github_pat_********)                      [문자열]"
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db path --help 1`] = `
-"opencode db path
+"cc db path
 
 print the database path
 
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+옵션:
+  -h, --help        show help                                                               [불리언]
+  -v, --version     show version number                                                     [불리언]
+      --print-logs  print logs to stderr                                                    [불리언]
+      --log-level   log level                    [문자열] [선택지: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                            [불리언]"
 `;

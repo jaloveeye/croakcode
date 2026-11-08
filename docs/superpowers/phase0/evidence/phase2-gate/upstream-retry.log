@@ -1,0 +1,175 @@
+bun test v1.3.14 (0d9b296a)
+
+test/provider/provider.test.ts:
+[02:23:03.602] ERROR (#4468): 1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+
+1088 | 
+1089 | it.instance(
+1090 |   "hosted nvidia provider adds billing origin header",
+1091 |   Effect.gen(function* () {
+1092 |     const providers = yield* list
+1093 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1093:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (native:7:39)
+(fail) hosted nvidia provider adds billing origin header [1277.94ms]
+[02:23:04.418] ERROR (#4529): 1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+
+1101 | 
+1102 | it.instance(
+1103 |   "custom nvidia baseURL adds billing origin header",
+1104 |   Effect.gen(function* () {
+1105 |     const providers = yield* list
+1106 |     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
+       ^
+error: expect(received).toEqual(expected)
+
+@@ -3,3 +3,3 @@
+    "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+-   "X-Title": "opencode",
++   "X-Title": "croakcode",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at toEqual (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/provider/provider.test.ts:1106:66
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/@effect+platform-node-shared@4.0.0-beta.66+27e58d8019b01171/node_modules/@effect/platform-node-shared/dist/NodeFileSystem.js:308:9
+      at processTicksAndRejections (unknown:7:39)
+(fail) custom nvidia baseURL adds billing origin header [814.98ms]
+
+test/tool/shell.test.ts:
+[02:23:15.725] ERROR (#7640): 1108 |         Effect.gen(function* () {
+1109 |           const result = yield* run({
+1110 |             command: `echo stdout_msg && echo stderr_msg >&2`,
+1111 |             description: "Stderr test",
+1112 |           })
+1113 |           expect(result.output).toContain("stdout_msg")
+       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "stdout_msg"
+Received: "(no output)"
+
+      at toContain (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/tool/shell.test.ts:1113:33
+
+1108 |         Effect.gen(function* () {
+1109 |           const result = yield* run({
+1110 |             command: `echo stdout_msg && echo stderr_msg >&2`,
+1111 |             description: "Stderr test",
+1112 |           })
+1113 |           expect(result.output).toContain("stdout_msg")
+       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "stdout_msg"
+Received: "(no output)"
+
+      at toContain (unknown:1:1)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/opencode/test/tool/shell.test.ts:1113:33
+      at ~effect/Effect/successCont (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:910:23)
+      at runLoop (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:380:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at onExit (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:975:3)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:991:17
+      at evaluate (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:397:14)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js:734:14
+      at doneUnsafe (/Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Deferred.js:443:20)
+      at /Users/herace/workspace/ideas/codefrog/croakcode/.worktrees/phase2-core-absorption/upstream/packages/core/src/cross-spawn-spawner.ts:395:21
+      at emit (node:events:98:22)
+      at #maybeClose (node:child_process:766:16)
+      at emit (node:events:92:22)
+      at emitCloseNT (internal:streams/destroy:78:14)
+      at processTicksAndRejections (native:7:39)
+(fail) tool.shell abort > captures stderr in output [28.18ms]
+
+test/session/llm.test.ts:
+[02:24:23.971] INFO (#65779): llm runtime selected {
+  "llm.runtime": "ai-sdk",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:24:24.288] INFO (#65857): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:24:24.616] INFO (#65943): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+[02:24:24.961] INFO (#66032): llm runtime selected {
+  "llm.runtime": "native",
+  "llm.provider": "openai",
+  "llm.model": "gpt-5.2",
+}
+
+ 1030 pass
+ 5 skip
+ 1 todo
+ 3 fail
+ 51 snapshots, 2360 expect() calls
+Ran 1039 tests across 55 files. [166.09s]

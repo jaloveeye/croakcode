@@ -1695,17 +1695,6 @@ async function defaultModel(config: ACPConfig, cwd?: string): Promise<{ provider
   const lastUsed = await lastUsedModel(sdk, directory, providers)
   if (lastUsed) return lastUsed
 
-  const opencodeProvider = providers.find((p) => p.id === "opencode")
-  if (opencodeProvider) {
-    const [best] = Provider.sort(Object.values(opencodeProvider.models))
-    if (best) {
-      return {
-        providerID: ProviderID.make(best.providerID),
-        modelID: ModelID.make(best.id),
-      }
-    }
-  }
-
   const models = providers.flatMap((p) => Object.values(p.models))
   const [best] = Provider.sort(models)
   if (best) {
