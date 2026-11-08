@@ -25,6 +25,7 @@ export type Event =
   | EventQuestionReplied
   | EventQuestionRejected
   | EventTodoUpdated
+  | EventTodoInconsistent
   | EventSessionStatus
   | EventSessionIdle
   | EventMcpToolsChanged
@@ -323,11 +324,10 @@ export type Todo = {
   /**
    * Current status of the task: pending, in_progress, completed, cancelled
    */
-  status: string
-  /**
-   * Priority level of the task: high, medium, low
-   */
-  priority: string
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: string
+  linkedToolCalls?: Array<string>
+  evidence?: "tool" | "none"
 }
 
 export type SessionStatus =
@@ -826,6 +826,7 @@ export type GlobalEvent = {
     | EventQuestionReplied
     | EventQuestionRejected
     | EventTodoUpdated
+    | EventTodoInconsistent
     | EventSessionStatus
     | EventSessionIdle
     | EventMcpToolsChanged
@@ -924,7 +925,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for opencode serve and web commands
+ * Server configuration for cc serve and web commands
  */
 export type ServerConfig = {
   port?: number
@@ -2638,6 +2639,16 @@ export type EventTodoUpdated = {
   properties: {
     sessionID: string
     todos: Array<Todo>
+  }
+}
+
+export type EventTodoInconsistent = {
+  id: string
+  type: "todo.inconsistent"
+  properties: {
+    sessionID: string
+    todo: Todo
+    warnings: Array<string>
   }
 }
 

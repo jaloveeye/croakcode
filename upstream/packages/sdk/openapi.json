@@ -10540,6 +10540,9 @@
             "$ref": "#/components/schemas/EventTodoUpdated"
           },
           {
+            "$ref": "#/components/schemas/EventTodoInconsistent"
+          },
+          {
             "$ref": "#/components/schemas/EventSessionStatus"
           },
           {
@@ -11411,14 +11414,24 @@
           },
           "status": {
             "type": "string",
+            "enum": ["pending", "in_progress", "completed", "cancelled"],
             "description": "Current status of the task: pending, in_progress, completed, cancelled"
           },
           "priority": {
+            "type": "string"
+          },
+          "linkedToolCalls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
             "type": "string",
-            "description": "Priority level of the task: high, medium, low"
+            "enum": ["tool", "none"]
           }
         },
-        "required": ["content", "status", "priority"],
+        "required": ["content", "status"],
         "additionalProperties": false
       },
       "SessionStatus": {
@@ -12964,6 +12977,9 @@
               },
               {
                 "$ref": "#/components/schemas/EventTodoUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/EventTodoInconsistent"
               },
               {
                 "$ref": "#/components/schemas/EventSessionStatus"
@@ -18525,6 +18541,40 @@
               }
             },
             "required": ["sessionID", "todos"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventTodoInconsistent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["todo.inconsistent"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "todo": {
+                "$ref": "#/components/schemas/Todo"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["sessionID", "todo", "warnings"],
             "additionalProperties": false
           }
         },
