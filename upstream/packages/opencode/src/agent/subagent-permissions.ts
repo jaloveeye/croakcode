@@ -8,7 +8,10 @@ import type { Agent } from "./agent"
  * 1. The parent **agent's** edit-class deny rules — Plan Mode's file-edit
  *    restriction lives on the agent ruleset, not on the session, so a
  *    subagent that only inherited the parent SESSION's permission would
- *    silently bypass it. (#26514)
+ *    silently bypass it (#26514). Only edit-class denies are forwarded: other
+ *    controller self-restrictions must not erase an executor's own permissions
+ *    (#26700). The caller is responsible for forwarding denies from whichever
+ *    agent actually executed the delegation (see SEC-02 in task.ts).
  * 2. The parent **session's** deny rules and external_directory rules —
  *    same forwarding the original code already did.
  * 3. Default `todowrite` and `task` denies if the subagent's own ruleset

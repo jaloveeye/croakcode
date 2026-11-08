@@ -910,4 +910,151 @@ describe("tool.task", () => {
         expect(Permission.evaluate("task", "*", effective).action).toBe("deny")
       }),
   )
+
+  // SEC-02: the agent that actually executes the `task` tool (`ctx.agent`) and
+  // the agent recorded on the session may disagree. The child must inherit the
+  // edit-class restrictions of BOTH (fail-closed): no scenario may relax a
+  // restriction that originated from the executing agent.
+  const runTaskForAgents = Effect.fn("TaskToolTest.runTaskForAgents")(function* (input: {
+    sessionAgent?: string
+    ctxAgent: string
+  }) {
+    const sessions = yield* Session.Service
+    const title = `sec02-${input.sessionAgent ?? "unset"}-${input.ctxAgent}`
+    const chat = yield* sessions.create({ title, ...(input.sessionAgent ? { agent: input.sessionAgent } : {}) })
+    const user = yield* sessions.updateMessage({
+      id: MessageID.ascending(),
+      role: "user",
+      sessionID: chat.id,
+      agent: input.ctxAgent,
+      model: ref,
+      time: { created: Date.now() },
+    })
+    const assistant: MessageV2.Assistant = {
+      id: MessageID.ascending(),
+      role: "assistant",
+      parentID: user.id,
+      sessionID: chat.id,
+      mode: input.ctxAgent,
+      agent: input.ctxAgent,
+      cost: 0,
+      path: { cwd: "/tmp", root: "/tmp" },
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      modelID: ref.modelID,
+      providerID: ref.providerID,
+      time: { created: Date.now() },
+    }
+    yield* sessions.updateMessage(assistant)
+
+    const tool = yield* TaskTool
+    const def = yield* tool.init()
+    let seen: SessionPrompt.PromptInput | undefined
+    const promptOps = stubOps({ onPrompt: (i) => (seen = i) })
+    yield* def.execute(
+      { description: "inspect", prompt: "look into it", subagent_type: "general" },
+      {
+        sessionID: chat.id,
+        messageID: assistant.id,
+        agent: input.ctxAgent,
+        abort: new AbortController().signal,
+        extra: { promptOps },
+        messages: [],
+        metadata: () => Effect.void,
+        ask: () => Effect.void,
+      },
+    )
+    return { seen, chat }
+  })
+
+  const hasEditDeny = (rules: Permission.Ruleset | undefined) =>
+    (rules ?? []).some((r) => r.permission === "edit" && r.action === "deny")
+
+  it.instance(
+    "SEC-02: session.agent=build, ctx.agent=plan inherits plan edit-deny",
+    () =>
+      Effect.gen(function* () {
+        const { seen } = yield* runTaskForAgents({ sessionAgent: "build", ctxAgent: "plan" })
+        expect(seen).toBeDefined()
+        expect(hasEditDeny(seen?.inheritedPermission)).toBe(true)
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "SEC-02: session.agent unset, ctx.agent=plan still inherits plan edit-deny",
+    () =>
+      Effect.gen(function* () {
+        const { seen } = yield* runTaskForAgents({ ctxAgent: "plan" })
+        expect(seen).toBeDefined()
+        expect(hasEditDeny(seen?.inheritedPermission)).toBe(true)
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "SEC-02: session.agent=plan, ctx.agent=build keeps plan edit-deny (fail-closed)",
+    () =>
+      Effect.gen(function* () {
+        const { seen } = yield* runTaskForAgents({ sessionAgent: "plan", ctxAgent: "build" })
+        expect(seen).toBeDefined()
+        // Even though build allows edits, the plan restriction recorded on the
+        // session must not be silently dropped.
+        expect(hasEditDeny(seen?.inheritedPermission)).toBe(true)
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "SEC-02: resumed child keeps the ceiling derived from ctx.agent=plan",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const chat = yield* sessions.create({ title: "sec02-resume" })
+        const user = yield* sessions.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID: chat.id,
+          agent: "build",
+          model: ref,
+          time: { created: Date.now() },
+        })
+        const assistant: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          parentID: user.id,
+          sessionID: chat.id,
+          mode: "build",
+          agent: "build",
+          cost: 0,
+          path: { cwd: "/tmp", root: "/tmp" },
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: ref.modelID,
+          providerID: ref.providerID,
+          time: { created: Date.now() },
+        }
+        yield* sessions.updateMessage(assistant)
+        const child = yield* sessions.create({ parentID: chat.id, title: "child", agent: "general" })
+
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (i) => (seen = i) })
+        yield* def.execute(
+          { description: "resume", prompt: "continue", subagent_type: "general", task_id: child.id },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "plan",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        expect(seen).toBeDefined()
+        expect(hasEditDeny(seen?.inheritedPermission)).toBe(true)
+      }),
+    { git: true },
+  )
 })

@@ -94,6 +94,28 @@ function errorText(error: unknown) {
   return String(error)
 }
 
+// SEC-02: combine the session-recorded agent with the actually-executing agent
+// so a subagent inherits the *union* of their deny rules. Returns undefined only
+// when neither agent could be resolved. The returned object carries every deny
+// rule from both; callers only rely on `.permission`.
+function mergeParentAgents(
+  a: Agent.Info | undefined,
+  b: Agent.Info | undefined,
+): Agent.Info | undefined {
+  const base = a ?? b
+  if (!base) return undefined
+  const denies = [...(a?.permission ?? []), ...(b?.permission ?? [])].filter((rule) => rule.action === "deny")
+  // De-duplicate identical deny rules; order is irrelevant for deny forwarding.
+  const seen = new Set<string>()
+  const merged = denies.filter((rule) => {
+    const key = `${rule.permission}\u0000${rule.pattern}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { ...base, permission: merged }
+}
+
 export const TaskTool = Tool.define(
   id,
   Effect.gen(function* () {
@@ -160,15 +182,24 @@ export const TaskTool = Tool.define(
         }
       }
       const parent = yield* sessions.get(ctx.sessionID)
-      const parentAgent = parent.agent
+      const sessionAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
-      // SC-01: the restrictions inherited from the parent (plan edit-deny, parent
-      // session denies, default todowrite/task denies) are computed once and are
-      // IMMUTABLE for the child. They are passed both at session creation and as
-      // `inheritedPermission` on the child prompt so the tools map cannot relax
-      // them (prompt.ts appends inherited rules last → findLast keeps them
-      // authoritative).
+      // SEC-02: the agent actually executing this tool (`ctx.agent`) and the
+      // agent recorded on the session may disagree (e.g. session.agent unset
+      // but ctx.agent="plan", or a resumed session created under a different
+      // agent). The child must never be *less* restricted than either, so take
+      // the union of both agents' deny rules (fail-closed, no relaxation).
+      const ctxAgent = ctx.agent
+        ? yield* agent.get(ctx.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        : undefined
+      const parentAgent = mergeParentAgents(sessionAgent, ctxAgent)
+      // SC-01: the restrictions inherited from the parent (all parent-agent
+      // denies, parent session denies, default todowrite/task denies) are
+      // computed once and are IMMUTABLE for the child. They are passed both at
+      // session creation and as `inheritedPermission` on the child prompt so the
+      // tools map cannot relax them (prompt.ts appends inherited rules last →
+      // findLast keeps them authoritative).
       const inheritedPermission = deriveSubagentSessionPermission({
         parentSessionPermission: parent.permission ?? [],
         parentAgent,
