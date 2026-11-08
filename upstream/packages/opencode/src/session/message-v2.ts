@@ -786,7 +786,8 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
           assistantMessage.parts.push({
             type: "text",
             text,
-            ...(differentModel ? {} : { providerMetadata: part.metadata }),
+            // SEC-03: strip runtime `origin` so it never reaches the provider body.
+            ...(differentModel ? {} : { providerMetadata: providerMeta(part.metadata) }),
           })
         }
         if (part.type === "step-start")
@@ -877,7 +878,8 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
           assistantMessage.parts.push({
             type: "reasoning",
             text: part.text,
-            providerMetadata: part.metadata,
+            // SEC-03: strip runtime `origin` so it never reaches the provider body.
+            providerMetadata: providerMeta(part.metadata),
           })
         }
       }

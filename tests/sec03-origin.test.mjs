@@ -122,4 +122,17 @@ test("production runtime stamps provenance on persisted parts (source check, no 
     /origin: __/,
     "providerMeta must strip runtime origin so it never reaches the provider request body",
   )
+  // Text and reasoning parts persist their provenance in `metadata`; the model
+  // conversion must route those through providerMeta too, otherwise the origin
+  // stamp leaks into the provider payload (and corrupts replay matching).
+  assert.doesNotMatch(
+    messageV2,
+    /providerMetadata: part\.metadata\b(?!\))/,
+    "text/reasoning provider metadata must go through providerMeta (no raw part.metadata)",
+  )
+  assert.match(
+    messageV2,
+    /providerMetadata: providerMeta\(part\.metadata\)/,
+    "reasoning provider metadata must be origin-stripped",
+  )
 })
