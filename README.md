@@ -82,19 +82,20 @@ bun run typecheck
 ```
 
 > `tsgo`가 없는 환경에서는 먼저 `upstream`에서 `bun install`을 수행하세요.
-> `.croakcode/plugins`의 일부 JSX 파일(`usage-panel`, `croak-auth-tui`)은
-> 기존 타입 오류를 갖고 있으며 이는 SEC 변경과 무관합니다.
+> 이어서 저장소 루트에서 `bash scripts/link-plugin-deps.sh`를 한 번 실행합니다.
+> 이 스크립트는 `upstream/.croakcode/plugins/node_modules`를 opencode 패키지의 `node_modules`로 링크합니다.
+> 링크가 없으면 `.croakcode/plugins`의 TUI 플러그인이 `@opentui/solid`를 찾지 못합니다.
+> 그러면 타입 검사와 플러그인 테스트가 실패합니다.
+> 런타임이 `.croakcode/node_modules`에 패키지를 설치하므로 링크는 `plugins` 아래에 둡니다.
 
 ## 알려진 실패 (회귀 아님)
 
-2026-11-09에 전체 테스트 실패를 원인별로 나눴습니다. 리브랜딩 뒤 갱신되지 않은 테스트 15건은 기대값을 고쳤습니다. 남은 실패는 실행 환경에 따라 결과가 바뀌는 항목과 제품 결정이 필요한 항목입니다.
+2026-11-09에 전체 테스트 실패를 원인별로 나눴습니다. 리브랜딩 뒤 갱신되지 않은 테스트 15건은 기대값을 고쳤습니다. help-text 스냅샷은 영어 로캘로 고정했습니다. TUI 플러그인 테스트는 `scripts/link-plugin-deps.sh`로 의존성을 찾습니다. 남은 실패 2건은 제품 결정이 필요합니다.
 
 | 테스트 | 원인 | 해소 조건 |
 |---|---|---|
 | `HttpApi Server.listen > default in-process handler ...` | 웹 UI 프록시 대상 `app.croakcode.ai`에 DNS가 없어 `/status`가 500을 돌려줍니다 | UI 도메인 결정 |
 | `HttpApi CORS > adds CORS headers to unauthorized responses` | CORS 허용 목록이 아직 `*.opencode.ai`를 신뢰합니다 | 허용 도메인 결정 |
-| `opencode CLI help-text snapshots > ...` | 스냅샷이 한국어 로캘에서 기록됐습니다. 출력은 실행 환경의 `LANG`을 따릅니다 | 테스트의 로캘 고정 |
-| `croak-auth TUI ...` 2건, `usage-panel registers ...` | `.croakcode` 플러그인이 `@opentui/solid`를 찾지 못합니다. isolated linker는 이 경로에 패키지를 두지 않습니다 | 의존성 배치 결정 |
 
 루트 `phase1-*.e2e` 테스트는 `scripts/phase1-headless-check.sh`가 만든 DB를 읽습니다. 게이트 스크립트는 이 스크립트를 먼저 실행합니다. DB는 내장 `node:sqlite`로 읽으므로 `sqlite3` CLI는 필요 없습니다.
 

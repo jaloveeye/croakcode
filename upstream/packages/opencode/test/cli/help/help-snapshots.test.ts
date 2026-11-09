@@ -89,7 +89,9 @@ const SUBCOMMANDS = [
 // Fixed wrap width so a developer's terminal doesn't affect snapshots.
 // yargs honors COLUMNS; CI runners typically default to 80 which produces
 // different wraps from a 200-col local terminal.
-const SNAPSHOT_ENV = { COLUMNS: "120" }
+// yargs also localizes its labels ("Options:", "[boolean]") from the locale
+// variables, so pin them to English to keep snapshots host-independent.
+const SNAPSHOT_ENV = { COLUMNS: "120", LC_ALL: "en_US.UTF-8", LC_MESSAGES: "en_US.UTF-8", LANG: "en_US.UTF-8", LANGUAGE: "en" }
 
 describe("opencode CLI help-text snapshots", () => {
   // Single test, parallel spawns. Each command's help fires under
