@@ -33,9 +33,9 @@ describe("opencode acp-next initialize/auth subprocess", () => {
         const acp = yield* createAcpNextClient({ opencode })
         const initialized = yield* initialize(acp)
 
-        expect(initialized.authMethods?.[0]?.id).toBe("opencode-login")
+        expect(initialized.authMethods?.[0]?.id).toBe("croakcode-login")
         expect(initialized.authMethods?.[0]?._meta?.["terminal-auth"]).toBeDefined()
-        expect(yield* acp.request<AuthenticateResponse>("authenticate", { methodId: "opencode-login" })).toMatchObject({
+        expect(yield* acp.request<AuthenticateResponse>("authenticate", { methodId: "croakcode-login" })).toMatchObject({
           result: {},
         })
 
@@ -53,7 +53,7 @@ describe("opencode acp-next initialize/auth subprocess", () => {
         const acp = yield* createAcpNextClient({ opencode })
         const initialized = yield* acp.request<InitializeResponse>("initialize", { protocolVersion: 1 })
 
-        expect(initialized.result?.authMethods?.[0]?.id).toBe("opencode-login")
+        expect(initialized.result?.authMethods?.[0]?.id).toBe("croakcode-login")
         expect(initialized.result?.authMethods?.[0]?._meta?.["terminal-auth"]).toBeUndefined()
       }),
     60_000,
