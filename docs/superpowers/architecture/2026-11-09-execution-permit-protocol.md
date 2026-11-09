@@ -73,8 +73,9 @@ croakcode는 다음 순서로 확인하고, 하나라도 맞지 않으면 그 �
 | 6 | `iat`가 현재보다 30초 넘게 미래가 아님 | `permit_not_yet_valid` |
 | 7 | `exp`에서 30초가 지나지 않음 | `permit_expired` |
 | 8 | 같은 `nonce`를 쓰지 않음 | `permit_replayed` |
+| 9 | nonce 기록을 읽거나 쓸 수 있음 | `permit_nonce_unavailable` |
 
-사용한 nonce는 토큰이 만료될 때까지 프로세스 메모리에 둔다. 프로세스를 다시 시작하면 이 기록은 사라진다. 그 사이에 재사용을 막으려면 Gate가 유효 기간을 짧게 잡아야 한다.
+사용한 nonce는 croakcode 데이터베이스의 `permit_nonce` 테이블에 둔다. 프로세스를 다시 시작해도 기록이 남는다. 같은 데이터베이스를 쓰는 다른 프로세스도 같은 nonce를 쓰지 못한다. 기록은 토큰이 만료되고 시계 오차 30초가 지나면 지운다.
 
 ## 6. croak-gate가 구현할 것
 

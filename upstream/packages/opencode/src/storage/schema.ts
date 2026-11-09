@@ -3,4 +3,10 @@ export { ProjectTable } from "../project/project.sql"
 export { SessionTable, MessageTable, PartTable, TodoTable, PermissionTable } from "../session/session.sql"
 export { SessionShareTable } from "../share/share.sql"
 export { WorkspaceTable } from "../control-plane/workspace.sql"
-export { AgentPrincipalTable, AgentRunTable, DelegationGrantTable, ExecutionAuditTable } from "../delegation/delegation.sql"
+export {
+  AgentPrincipalTable,
+  AgentRunTable,
+  DelegationGrantTable,
+  ExecutionAuditTable,
+  PermitNonceTable,
+} from "../delegation/delegation.sql"

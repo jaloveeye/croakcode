@@ -109,3 +109,15 @@ export const ExecutionAuditTable = sqliteTable(
     index("execution_audit_parent_run_idx").on(table.parent_run_id),
   ],
 )
+
+// Nonces of execution permits already used (PT-05). Kept in the database so
+// a restart, or a second croakcode process on the same database, cannot
+// replay a permit that is still valid. Rows go once the permit has expired.
+export const PermitNonceTable = sqliteTable(
+  "permit_nonce",
+  {
+    nonce: text().primaryKey(),
+    exp: integer().notNull(),
+  },
+  (table) => [index("permit_nonce_exp_idx").on(table.exp)],
+)

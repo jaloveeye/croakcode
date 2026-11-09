@@ -99,4 +99,24 @@ describe("execution audit (Phase 4 Task 8)", () => {
       expect(left.map((row) => row.tool)).toEqual(["grep"])
     }),
   )
+
+  it.instance("a run start prunes old records at most once a day", () =>
+    Effect.gen(function* () {
+      const guard = yield* Guard.Service
+      const old = () => {
+        Audit.record({ eventType: "tool.allowed", sessionId: session(3), tool: "read" })
+        Database.use((db) => db.update(ExecutionAuditTable).set({ time_created: 1 }).run())
+      }
+      Audit.resetPruneClock()
+      old()
+      yield* guard.beginRun({ sessionID: session(4), agent: "build" })
+      expect(Audit.query({ sessionId: session(3) })).toHaveLength(0)
+      // Within the interval a second run start does not prune again.
+      old()
+      yield* guard.beginRun({ sessionID: session(5), agent: "build" })
+      expect(Audit.query({ sessionId: session(3) })).toHaveLength(1)
+      expect(Audit.pruneIfDue(Date.now() + Audit.PRUNE_INTERVAL_MS)).toBeGreaterThanOrEqual(1)
+      expect(Audit.query({ sessionId: session(3) })).toHaveLength(0)
+    }),
+  )
 })

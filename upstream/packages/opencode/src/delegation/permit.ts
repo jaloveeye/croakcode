@@ -51,6 +51,7 @@ export type Failure =
   | "permit_not_yet_valid"
   | "permit_ttl"
   | "permit_replayed"
+  | "permit_nonce_unavailable"
 
 export type Verdict = { readonly ok: true; readonly payload: Payload } | { readonly ok: false; readonly reason: Failure }
 
@@ -105,8 +106,13 @@ export function parsePublicKey(text: string | undefined): KeyObject | undefined 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0
 const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v)
 
-/** Remembers used nonces until their permit expires. */
-export class NonceStore {
+/** Records used nonces; claim is false when the nonce was already used and is still live. */
+export type Nonces = {
+  claim(nonce: string, exp: number, now: number): boolean
+}
+
+/** Remembers used nonces in memory until their permit expires. The guard uses PermitNonce.Store. */
+export class NonceStore implements Nonces {
   private readonly used = new Map<string, number>()
 
   /** Records the nonce; false when it was already used and is still live. */
@@ -121,7 +127,7 @@ export class NonceStore {
 export function verify(
   token: string,
   expected: Expected,
-  opts: { readonly publicKey: KeyObject; readonly nonces: NonceStore; readonly now?: number },
+  opts: { readonly publicKey: KeyObject; readonly nonces: Nonces; readonly now?: number },
 ): Verdict {
   const now = opts.now ?? Date.now()
   const parts = typeof token === "string" ? token.split(".") : []
@@ -161,7 +167,14 @@ export function verify(
   if (payload.exp - payload.iat > MAX_TTL_MS || payload.exp < payload.iat) return { ok: false, reason: "permit_ttl" }
   if (payload.iat > now + CLOCK_SKEW_MS) return { ok: false, reason: "permit_not_yet_valid" }
   if (payload.exp + CLOCK_SKEW_MS < now) return { ok: false, reason: "permit_expired" }
-  if (!opts.nonces.claim(payload.nonce, payload.exp, now)) return { ok: false, reason: "permit_replayed" }
+  // The nonce record cannot be read or written: deny, since a replay cannot be ruled out.
+  let fresh = false
+  try {
+    fresh = opts.nonces.claim(payload.nonce, payload.exp, now)
+  } catch {
+    return { ok: false, reason: "permit_nonce_unavailable" }
+  }
+  if (!fresh) return { ok: false, reason: "permit_replayed" }
   return { ok: true, payload }
 }
 

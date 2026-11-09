@@ -12,6 +12,7 @@ import { Effective } from "./effective"
 import { Grants } from "./grants"
 import { Permit } from "./permit"
 import { PermitClient } from "./permit-client"
+import { PermitNonce } from "./permit-nonce"
 import { Policy } from "./policy"
 import { Registry } from "./registry"
 import { HUMAN_LOCAL, type PrincipalID, type RunID } from "./schema"
@@ -100,13 +101,14 @@ export const layer = Layer.effect(
     const grants = yield* Grants.Service
     const effective = yield* Effective.Service
     const permits = yield* PermitClient.Service
-    const nonces = new Permit.NonceStore()
+    const nonces = new PermitNonce.Store()
 
     const beginRun = Effect.fn("DelegationGuard.beginRun")(function* (input: {
       readonly sessionID: SessionID
       readonly parentID?: SessionID
       readonly agent: string
     }) {
+      Audit.pruneIfDue()
       const active = yield* registry.activeRun(input.sessionID)
       if (active) return
       // A delegated child gets its run from the task tool. Without one it has

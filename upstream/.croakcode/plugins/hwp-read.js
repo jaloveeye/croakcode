@@ -167,8 +167,28 @@ const READ_ONLY = new Set([
   "capabilities", "explain", "explore", "info", "inspect", "search", "digest", "word-count", "fields",
   "form-value", "bookmarks", "charts", "header-footer", "headers-footers", "dump", "dump-pages",
   "dump-records", "diag", "verify", "verify-signature", "scan", "threat-scan", "layout-anomaly",
-  "recall-scope", "lineage", "core-pages", "measure-width", "export-text", "export-structure",
+  "recall-scope", "lineage", "core-pages", "measure-width", "export-structure",
 ])
+// export-text is not here: it always writes, to output/ when -o is missing.
+
+/** Options that name a file or folder rhwp writes to. */
+const OUTPUT_FLAGS = ["-o", "--output", "--out", "--output-dir", "--out-dir"]
+
+/** The output paths among the arguments: "-o x", "--output x", "--output=x" and "-ox". */
+export function outputPaths(args) {
+  const out = []
+  for (let i = 0; i < args.length; i++) {
+    const a = String(args[i])
+    if (OUTPUT_FLAGS.includes(a)) {
+      if (i + 1 < args.length) out.push(String(args[++i]))
+      continue
+    }
+    const long = a.match(/^(--output|--out|--output-dir|--out-dir)=(.*)$/s)
+    if (long) out.push(long[2])
+    else if (/^-o./s.test(a)) out.push(a.slice(2))
+  }
+  return out
+}
 
 /** Long-running, key-handling or unrelated commands. */
 const BLOCKED = new Set([
@@ -181,6 +201,8 @@ export function classifyCli(args) {
   const sub = args[0]
   if (!sub || sub === "--help" || sub === "-h" || args.includes("--help") || args.includes("-h")) return "read"
   if (BLOCKED.has(sub)) return "blocked"
+  // An output option writes a file whatever the command, even with --dry-run.
+  if (outputPaths(args).length) return "write"
   if (args.includes("--dry-run")) return "read"
   return READ_ONLY.has(sub) ? "read" : "write"
 }
@@ -209,12 +231,18 @@ export async function hwpCli(input, ctx) {
   const kind = classifyCli(args)
   if (kind === "blocked") throw new Error(`rhwp ${args[0]}은 이 도구에서 실행하지 않는다.`)
   if (kind === "write") {
+    // An output may not land on a key or secret file, as with hwp_memo.
+    const outputs = outputPaths(args).map((o) => resolveDocPath(o, ctx.directory))
+    for (const output of outputs) {
+      const secret = deniedPath(output)
+      if (secret) throw new Error(`출력 경로 '${output}'은 키, 인증서, 비밀 파일 경로라 쓸 수 없다 (규칙 ${secret}).`)
+    }
     // HWP edits follow the agent's `edit` rule, like any other file change.
     await ctx.ask({
       permission: "edit",
       patterns: [`rhwp ${args.join(" ")}`],
       always: [`rhwp ${args[0]} *`],
-      metadata: { tool: "hwp_cli", command: `rhwp ${args.join(" ")}` },
+      metadata: { tool: "hwp_cli", command: `rhwp ${args.join(" ")}`, outputs },
     })
   }
   const { code, out } = await runCli(args, ctx.directory)

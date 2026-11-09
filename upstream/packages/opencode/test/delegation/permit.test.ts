@@ -23,7 +23,7 @@ function mint(overrides: Partial<Permit.Payload> = {}, key = gate.privateKey) {
   return Permit.joinToken(segment, sign(null, Buffer.from(segment, "ascii"), key))
 }
 
-const check = (token: string, opts: { now?: number; nonces?: Permit.NonceStore } = {}) =>
+const check = (token: string, opts: { now?: number; nonces?: Permit.Nonces } = {}) =>
   Permit.verify(token, expected, { publicKey: gate.publicKey, nonces: opts.nonces ?? new Permit.NonceStore(), now: opts.now ?? NOW })
 
 describe("canonical arguments", () => {
@@ -70,6 +70,15 @@ describe("execution permit verification (Phase 4 Task 9)", () => {
     const token = mint()
     expect(check(token, { nonces }).ok).toBe(true)
     expect(check(token, { nonces })).toEqual({ ok: false, reason: "permit_replayed" })
+  })
+
+  test("PT-05: a nonce record that cannot be used denies", () => {
+    const broken: Permit.Nonces = {
+      claim() {
+        throw new Error("database is locked")
+      },
+    }
+    expect(check(mint(), { nonces: broken })).toEqual({ ok: false, reason: "permit_nonce_unavailable" })
   })
 
   test("PT-06: verification is off by default; on without a key or URL is reported", () => {
