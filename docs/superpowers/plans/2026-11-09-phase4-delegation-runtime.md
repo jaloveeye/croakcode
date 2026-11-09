@@ -195,6 +195,7 @@ Gate가 도구 실행마다 허가 토큰을 발급하고, croakcode가 실행 �
 - 테이블 네 개를 `src/delegation/delegation.sql.ts`에 선언한다.
 - 마이그레이션 `20261109100000_delegation_runtime`을 추가한다.
 - 테스트: 기존 DB에 마이그레이션을 적용해도 기존 세션 행이 그대로인지 확인한다. 새 테이블에 쓰고 읽을 수 있는지 확인한다.
+- 완료(2026-11-09): ID 접두사는 Principal `apr`, Run `run`, Grant `grt`로 정했다. 감사 테이블에는 프롬프트와 도구 인자를 담는 열을 두지 않았다. `test/delegation/delegation-migration.test.ts` 6 pass. 게이트 범위에 `test/delegation`을 이 Task에서 넣었다.
 
 ### Task 2. Agent Registry와 Run 저장소
 
@@ -273,7 +274,7 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 
 - 추적표 상태를 실제 테스트 결과로 바꾼다. 가짜 PASS를 적지 않는다.
 - README의 보안 상태 표에 Phase 4 항목을 더한다.
-- 게이트 스크립트에 새 테스트 디렉터리 `test/delegation`을 넣는다.
+- 게이트 스크립트의 `test/delegation` 범위는 Task 1에서 넣었다. 새 테스트 디렉터리가 생기면 범위를 확인한다.
 
 ## 4. 수용 기준
 
