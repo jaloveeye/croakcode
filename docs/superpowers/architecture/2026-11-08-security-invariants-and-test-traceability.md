@@ -64,9 +64,9 @@
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
 | DG-01 | Grant 없이 위임(spawn) 시도 시 deny | **FUTURE CONTRACT** | Phase 4. 현재 task 도구는 Grant 개념 없음(확인된 사실) |
-| DG-02 | `child.capabilities ⊆ parent.capabilities` | **FUTURE CONTRACT** | Phase 4 |
-| DG-03 | `child.scope ⊆ parent.scope` 및 constraints 단조 강화 | **FUTURE CONTRACT** | Phase 4 |
-| DG-04 | `expiresAt`/`policyRevision` 단조성 및 순환 그래프 거부 | **FUTURE CONTRACT** | Phase 4 |
+| DG-02 | `child.capabilities ⊆ parent.capabilities` | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 두 규칙 목록에 나오는 모든 (권한, 패턴) 지점에서 자식이 위임자와 부모 Grant보다 느슨하면 발급을 거부한다. 이 검사는 모든 와일드카드 겹침을 열거하지 않는다. 실행 시점 교집합(DG-05, Task 4)이 최종 강제다 |
+| DG-03 | `child.scope ⊆ parent.scope` 및 constraints 단조 강화 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 범위는 절대 경로만 받고, 부모 범위 밖의 경로와 형제 경로는 거부한다. 루트 Grant는 런타임이 준 범위 상한이 있어야 한다. 부모 제약이 빠지면 거부한다 |
+| DG-04 | `expiresAt`/`policyRevision` 단조성 및 순환 그래프 거부 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 만료 연장, 지난 만료 시각, revision 역행을 거부한다. 체인에 같은 Principal이 두 번 나오면 거부한다. 깊이 4 발급을 거부한다 |
 | DG-05 | 효과 권한 교집합(min) 계산; 서브 에이전트 부모 권한 초과 불가 | **NOT TESTED** | 교집합 검사 테스트가 **존재하지 않음** → FAIL이 아니라 NOT TESTED. 코드 근거: 현재 런타임은 교집합이 아니라 `merge`(평탄)+`findLast`(마지막 우선) — `upstream/packages/core/src/permission.ts:21-35`(확인된 사실). 교집합 검사 없음(INV-8 미구현). Phase 4 Task 4에서 검증한다 |
 | DG-06 | 다중 위임 경로 union 증폭 금지(교집합) | **FUTURE CONTRACT** | Phase 4 |
 
