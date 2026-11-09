@@ -37,11 +37,12 @@ bash scripts/link-plugin-deps.sh
 # Any failure outside these lists — first run or retry — blocks the gate.
 BASELINE_FAIL=()
 # P2-2 fixed the shell reader race behind "captures stderr in output" and
-# "cancel finalizes interrupted bash tool output"; both were removed. The task
-# metadata test passed 20/20 under CPU load but its cause is not confirmed.
-FLAKE_FAIL=(
-  "running task tool preserves metadata after tool-call transition"
-)
+# "cancel finalizes interrupted bash tool output"; both were removed.
+# "running task tool preserves metadata ..." was listed without a recorded
+# failure. It passed 64 runs under CPU load on the current code and on the
+# commit that listed it (b4c4746), so it was removed. If it fails again, the
+# gate stops and keeps the log in LOG_DIR.
+FLAKE_FAIL=()
 
 run_upstream() {
   local log="$1"
