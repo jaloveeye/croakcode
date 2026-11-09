@@ -2,8 +2,8 @@
 
 `opencode`(MIT)를 fork 흡수·리브랜딩한 **거버넌스 AI 에이전트 코어**. 검증된 opencode 실행 코어(세션 오케스트레이션, SQLite/WAL 영속화, tool state, streaming, retry/abort, partial tool-call)를 유지하고, 그 위에 **제어 경계**(권한/보안 컨텍스트, 연결 어댑터, 복구 계약, 게이트/관리웹 어댑터)를 얇게 얹는 것을 원칙으로 합니다.
 
-> **현재 상태: Phase 3 제품 수용 HOLD.**
-> SEC-01/02/03(P0) 수정과 SEC-03 후속 수정은 `master`에 merge되었습니다. Gate→Direct 운영 경로는 무-fixture E2E로 검증했습니다. 리뷰어가 보안 수용을 판정할 때까지 HOLD 표시를 유지합니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
+> **Phase 3: 보안 수용 완료(2026-11-10).** HOLD를 해제했습니다.
+> SEC-01/02/03(P0) 수정과 SEC-03 후속 수정은 `master`에 merge되었습니다. Gate→Direct 운영 경로는 무-fixture E2E로 검증했습니다. UX 스냅샷, 통합 E2E, 수동 체크리스트는 수동 확인 항목으로 남아 있습니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
 >
 > **Phase 4(위임 런타임): 구현 완료(2026-11-09).** 수용 기준의 테스트가 모두 통과합니다. 실제 croak-gate와의 실행 허가 연동(PT-07)도 로컬에서 통과했습니다. 계획과 수용 기록: [`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`](docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md)
 
@@ -127,7 +127,7 @@ C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershe
 | SEC-02 — 부모 agent 도출 시 세션 기록 agent만 사용해 실행 agent 제한 누락 | **수정 완료** (`481d91d`) |
 | SEC-03 — 런타임이 gate 출처를 부여하지 않아 direct 필터가 실텍스트 통과 | **수정 완료** (`2836e2c`, 후속 `b4ed592`) |
 | SEC-03 후속 — 압축 요청 필터 누락, 하위 에이전트 결과 출처 재분류, 구조 part로 direct 기록 손실 | **수정** (브랜치 `sec03-compaction-background`) |
-| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답, 압축, 하위 에이전트 결과 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`, 8건) → Phase 3 보안 수용 판정 대기 |
+| 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답, 압축, 하위 에이전트 결과 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`, 8건). Phase 3 보안 수용 완료(2026-11-10) |
 | CX-05 — 모델이 쓴 위임 프롬프트의 `@파일` 참조가 권한 확인 없이 읽힘 | **수정 완료** (PR #18) |
 | 웹 UI 프록시가 로컬 서버 비밀번호를 외부 도메인으로 전달 | **수정 완료** (PR #12) |
 | Phase 4 위임 런타임 — 실행 직전 재인가, 효과 권한 교집합, 철회, 감사, 컨텍스트 격리 | **구현 완료**. DG, RV, AU, CX, SC-05 항목 PASS (`docs/superpowers/architecture/2026-11-08-security-invariants-and-test-traceability.md`) |
