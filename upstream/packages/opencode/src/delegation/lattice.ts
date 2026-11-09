@@ -1,3 +1,4 @@
+import { Wildcard } from "@croakcode/core/util/wildcard"
 import { Permission } from "../permission"
 
 // Decision order for delegation layers: deny is the strictest, allow the
@@ -40,11 +41,24 @@ export function probes(...rulesets: Permission.Ruleset[]) {
   return out
 }
 
-/** The first probe where `child` decides more loosely than `parent`, if any. */
+/** The last rule in `ruleset` that matches the point, if one does. */
+export function explicit(permission: string, pattern: string, ruleset: Permission.Ruleset) {
+  return ruleset.findLast((rule) => Wildcard.match(permission, rule.permission) && Wildcard.match(pattern, rule.pattern))
+}
+
+/**
+ * The first probe where `child` explicitly decides more loosely than
+ * `parent`, if any. A point the child does not mention is skipped: there the
+ * child layer falls back to "ask", and the execution-time intersection with
+ * the parent keeps the parent's stricter decision. Requiring every grant to
+ * restate its delegator's denies would add nothing to the enforcement.
+ */
 export function looserProbe(child: Permission.Ruleset, parent: Permission.Ruleset) {
-  return probes(child, parent).find((probe) =>
-    looser(decide(probe.permission, probe.pattern, child), decide(probe.permission, probe.pattern, parent)),
-  )
+  return probes(child, parent).find((probe) => {
+    const rule = explicit(probe.permission, probe.pattern, child)
+    if (!rule) return false
+    return looser(rule.action, decide(probe.permission, probe.pattern, parent))
+  })
 }
 
 export * as Lattice from "./lattice"

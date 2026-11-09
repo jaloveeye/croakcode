@@ -67,8 +67,8 @@
 | DG-02 | `child.capabilities ⊆ parent.capabilities` | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 두 규칙 목록에 나오는 모든 (권한, 패턴) 지점에서 자식이 위임자와 부모 Grant보다 느슨하면 발급을 거부한다. 이 검사는 모든 와일드카드 겹침을 열거하지 않는다. 실행 시점 교집합(DG-05, Task 4)이 최종 강제다 |
 | DG-03 | `child.scope ⊆ parent.scope` 및 constraints 단조 강화 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 범위는 절대 경로만 받고, 부모 범위 밖의 경로와 형제 경로는 거부한다. 루트 Grant는 런타임이 준 범위 상한이 있어야 한다. 부모 제약이 빠지면 거부한다 |
 | DG-04 | `expiresAt`/`policyRevision` 단조성 및 순환 그래프 거부 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 만료 연장, 지난 만료 시각, revision 역행을 거부한다. 체인에 같은 Principal이 두 번 나오면 거부한다. 깊이 4 발급을 거부한다 |
-| DG-05 | 효과 권한 교집합(min) 계산; 서브 에이전트 부모 권한 초과 불가 | **NOT TESTED** | 교집합 검사 테스트가 **존재하지 않음** → FAIL이 아니라 NOT TESTED. 코드 근거: 현재 런타임은 교집합이 아니라 `merge`(평탄)+`findLast`(마지막 우선) — `upstream/packages/core/src/permission.ts:21-35`(확인된 사실). 교집합 검사 없음(INV-8 미구현). Phase 4 Task 4에서 검증한다 |
-| DG-06 | 다중 위임 경로 union 증폭 금지(교집합) | **FUTURE CONTRACT** | Phase 4 |
+| DG-05 | 효과 권한 교집합(min) 계산; 서브 에이전트 부모 권한 초과 불가 | **PASS** | Phase 4 Task 4. `bun test test/delegation/effective.test.ts` 11 pass / 0 fail(2026-11-09). `src/delegation/effective.ts`가 조직 정책, 자기 권한, 부모 Run, 위임 경로, 작업 범위를 각각 판정하고 가장 엄격한 값을 쓴다. 발급 검사를 빠져나간 넓은 Grant도 실행 시점에 부모 Run의 deny와 자기 정책의 deny에 막힌다. 정책이 좁아지면 기존 Grant도 바로 좁아지고, 넓어져도 Grant를 넘지 않는다 |
+| DG-06 | 다중 위임 경로 union 증폭 금지(교집합) | **PASS** | Phase 4 Task 4. `bun test test/delegation/effective.test.ts` 11 pass / 0 fail(2026-11-09). 같은 Principal이 두 경로에서 Grant를 받으면 모든 경로의 판정 중 가장 엄격한 값을 쓴다. 한 경로가 bash를 deny하면 다른 경로가 allow해도 deny다 |
 
 ---
 
@@ -154,7 +154,7 @@
 | 코드 확인 사실(레이블) | 테스트 상태 |
 |---|---|
 | `task` 자식 세션 `parentID` 설정(`task.ts:208-225`) | (세션생성 코드 확인 — **대응 테스트 행 없음**, AG-01과 무관) |
-| `merge` = 평탄 + `findLast`(`packages/core/src/permission.ts:21-35`) | DG-05 **NOT TESTED**(교집합 미구현, Phase 4 Task 4) |
+| `merge` = 평탄 + `findLast`(`packages/core/src/permission.ts:21-35`) | `merge`는 그대로 두었다. 위임 층의 교집합은 `src/delegation/effective.ts`가 계산한다. DG-05 **PASS** |
 | `deriveSubagentSessionPermission` deny 전달(`subagent-permissions.ts:20-37`) | SC-01 **PASS**. 수정 전에는 `prompt()` 덮어쓰기 뒤 deny가 사라졌다. 2026-11-08 수정 뒤 영속 상한으로 유지된다 |
 | `prompt()` session.permission 덮어쓰기(`prompt.ts:1236-1249`) | SC-02 **PASS** |
 | plan 부모 → general 자식 edit 상승(실제 `prompt()` 경로) | SC-01 **PASS**(수정 완료 2026-11-08) |
