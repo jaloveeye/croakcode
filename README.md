@@ -85,20 +85,26 @@ bun run typecheck
 > `.croakcode/plugins`의 일부 JSX 파일(`usage-panel`, `croak-auth-tui`)은
 > 기존 타입 오류를 갖고 있으며 이는 SEC 변경과 무관합니다.
 
-## 알려진 baseline 실패 / flake (회귀 아님)
+## 알려진 실패 (회귀 아님)
 
-아래 항목은 **baseline에서도 실패**하는 것으로 확인된 기존 이슈입니다. 새 변경의 회귀와 구분하세요.
+2026-11-09에 전체 테스트 실패를 원인별로 나눴습니다. 리브랜딩 뒤 갱신되지 않은 테스트 15건은 기대값을 고쳤습니다. 남은 실패는 실행 환경에 따라 결과가 바뀌는 항목과 제품 결정이 필요한 항목입니다.
 
-`BASELINE_FAIL` (브랜딩 패치로 인한 stale 테스트):
-- `plugin.xai > ...` (OAuth/PKCE/loader/device code 관련 다수)
-- `parsePluginSpecifier > ...` (npm protocol specifier 2건)
+| 테스트 | 원인 | 해소 조건 |
+|---|---|---|
+| `HttpApi Server.listen > default in-process handler ...` | 웹 UI 프록시 대상 `app.croakcode.ai`에 DNS가 없어 `/status`가 500을 돌려줍니다 | UI 도메인 결정 |
+| `HttpApi CORS > adds CORS headers to unauthorized responses` | CORS 허용 목록이 아직 `*.opencode.ai`를 신뢰합니다 | 허용 도메인 결정 |
+| `opencode CLI help-text snapshots > ...` | 스냅샷이 한국어 로캘에서 기록됐습니다. 출력은 실행 환경의 `LANG`을 따릅니다 | 테스트의 로캘 고정 |
+| `croak-auth TUI ...` 2건, `usage-panel registers ...` | `.croakcode` 플러그인이 `@opentui/solid`를 찾지 못합니다. isolated linker는 이 경로에 패키지를 두지 않습니다 | 의존성 배치 결정 |
+| 루트 `phase1-sqlite.e2e` 2건 | `scripts/phase1-headless-check.sh`를 먼저 실행해야 합니다. WAL 검사는 `sqlite3` CLI가 필요합니다 | 테스트 자립화 |
 
 `FLAKE_FAIL` (타이밍 민감, 재시도 시 통과):
 - `tool.shell abort > captures stderr in output`
 - `cancel finalizes interrupted bash tool output through normal truncation`
 - `running task tool preserves metadata after tool-call transition`
 
-전체 목록과 게이트 판정은 [`scripts/phase2-gate-replay.sh`](scripts/phase2-gate-replay.sh) 참조.
+C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershell` 빌드에서 멈춥니다. 이때 `node_modules/.bin`이 생기지 않아 `bun run typecheck`가 `tsgo: command not found`로 실패합니다. 컴파일러를 설치할 수 없으면 `bun install --frozen-lockfile --ignore-scripts`로 링크를 완성합니다.
+
+전체 목록과 게이트 판정은 [`scripts/phase2-gate-replay.sh`](scripts/phase2-gate-replay.sh)에 있습니다.
 
 ## `.croakcode` 상대 경로 주의
 
