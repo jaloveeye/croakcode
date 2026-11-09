@@ -1,6 +1,6 @@
 # Phase 4 Blueprint — Agent Registry, Delegation, Authorization, Revocation, Audit
 
-- **상태**: Proposed (설계 청사진 — **런타임 구현 없음**. Phase 4 별도 승인 후 구현)
+- **상태**: 구현 완료(2026-11-09). 구현과 결정 기록은 `docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`에 있다. 이 문서는 당시 청사진으로 남긴다
 - **날짜**: 2026-11-08
 - **관련 문서**:
   - ADR: `docs/superpowers/adr/0001-agent-principal-and-delegation.md`

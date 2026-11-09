@@ -4,6 +4,8 @@
 
 > **현재 상태: Phase 3 제품 수용 HOLD.**
 > SEC-01/02/03(P0) 수정과 SEC-03 후속 수정은 `master`에 merge되었습니다. Gate→Direct 운영 경로는 무-fixture E2E로 검증했습니다. 리뷰어가 보안 수용을 판정할 때까지 HOLD 표시를 유지합니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
+>
+> **Phase 4(위임 런타임): 구현 완료(2026-11-09).** 수용 기준의 테스트가 모두 통과합니다. 실제 croak-gate와의 실행 허가 연동(PT-07)만 croak-gate 구현을 기다립니다. 계획과 수용 기록: [`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`](docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md)
 
 ## 저장소 구조
 
@@ -113,7 +115,9 @@ C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershe
 - Bun 런타임은 `upstream/.croakcode`(레벨 5)로 해석
 - `tsgo`는 `upstream/packages/.croakcode`(레벨 3)로 해석
 
-`src/connection.d.ts` 모듈 선언으로 타입체크는 통과하지만, 번들링 시 이 경로가 보존되는지는 패키지 빌드에서 확인이 필요합니다(Phase 4 후속).
+`src/delegation/permit-client.ts`도 같은 방식으로 `.croakcode/plugins/lib/croak-auth-session.js`를 import합니다. 타입은 `src/connection.d.ts`와 `src/croak-auth-session.d.ts`의 모듈 선언으로 맞춥니다.
+
+번들링 결과는 2026-11-09에 확인했습니다. 빌드(`script/build.ts`의 `Bun.build`)는 두 라이브러리를 실행 파일 안에 그대로 묶습니다. 그래서 실행할 때 상대 경로가 남아 있지 않아도 됩니다. 다만 실행 파일 안의 사본과 `.croakcode/plugins/lib`의 원본은 따로 존재합니다. 빌드한 뒤 원본을 고치면 다시 빌드해야 런타임에 반영됩니다.
 
 ## 보안 상태 요약
 
@@ -124,6 +128,10 @@ C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershe
 | SEC-03 — 런타임이 gate 출처를 부여하지 않아 direct 필터가 실텍스트 통과 | **수정 완료** (`2836e2c`, 후속 `b4ed592`) |
 | SEC-03 후속 — 압축 요청 필터 누락, 하위 에이전트 결과 출처 재분류, 구조 part로 direct 기록 손실 | **수정** (브랜치 `sec03-compaction-background`) |
 | 운영 경로(Gate→Direct 무-fixture 재전송) E2E | 일반 응답, 압축, 하위 에이전트 결과 **검증** (`test/session/sec03-gate-direct-e2e.test.ts`, 8건) → Phase 3 보안 수용 판정 대기 |
+| CX-05 — 모델이 쓴 위임 프롬프트의 `@파일` 참조가 권한 확인 없이 읽힘 | **수정 완료** (PR #18) |
+| 웹 UI 프록시가 로컬 서버 비밀번호를 외부 도메인으로 전달 | **수정 완료** (PR #12) |
+| Phase 4 위임 런타임 — 실행 직전 재인가, 효과 권한 교집합, 철회, 감사, 컨텍스트 격리 | **구현 완료**. DG, RV, AU, CX, SC-05 항목 PASS (`docs/superpowers/architecture/2026-11-08-security-invariants-and-test-traceability.md`) |
+| Phase 4 실행 허가 토큰 — 클라이언트 쪽 검증 | **구현 완료**. 기본은 꺼짐. 실제 croak-gate 연동(PT-07)은 croak-gate 구현 대기 |
 
 ## 문서
 
