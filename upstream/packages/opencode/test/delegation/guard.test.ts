@@ -6,6 +6,7 @@ import { DelegationGrantTable } from "../../src/delegation/delegation.sql"
 import { Effective } from "../../src/delegation/effective"
 import { Grants } from "../../src/delegation/grants"
 import { Guard } from "../../src/delegation/guard"
+import { PermitClient } from "../../src/delegation/permit-client"
 import { Registry } from "../../src/delegation/registry"
 import { SessionID } from "../../src/session/schema"
 import { testEffect } from "../lib/effect"
@@ -214,6 +215,7 @@ const brokenRegistry = Layer.succeed(
   }),
 )
 const brokenGuard = Guard.layer.pipe(
+  Layer.provide(PermitClient.defaultLayer),
   Layer.provide(Effective.layer.pipe(Layer.provide(Layer.mergeAll(brokenRegistry, Grants.layer.pipe(Layer.provide(brokenRegistry)))))),
   Layer.provide(Grants.layer.pipe(Layer.provide(brokenRegistry))),
   Layer.provide(brokenRegistry),
@@ -235,6 +237,7 @@ const flakyRegistry = Effect.gen(function* () {
   return Registry.Service.of({ ...real, getRun: () => Effect.die("db down") })
 })
 const flakyGuard = Guard.layer.pipe(
+  Layer.provide(PermitClient.defaultLayer),
   Layer.provide(
     Effective.layer.pipe(
       Layer.provide(Layer.mergeAll(Layer.effect(Registry.Service, flakyRegistry).pipe(Layer.provide(Registry.defaultLayer)), Grants.defaultLayer)),

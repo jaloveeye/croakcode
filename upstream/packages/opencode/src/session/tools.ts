@@ -31,6 +31,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   bypassAgentCheck: boolean
   messages: MessageV2.WithParts[]
   promptOps: TaskPromptOps
+  /** The turn's connection mode; execution permits apply in gate mode only. */
+  connectionMode?: "gate" | "direct"
 }) {
   using _ = log.time("resolveTools")
   const tools: Record<string, AITool> = {}
@@ -111,6 +113,9 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
               { args },
             )
             yield* guard.checkTool(ctx.sessionID, item.id).pipe(Effect.orDie)
+            yield* guard
+              .authorizeExecution({ sessionID: ctx.sessionID, tool: item.id, args, mode: input.connectionMode ?? "direct" })
+              .pipe(Effect.orDie)
             const result = yield* item.execute(args, ctx)
             const output = {
               ...result,
@@ -153,6 +158,9 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             { args },
           )
           yield* guard.checkTool(ctx.sessionID, key).pipe(Effect.orDie)
+          yield* guard
+            .authorizeExecution({ sessionID: ctx.sessionID, tool: key, args, mode: input.connectionMode ?? "direct" })
+            .pipe(Effect.orDie)
           const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.gen(function* () {
             yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
             return yield* Effect.promise(() => execute(args, opts))

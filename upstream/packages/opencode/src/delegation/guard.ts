@@ -10,6 +10,8 @@ import { AgentRunTable } from "./delegation.sql"
 import { Audit } from "./audit"
 import { Effective } from "./effective"
 import { Grants } from "./grants"
+import { Permit } from "./permit"
+import { PermitClient } from "./permit-client"
 import { Policy } from "./policy"
 import { Registry } from "./registry"
 import { HUMAN_LOCAL, type PrincipalID, type RunID } from "./schema"
@@ -59,6 +61,16 @@ export interface Interface {
    * Only the session of the run that delegated it qualifies.
    */
   readonly deliverable: (childRunId: RunID, sessionID: SessionID) => Effect.Effect<boolean>
+  /**
+   * Phase 4 Task 9: in gate mode with CROAKCODE_EXECUTION_PERMIT=required,
+   * the call runs only with a Gate-signed permit bound to it. Off otherwise.
+   */
+  readonly authorizeExecution: (input: {
+    readonly sessionID: SessionID
+    readonly tool: string
+    readonly args: unknown
+    readonly mode: "gate" | "direct"
+  }) => Effect.Effect<void, DelegationDeniedError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@croakcode/DelegationGuard") {}
@@ -87,6 +99,8 @@ export const layer = Layer.effect(
     const registry = yield* Registry.Service
     const grants = yield* Grants.Service
     const effective = yield* Effective.Service
+    const permits = yield* PermitClient.Service
+    const nonces = new Permit.NonceStore()
 
     const beginRun = Effect.fn("DelegationGuard.beginRun")(function* (input: {
       readonly sessionID: SessionID
@@ -264,12 +278,52 @@ export const layer = Layer.effect(
       }).pipe(Effect.catchDefect(() => Effect.succeed(false)))
     })
 
-    return Service.of({ beginRun, endRun, checkTool, checkPatterns, delegate, deliverable })
+    const authorizeExecution = Effect.fn("DelegationGuard.authorizeExecution")(function* (input: {
+      readonly sessionID: SessionID
+      readonly tool: string
+      readonly args: unknown
+      readonly mode: "gate" | "direct"
+    }) {
+      const config = Permit.loadConfig()
+      if (!config.enabled || input.mode !== "gate") return
+      const run = yield* registry.activeRun(input.sessionID).pipe(Effect.catchDefect(() => Effect.succeed(undefined)))
+      const deny = (reason: string) => {
+        Audit.record({
+          eventType: "tool.denied",
+          sessionId: input.sessionID,
+          tool: input.tool,
+          decision: "deny",
+          errorCode: reason,
+          ...(run ? { runId: run.id, principalId: run.principalId } : {}),
+        })
+        return new DelegationDeniedError({ permission: input.tool, reason })
+      }
+      // Verification is on: anything missing is a deny (PT-06).
+      if (!config.publicKey) return yield* deny("permit_no_key")
+      if (!config.url) return yield* deny("permit_no_url")
+      if (!run) return yield* deny("no_run")
+      const expected = {
+        sid: input.sessionID,
+        pid: run.principalId,
+        rid: run.id,
+        tool: input.tool,
+        args: Permit.argsHash(input.args),
+      }
+      const token = yield* permits
+        .request(config.url, { ...expected, rev: currentRevision() })
+        .pipe(Effect.mapError(() => deny("permit_unavailable")))
+      const verdict = Permit.verify(token, expected, { publicKey: config.publicKey, nonces })
+      if (!verdict.ok) return yield* deny(verdict.reason)
+    })
+
+    return Service.of({ beginRun, endRun, checkTool, checkPatterns, delegate, deliverable, authorizeExecution })
   }),
 )
 
 export const defaultLayer = layer.pipe(
-  Layer.provide(Layer.mergeAll(Registry.defaultLayer, Grants.defaultLayer, Effective.defaultLayer)),
+  Layer.provide(
+    Layer.mergeAll(Registry.defaultLayer, Grants.defaultLayer, Effective.defaultLayer, PermitClient.defaultLayer),
+  ),
 )
 
 export * as Guard from "./guard"

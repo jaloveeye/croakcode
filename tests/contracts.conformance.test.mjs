@@ -18,10 +18,15 @@ test("ToolSpec requires side-effect and reexecution flags", () => {
   assert.deepEqual(contracts.TOOL_SPEC_REQUIRED, ["name", "hasSideEffects", "reexecutionSafe"]);
 });
 
-test("server auth stub exposes interface descriptor but no enforcement", () => {
+test("server auth describes the Phase 4 execution permit contract", () => {
   assert.equal(typeof contracts.SERVER_AUTH_DESCRIPTOR, "object");
   assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.phase, 4);
-  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.implemented, false);
+  // Client-side verification is implemented; server reconciliation is croak-gate's.
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.implemented, "client-verification");
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.signature, "ed25519");
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.endpoint, "/v1/execution-permits");
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.maxTtlMs, 60_000);
+  assert.equal(contracts.SERVER_AUTH_DESCRIPTOR.serverReconciliation, "croak-gate");
 });
 
 test("TUI surface contract promotes patch 0006/0007", () => {

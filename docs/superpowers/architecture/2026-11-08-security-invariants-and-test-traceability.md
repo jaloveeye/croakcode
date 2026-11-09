@@ -244,10 +244,10 @@ SC-06은 테스트로 확인할 항목이 아니다. 게이트 리뷰에서 확�
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| PT-01 | 가짜 Gate가 서명한 유효 토큰으로 실행이 허용된다 | **FUTURE CONTRACT** | Phase 4 Task 9 |
-| PT-02 | 서명이 위조된 토큰은 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
-| PT-03 | 세션, Principal, Run, 도구, 인자 해시 중 하나라도 다르면 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
-| PT-04 | 만료된 토큰은 deny. 시계 오차 30초까지 허용 | **FUTURE CONTRACT** | Phase 4 Task 9 |
-| PT-05 | 같은 nonce를 두 번 쓰면 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
-| PT-06 | 검증을 켰는데 Gate 공개키가 없으면 모든 도구 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-01 | 가짜 Gate가 서명한 유효 토큰으로 실행이 허용된다 | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 실제 루프에서 로컬 가짜 Gate가 HTTP로 발급한 허가로 read가 실행된다 |
+| PT-02 | 서명이 위조된 토큰은 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 다른 키의 서명, payload만 바꾼 토큰, 형식이 틀린 토큰을 거부한다 |
+| PT-03 | 세션, Principal, Run, 도구, 인자 해시 중 하나라도 다르면 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). `aud`가 다른 토큰도 거부한다 |
+| PT-04 | 만료된 토큰은 deny. 시계 오차 30초까지 허용 | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 유효 기간이 60초를 넘는 토큰과 발급 시각이 미래인 토큰도 거부한다 |
+| PT-05 | 같은 nonce를 두 번 쓰면 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 한계: 사용한 nonce는 프로세스 메모리에만 있다 |
+| PT-06 | 검증을 켰는데 Gate 공개키가 없으면 모든 도구 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 발급 주소가 없을 때, Gate에 닿지 않을 때, Run이 없을 때도 거부한다. 실제 루프에서 Gate가 응답하지 않으면 도구가 막히고 파일 내용이 모델 요청에 실리지 않는다 |
 | PT-07 | 실제 croak-gate가 발급한 토큰으로 연동 | **FUTURE CONTRACT** | croak-gate 발급 구현 뒤에 검증한다. Phase 4 수용 시점에도 이 상태로 남을 수 있다 |
