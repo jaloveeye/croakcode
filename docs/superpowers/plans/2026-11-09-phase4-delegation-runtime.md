@@ -1,7 +1,7 @@
 # Phase 4 구현 계획 — 위임 런타임과 실행 허가 토큰 검증
 
 - **날짜**: 2026-11-09
-- **상태**: 구현 완료(2026-11-09). 실제 croak-gate와의 실행 허가 연동(PT-07)만 남았다
+- **상태**: 구현 완료(2026-11-09). 실제 croak-gate와의 실행 허가 연동(PT-07)은 로컬에서 PASS다
 - **기준 문서**:
   - 청사진: `docs/superpowers/architecture/2026-11-08-phase4-blueprint.md`
   - 위임 아키텍처: `docs/superpowers/architecture/2026-11-08-agent-principal-delegation.md`
@@ -296,7 +296,7 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 - `contracts/src/server-auth.mjs`의 초안을 실제 형식으로 바꾼다.
 - 요청 형식 문서 `docs/superpowers/architecture/2026-11-09-execution-permit-protocol.md`를 쓴다.
 - 테스트: 가짜 Gate가 서명한 토큰으로 정상 실행, 서명 위조, 필드 불일치, 만료, nonce 재사용, 공개키 없음을 확인한다.
-- 완료(2026-11-09): `permit.ts`, `permit-client.ts`, `Guard.authorizeExecution`을 추가하고 도구 래퍼 두 곳에 연결했다. PT-01부터 PT-06까지 PASS다. PT-07은 croak-gate 구현을 기다린다.
+- 완료(2026-11-09): `permit.ts`, `permit-client.ts`, `Guard.authorizeExecution`을 추가하고 도구 래퍼 두 곳에 연결했다. PT-01부터 PT-06까지 PASS다. PT-07은 croak-gate 발급 구현 뒤 로컬 Docker 스택에서 PASS했다.
 - 프로토콜 문서는 `docs/superpowers/architecture/2026-11-09-execution-permit-protocol.md`다. `contracts/src/server-auth.mjs`를 실제 형식으로 바꿨다.
 - Gate 주소에 기본값을 두지 않고 `CROAKCODE_GATE_PERMIT_URL`로만 받는다. 허가 요청에는 croak 로그인 액세스 토큰을 쓴다.
 - 토큰의 `rev`는 일치 검사에 넣지 않았다. Gate의 revision과 로컬 관리자 정책의 revision은 같은 값이라는 보장이 없다. 그래서 `rev`는 기록에만 쓴다.
@@ -342,11 +342,10 @@ Task 10에서 수용 기준의 근거를 한 번에 다시 실행했다.
 | 전체 게이트 PASS, `BASELINE_FAIL`과 `FLAKE_FAIL`이 빔 | 충족 |
 | 허가 토큰 검증이 가짜 Gate 기준으로 PASS, PT-07은 FUTURE CONTRACT | 충족 |
 
-남은 일은 다섯 가지다.
+남은 일은 네 가지다.
 
 | 항목 | 상태 |
 |---|---|
-| PT-07 실제 croak-gate 연동 | croak-gate의 발급 구현을 기다린다 |
 | 감사 보존 기간 정리 | `Audit.prune`은 있으나 주기적으로 부르는 작업이 없다 |
 | 허가 nonce 기록 | 프로세스 메모리에만 있다. 다시 시작하면 사라진다 |
 | `hwp_cli`의 `-o` 저장 경로 | 검사하지 않는다. 쓰기 전 권한 질문은 있다 |
