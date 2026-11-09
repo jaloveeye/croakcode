@@ -1087,26 +1087,24 @@ it.instance(
 )
 
 it.instance(
-  "hosted nvidia provider adds billing origin header",
+  "hosted nvidia provider sends no billing origin header by default",
   Effect.gen(function* () {
     const providers = yield* list
     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
       "HTTP-Referer": "https://croakcode.ai/",
       "X-Title": "croakcode",
-      "X-BILLING-INVOKE-ORIGIN": "OpenCode",
     })
   }),
   { config: { provider: { nvidia: { options: { apiKey: "test-api-key" } } } } },
 )
 
 it.instance(
-  "custom nvidia baseURL adds billing origin header",
+  "custom nvidia baseURL sends no billing origin header by default",
   Effect.gen(function* () {
     const providers = yield* list
     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
       "HTTP-Referer": "https://croakcode.ai/",
       "X-Title": "croakcode",
-      "X-BILLING-INVOKE-ORIGIN": "OpenCode",
     })
   }),
   { config: { provider: { nvidia: { options: { apiKey: "test-api-key", baseURL: "http://localhost:8000/v1" } } } } },

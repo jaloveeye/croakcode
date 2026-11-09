@@ -431,10 +431,12 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       Effect.succeed({
         autoload: provider.source === "config",
         options: {
+          // No X-BILLING-INVOKE-ORIGIN by default. Upstream sent "OpenCode" for
+          // its own NVIDIA billing attribution; croakcode has no such agreement.
+          // A user who has one can still set the header in provider options.
           headers: {
             "HTTP-Referer": "https://croakcode.ai/",
             "X-Title": "croakcode",
-            "X-BILLING-INVOKE-ORIGIN": "OpenCode",
           },
         },
       }),

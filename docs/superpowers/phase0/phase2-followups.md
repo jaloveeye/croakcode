@@ -19,6 +19,10 @@ Phase 2 승인(`ACCEPTED WITH DOCUMENTED EXCEPTIONS`)에 따라 등록하는 후
 - **근거**: `provider.ts`의 nvidia 블록은 Phase 2 diff(`0299fbb..HEAD`)에 포함되지 않음 → **Phase 2 회귀 아님, 선재 stale 테스트**.
 - **조치**: 테스트 기대값을 `croakcode` (및 확정된 billing origin)으로 갱신. 소스 변경 불필요.
 - **수용 기준**: 두 테스트 PASS, `BASELINE_FAIL` allowlist에서 제거.
+- **후속 결정 (2026-11-09)**: `X-BILLING-INVOKE-ORIGIN` 기본값을 지웠다.
+  - 업스트림은 자사의 NVIDIA 과금 귀속을 위해 `OpenCode`를 보냈다.
+  - croakcode는 NVIDIA와 그런 합의가 없다. 다른 제품 이름으로 출처를 표시하지 않기로 했다.
+  - 합의가 생기면 공급자 설정의 `headers`로 값을 지정한다. 이 경로는 테스트로 보장한다.
 
 ## P2-2 — Bash abort/truncation 타이밍 경쟁 및 테스트 안정화
 
