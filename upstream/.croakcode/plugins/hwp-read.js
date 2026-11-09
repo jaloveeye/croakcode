@@ -12,12 +12,13 @@
 // The first page read exports the whole document once (about 16 s for a
 // 394-page, 73 MB file) into ~/.cache/croak/hwp/<key>/; later reads
 // come from that cache. Images are dropped; only text is kept.
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
+import { deniedPath } from "./secret-paths.js"
 
 export const MAX_PAGES = 10
 export const MAX_OUTPUT_CHARS = 60_000
@@ -221,6 +222,162 @@ export async function hwpCli(input, ctx) {
   return [`$ rhwp ${args.join(" ")}`, `exit ${code}`, UNTRUSTED, "", body || "(출력 없음)"].join("\n")
 }
 
+// ── hwp_memo: Hancom memos through rhwp's MCP session tools ──────────────
+//
+// Memo editing exists only as rhwp MCP tools (hwp_doc_memos and
+// hwp_doc_{create,update,delete}_memo), not on the command line. Exposing the
+// rhwp MCP server costs about 44K tokens per request, so this tool starts
+// `rhwp mcp-serve` itself for one call: open, memo action, save (verified),
+// close. The model sees one small tool.
+
+export const MEMO_ACTIONS = ["list", "create", "update", "delete"]
+export const MAX_MEMO_OUTPUT_CHARS = 30_000
+export const DEFAULT_MEMO_AUTHOR = "croakcode"
+
+/** Default output for a memo edit: `<name>_memo.<ext>` next to the input. */
+export function memoOutputPath(file) {
+  const ext = path.extname(file)
+  return path.join(path.dirname(file), `${path.basename(file, ext)}_memo${ext}`)
+}
+
+const nonNegativeInt = (value, name) => {
+  if (!Number.isInteger(value) || value < 0) throw new Error(`memo.${name}는 0 이상의 정수여야 한다.`)
+  return value
+}
+
+/** Validates the request and returns the rhwp session call to make. */
+export function planMemo(action, memo, file, directory) {
+  const m = memo && typeof memo === "object" ? memo : {}
+  if (!MEMO_ACTIONS.includes(action)) throw new Error(`action은 ${MEMO_ACTIONS.join(", ")} 중 하나여야 한다: ${action}`)
+  if (action === "list") return { write: false, name: "hwp_doc_memos", args: {} }
+  const output = m.output ? resolveDocPath(m.output, directory) : memoOutputPath(file)
+  // The output is a new HWP document. It may not land on a key or secret
+  // file; secret-paths only checks top-level path arguments.
+  if (!/\.hwpx?$/i.test(output)) throw new Error(`memo.output은 .hwp 또는 .hwpx 파일이어야 한다: ${output}`)
+  const secret = deniedPath(output)
+  if (secret) throw new Error(`memo.output '${output}'은 키, 인증서, 비밀 파일 경로라 쓸 수 없다 (규칙 ${secret}).`)
+  if (action === "create") {
+    const text = String(m.text ?? "").trim()
+    if (!text) throw new Error("memo.text가 비어 있다.")
+    const start = nonNegativeInt(m.start, "start")
+    const end = nonNegativeInt(m.end, "end")
+    if (end <= start) throw new Error("memo.end는 memo.start보다 커야 한다.")
+    const cellPath = m.cellPath ?? []
+    if (!Array.isArray(cellPath) || !cellPath.every((c) => Array.isArray(c) && c.length === 3 && c.every(Number.isInteger))) {
+      throw new Error("memo.cellPath는 [[컨트롤, 셀, 내부 문단], ...] 형식이어야 한다. 본문이면 []다.")
+    }
+    return {
+      write: true,
+      output,
+      name: "hwp_doc_create_memo",
+      args: {
+        target: { section: nonNegativeInt(m.section ?? 0, "section"), para: nonNegativeInt(m.para ?? 0, "para"), cellPath },
+        start,
+        end,
+        text,
+        author: String(m.author ?? "").trim() || DEFAULT_MEMO_AUTHOR,
+      },
+    }
+  }
+  const fieldId = nonNegativeInt(m.fieldId, "fieldId")
+  if (action === "delete") return { write: true, output, name: "hwp_doc_delete_memo", args: { fieldId } }
+  const update = {}
+  if (m.text !== undefined) update.text = String(m.text)
+  if (m.author !== undefined) update.author = String(m.author)
+  if (!("text" in update) && !("author" in update)) throw new Error("update에는 memo.text와 memo.author 중 하나 이상이 필요하다.")
+  return { write: true, output, name: "hwp_doc_update_memo", args: { fieldId, ...update } }
+}
+
+/** Runs `rhwp mcp-serve` for the duration of `use` and closes it. */
+async function withRhwpSession(use, timeoutMs = 120_000) {
+  const child = spawn(rhwpBinary(), ["mcp-serve"], { stdio: ["pipe", "pipe", "pipe"] })
+  const waiting = new Map()
+  let buffer = ""
+  let failed
+  const fail = (error) => {
+    failed = error
+    for (const reject of waiting.values()) reject.reject(error)
+    waiting.clear()
+  }
+  child.on("error", (error) => fail(new Error(`rhwp mcp-serve 실행 실패: ${error.message}`)))
+  child.on("exit", (code) => fail(new Error(`rhwp mcp-serve가 끝났다(exit ${code}).`)))
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk
+    let index
+    while ((index = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, index)
+      buffer = buffer.slice(index + 1)
+      let message
+      try {
+        message = JSON.parse(line)
+      } catch {
+        continue
+      }
+      const pending = waiting.get(message.id)
+      if (!pending) continue
+      waiting.delete(message.id)
+      pending.resolve(message)
+    }
+  })
+  let id = 0
+  const rpc = (method, params) =>
+    new Promise((resolve, reject) => {
+      if (failed) return reject(failed)
+      const n = ++id
+      waiting.set(n, { resolve, reject })
+      child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: n, method, params }) + "\n")
+    })
+  const call = async (name, args) => {
+    const message = await rpc("tools/call", { name, arguments: args })
+    if (message.error) throw new Error(`rhwp ${name} 실패: ${message.error.message}`)
+    const text = message.result?.content?.find((c) => c.type === "text")?.text ?? ""
+    if (message.result?.isError) throw new Error(`rhwp ${name} 실패: ${text.slice(0, 500)}`)
+    return message.result?.structuredContent ?? JSON.parse(text)
+  }
+  const timer = setTimeout(() => {
+    fail(new Error(`rhwp mcp-serve가 ${timeoutMs / 1000}초 안에 끝나지 않았다.`))
+    child.kill("SIGKILL")
+  }, timeoutMs)
+  try {
+    await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "croakcode-hwp-memo", version: "1" } })
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n")
+    return await use(call)
+  } finally {
+    clearTimeout(timer)
+    child.removeAllListeners("exit")
+    child.kill()
+  }
+}
+
+export async function hwpMemo(input, ctx) {
+  const file = resolveDocPath(input?.path, ctx.directory)
+  const plan = planMemo(String(input?.action ?? ""), input?.memo, file, ctx.directory)
+  if (plan.write) {
+    // Memo edits follow the agent's `edit` rule, like hwp_cli edits.
+    await ctx.ask({
+      permission: "edit",
+      patterns: [plan.output],
+      always: ["hwp_memo *"],
+      metadata: { tool: "hwp_memo", action: input.action, input: file, output: plan.output },
+    })
+  }
+  const result = await withRhwpSession(async (call) => {
+    const { docId } = await call("hwp_open", { path: file })
+    try {
+      const done = await call(plan.name, { docId, ...plan.args })
+      if (!plan.write) return { memos: done }
+      const saved = await call("hwp_doc_save", { docId, output: plan.output, verify: true })
+      return { result: done, saved }
+    } finally {
+      await call("hwp_close", { docId }).catch(() => undefined)
+    }
+  })
+  const body = JSON.stringify(result, null, 2)
+  const text = body.length > MAX_MEMO_OUTPUT_CHARS ? body.slice(0, MAX_MEMO_OUTPUT_CHARS) + "\n[출력 상한에서 잘랐다]" : body
+  const head = plan.write ? `# hwp_memo ${input.action} → ${plan.output}` : `# hwp_memo list ${path.basename(file)}`
+  return [head, UNTRUSTED, "", text].join("\n")
+}
+
 export const server = async () => ({
   tool: {
     hwp_read: {
@@ -253,6 +410,40 @@ export const server = async () => ({
       },
       async execute(args, ctx) {
         return hwpCli(args, ctx)
+      },
+    },
+    hwp_memo: {
+      description:
+        "HWP·HWPX의 한컴 메모를 조회, 추가, 수정, 삭제한다. 먼저 action=\"list\"로 fieldId와 위치를 확인한다. 추가는 한 문단 안의 글자 범위 [start, end)에 붙인다. 바꾼 문서는 기본으로 <이름>_memo.<확장자>에 저장하고 원본은 그대로 둔다. 문서를 바꾸는 작업은 사용자 승인을 받는다.",
+      args: {
+        path: {
+          type: "string",
+          description: "문서 경로. 절대 경로, 작업 폴더 기준 상대 경로, C:\\ 형식의 Windows 경로를 받는다.",
+        },
+        action: {
+          type: "string",
+          enum: MEMO_ACTIONS,
+          description: "list, create, update, delete 중 하나.",
+        },
+        memo: {
+          type: "object",
+          description:
+            "작업별 값. list는 {}. create는 section, para, start, end, text, author(선택), cellPath(표 셀 안이면 [[컨트롤, 셀, 내부 문단]], 본문이면 생략). update는 fieldId와 text, author 중 하나 이상. delete는 fieldId. 쓰기 작업은 output으로 저장 경로를 바꿀 수 있다. start와 end는 문단 안의 0부터 세는 글자 위치다.",
+          properties: {
+            section: { type: "integer" },
+            para: { type: "integer" },
+            cellPath: { type: "array", items: { type: "array", items: { type: "integer" } } },
+            start: { type: "integer" },
+            end: { type: "integer" },
+            text: { type: "string" },
+            author: { type: "string" },
+            fieldId: { type: "integer" },
+            output: { type: "string" },
+          },
+        },
+      },
+      async execute(args, ctx) {
+        return hwpMemo(args, ctx)
       },
     },
   },

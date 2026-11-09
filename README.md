@@ -20,7 +20,7 @@
 
 - Node.js 22+
 - [Bun](https://bun.sh) 1.3+
-- (선택) `rhwp` — HWP 관련 도구를 쓰는 경우. 현재 CI/테스트 환경에는 미설치이며 wrapper 계약만 검증됩니다
+- (선택) `rhwp` — HWP 도구(`hwp_read`, `hwp_cli`, `hwp_memo`)를 쓰는 경우입니다. 실행 파일은 `CROAK_RHWP`로 지정하고, 없으면 `~/.local/bin/rhwp`를 씁니다. 바이너리가 있으면 `tests/hwp-read.rhwp.test.mjs`가 실제 실행을 검증하고, 없으면 이 테스트를 건너뜁니다. 메모 수정은 rhwp MCP 도구에만 있어서 `hwp_memo`가 `rhwp mcp-serve`를 호출 한 번 동안만 띄웁니다
 
 ## 클론 및 설치
 

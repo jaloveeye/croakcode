@@ -29,7 +29,7 @@
 | tool-policy (`/net-off` `/net-on` `/tool-status`, deny) | `node --test tests/tool-policy.test.mjs` → **8 pass** | PASS |
 | usage-meter (JSONL) | `node --test tests/usage-meter.test.mjs` → **4 pass** | PASS |
 | usage-panel (슬롯 3종·order 90) | `bun test test/usage-panel` → **55 pass**; `test/plugins/usage-panel.test.ts` → **1 pass** | PASS |
-| hwp-read / hwp_cli | `node --test tests/hwp-read.test.mjs` → **9 pass**(래퍼 규칙). 2026-11-09 rhwp v0.8.7로 `node --test tests/hwp-read.rhwp.test.mjs` → **4 pass**(실제 실행). 이 검증에서 1쪽 문서의 쪽 읽기가 실패하는 결함을 찾아 고쳤다 | PASS |
+| hwp-read / hwp_cli / hwp_memo | `node --test tests/hwp-read.test.mjs` → **12 pass**(래퍼 규칙). 2026-11-09 rhwp v0.8.7로 `node --test tests/hwp-read.rhwp.test.mjs` → **6 pass**(실제 실행). 이 검증에서 1쪽 문서의 쪽 읽기 결함을 찾아 고쳤다. `hwp_memo`는 같은 날 추가했다 | PASS |
 | croak-auth TUI (/login /logout /whoami /agent-perm) | `bun test test/plugins/croak-auth-tui.test.ts` → **2 pass** (슬래시 4개+슬롯 2개); `node --test tests/croak-auth-tui-registration.test.mjs` → **2 pass** | PASS |
 | stall-recovery | 폐기 결정 기록 | ACCEPTED DEVIATION |
 | vendor/opencode-cache-hit | 폐기 결정 기록 (아래) | ACCEPTED DEVIATION |
