@@ -44,9 +44,19 @@ function upgraded() {
 }
 
 describe("Phase 4 delegation runtime migration", () => {
-  test("is the newest migration", () => {
+  test("runs after every earlier migration", () => {
+    const names = migrations().map((entry) => entry.name)
+    expect(names).toContain(target)
+    // Later Phase 4 follow-ups may add migrations after it, never before.
+    expect(names.slice(names.indexOf(target) + 1).every((name) => name > target)).toBe(true)
+  })
+
+  test("the permit nonce migration is the newest and creates its table", () => {
     const entries = migrations()
-    expect(entries.at(-1)?.name).toBe(target)
+    expect(entries.at(-1)?.name).toBe("20261110090000_permit_nonce")
+    const { sqlite } = upgraded()
+    const row = sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'permit_nonce'").get()
+    expect(row).toEqual({ name: "permit_nonce" })
   })
 
   test("upgrading an existing database keeps session rows", () => {

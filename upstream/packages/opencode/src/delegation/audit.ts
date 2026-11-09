@@ -141,4 +141,32 @@ export function prune(now = Date.now(), retentionMs = RETENTION_MS) {
   ).length
 }
 
+/** How often pruneIfDue deletes old records. */
+export const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
+
+let lastPrune: number | undefined
+
+/**
+ * Prunes at most once per PRUNE_INTERVAL_MS per process. The guard calls it
+ * when a run begins, so a long-running server still prunes daily. Best
+ * effort: a failure is logged and retried on the next interval.
+ */
+export function pruneIfDue(now = Date.now()) {
+  if (lastPrune !== undefined && now - lastPrune < PRUNE_INTERVAL_MS) return undefined
+  lastPrune = now
+  try {
+    const removed = prune(now)
+    if (removed > 0) log.info("pruned audit records", { removed })
+    return removed
+  } catch (error) {
+    log.warn("audit prune failed", { error: error instanceof Error ? error.message : String(error) })
+    return undefined
+  }
+}
+
+/** Test hook: the next pruneIfDue runs regardless of the interval. */
+export function resetPruneClock() {
+  lastPrune = undefined
+}
+
 export * as Audit from "./audit"

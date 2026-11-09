@@ -39,7 +39,7 @@ test("sortPageFiles treats a lone unnumbered export as page 1", () => {
   assert.deepEqual(sortPageFiles(["a.md", "b.md", "done"]), [])
 })
 
-import { classifyCli, convertArgs, hwpCli } from "../upstream/.croakcode/plugins/hwp-read.js"
+import { classifyCli, convertArgs, hwpCli, outputPaths } from "../upstream/.croakcode/plugins/hwp-read.js"
 
 test("classifyCli separates read, write and blocked commands", () => {
   assert.equal(classifyCli(["--help"]), "read")
@@ -51,6 +51,37 @@ test("classifyCli separates read, write and blocked commands", () => {
   assert.equal(classifyCli(["some-new-command", "a.hwp"]), "write")
   assert.equal(classifyCli(["mcp-serve"]), "blocked")
   assert.equal(classifyCli(["keygen"]), "blocked")
+})
+
+test("outputPaths finds every output option form", () => {
+  assert.deepEqual(outputPaths(["export-structure", "a.hwp", "-o", "s.json"]), ["s.json"])
+  assert.deepEqual(outputPaths(["export-text", "a.hwp", "--output=out"]), ["out"])
+  assert.deepEqual(outputPaths(["x", "--out", "a", "--output-dir", "b", "-oc.hwp"]), ["a", "b", "c.hwp"])
+  assert.deepEqual(outputPaths(["info", "a.hwp", "--occurrence", "2"]), [])
+})
+
+test("classifyCli treats any output option as a write", () => {
+  // export-text always writes (to output/ when -o is missing).
+  assert.equal(classifyCli(["export-text", "a.hwp"]), "write")
+  assert.equal(classifyCli(["export-structure", "a.hwp"]), "read")
+  assert.equal(classifyCli(["export-structure", "a.hwp", "-o", "s.json"]), "write")
+  assert.equal(classifyCli(["edit", "replace-text", "a.hwp", "--find", "x", "--replace", "y", "--dry-run", "-o", "b.hwp"]), "write")
+})
+
+test("hwpCli refuses an output on a key or secret path before asking", async () => {
+  const asked = []
+  const ctx = { directory: "/home/u/work", ask: async (req) => void asked.push(req) }
+  const cases = [
+    ["edit", "replace-text", "a.hwp", "--find", "a", "--replace", "b", "-o", "/home/u/.ssh/authorized_keys"],
+    ["export-structure", "a.hwp", "--out=../.env"],
+    ["export-text", "a.hwp", "-o", "C:\\Users\\u\\.aws\\out"],
+    ["edit", "replace-text", "a.hwp", "--find", "a", "--replace", "b", "-oserver.key"],
+  ]
+  for (const args of cases) await assert.rejects(() => hwpCli({ args }, ctx), /비밀 파일 경로/, args.join(" "))
+  assert.equal(asked.length, 0)
+  const refused = { directory: "/home/u/work", ask: async (req) => { asked.push(req); throw new Error("rejected") } }
+  await assert.rejects(() => hwpCli({ args: ["export-structure", "a.hwp", "-o", "s.json"] }, refused), /rejected/)
+  assert.deepEqual(asked[0].metadata.outputs, ["/home/u/work/s.json"])
 })
 
 test("convertArgs maps only Windows drive paths", () => {
