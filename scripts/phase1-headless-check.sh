@@ -35,6 +35,6 @@ kill "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true
 DB="$HOME/.local/share/croakcode/croakcode.db"
 if [[ -f "$DB" ]]; then
-  sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+  node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(process.argv[1]); db.exec("PRAGMA wal_checkpoint(TRUNCATE);"); db.close()' "$DB" >/dev/null 2>&1 || true
 fi
 echo "PASS: headless server up + session created"

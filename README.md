@@ -95,7 +95,8 @@ bun run typecheck
 | `HttpApi CORS > adds CORS headers to unauthorized responses` | CORS 허용 목록이 아직 `*.opencode.ai`를 신뢰합니다 | 허용 도메인 결정 |
 | `opencode CLI help-text snapshots > ...` | 스냅샷이 한국어 로캘에서 기록됐습니다. 출력은 실행 환경의 `LANG`을 따릅니다 | 테스트의 로캘 고정 |
 | `croak-auth TUI ...` 2건, `usage-panel registers ...` | `.croakcode` 플러그인이 `@opentui/solid`를 찾지 못합니다. isolated linker는 이 경로에 패키지를 두지 않습니다 | 의존성 배치 결정 |
-| 루트 `phase1-sqlite.e2e` 2건 | `scripts/phase1-headless-check.sh`를 먼저 실행해야 합니다. WAL 검사는 `sqlite3` CLI가 필요합니다 | 테스트 자립화 |
+
+루트 `phase1-*.e2e` 테스트는 `scripts/phase1-headless-check.sh`가 만든 DB를 읽습니다. 게이트 스크립트는 이 스크립트를 먼저 실행합니다. DB는 내장 `node:sqlite`로 읽으므로 `sqlite3` CLI는 필요 없습니다.
 
 `FLAKE_FAIL` (타이밍 민감, 재시도 시 통과):
 - `tool.shell abort > captures stderr in output`
