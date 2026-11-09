@@ -41,9 +41,9 @@
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
 | AG-01 | 세션에 agent 이름이 저장되고 실행 시 메시지 단위 agent(`lastUser.agent`)가 사용된다(현재 동작 고정) | **NOT TESTED** | 코드 근거만 존재(`session.ts:607` 생성 시 저장, `session.ts:126` 읽기, `prompt.ts:1350` 실행 시 선택). `test/agent/agent.test.ts`는 **Definition/config**를 검증할 뿐 세션 agent 저장·`lastUser.agent` 사용을 검증하지 않음 → 이 작업에서 해당 동작 테스트를 **실행/확인하지 않음**. "신원"이 아니라 "이름"임을 명시 |
-| AG-02 | Principal 레지스트리가 런타임 발급 신원을 제공하고, 프롬프트/모델 출력에서 신원을 추출하지 않는다 | **FUTURE CONTRACT** | Phase 4. 현재 코드에 레지스트리 없음(확인된 사실) |
-| AG-03 | Definition과 Principal이 분리되어 동일 Definition에서 복수 Principal 생성 가능 | **FUTURE CONTRACT** | Phase 4 |
-| AG-04 | Run → Principal 참조가 정확히 1개(무결성) | **FUTURE CONTRACT** | Phase 4 |
+| AG-02 | Principal 레지스트리가 런타임 발급 신원을 제공하고, 프롬프트/모델 출력에서 신원을 추출하지 않는다 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). ID는 `issuePrincipal` 안에서만 만든다. 발급 입력에는 ID 필드가 없다. owner는 `human:local`과 활성 Principal ID만 받는다. 형식이 틀린 owner(예: `agent: trust me`)는 거부한다 |
+| AG-03 | Definition과 Principal이 분리되어 동일 Definition에서 복수 Principal 생성 가능 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09) |
+| AG-04 | Run → Principal 참조가 정확히 1개(무결성) | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). 없는 Principal과 철회된 Principal로는 Run을 만들 수 없다. 부모 Run도 존재해야 한다 |
 | AG-05 | Principal 철회 시 참조 Run 중단 | **FUTURE CONTRACT** | Phase 4 |
 
 ---
@@ -161,7 +161,7 @@
 | `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **PASS** |
 | abort 전파(포그라운드 `task.test.ts:290`, 백그라운드 `task.test.ts:705`) | SC-04 **PASS**(15 pass / 0 fail 실행) |
 | revocation 부재 | RV-01~05 **FUTURE CONTRACT**(Phase 4 Task 5, 7) |
-| Principal 부재 | AG-02~05 **FUTURE CONTRACT**(Phase 4 Task 2, 7) |
+| Principal 레지스트리(`src/delegation/registry.ts`) | AG-02~04 **PASS**(Task 2), AG-05 **FUTURE CONTRACT**(Task 7) |
 
 ---
 
