@@ -1,7 +1,7 @@
 # Phase 4 구현 계획 — 위임 런타임과 실행 허가 토큰 검증
 
 - **날짜**: 2026-11-09
-- **상태**: 계획 확정 전 검토 대기
+- **상태**: 구현 완료(2026-11-09). 실제 croak-gate와의 실행 허가 연동(PT-07)만 남았다
 - **기준 문서**:
   - 청사진: `docs/superpowers/architecture/2026-11-08-phase4-blueprint.md`
   - 위임 아키텍처: `docs/superpowers/architecture/2026-11-08-agent-principal-delegation.md`
@@ -308,6 +308,8 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 - 추적표 상태를 실제 테스트 결과로 바꾼다. 가짜 PASS를 적지 않는다.
 - README의 보안 상태 표에 Phase 4 항목을 더한다.
 - 게이트 스크립트의 `test/delegation` 범위는 Task 1에서 넣었다. 새 테스트 디렉터리가 생기면 범위를 확인한다.
+- 완료(2026-11-09): 게이트 범위에 `test/server/httpapi-delegation.test.ts`를 더했다. NOT TESTED였던 CX-01과 AG-01에 테스트를 더해 PASS로 바꿨다. README의 상태와 보안 표를 갱신했다.
+- README에 Phase 4 후속으로 남아 있던 번들링 확인도 마쳤다. 빌드는 `.croakcode/plugins/lib`의 두 라이브러리를 실행 파일 안에 묶는다. 그래서 실행할 때 상대 경로를 따로 보존할 필요가 없다.
 
 ## 4. 수용 기준
 
@@ -315,6 +317,40 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 - SC-01부터 SC-04와 Phase 2 계약 테스트가 계속 PASS다.
 - 전체 게이트가 PASS다. `BASELINE_FAIL`과 `FLAKE_FAIL`은 비어 있다.
 - 허가 토큰 검증은 가짜 Gate 기준으로 PASS다. 실제 croak-gate와의 연동 시험은 croak-gate 구현 뒤에 한다. 추적표에는 이 항목을 FUTURE CONTRACT로 둔다.
+
+### 4.1 수용 결과 (2026-11-09)
+
+Task 10에서 수용 기준의 근거를 한 번에 다시 실행했다.
+
+| 대상 | 명령 | 결과 |
+|---|---|---|
+| 위임 런타임 단위 | `bun test test/delegation` | 83 pass / 0 fail |
+| 철회 HTTP 경로 | `bun test test/server/httpapi-delegation.test.ts` | 4 pass / 0 fail |
+| 실제 루프 통합 | `bun test test/session/prompt.test.ts -t "Phase 4\|SC-0\|CX-0\|AU-04\|AG-01\|Task 9"` | 23 pass / 0 fail |
+| task 도구 | `bun test test/tool/task.test.ts` | 30 pass / 0 fail |
+| SEC-03 E2E | `bun test test/session/sec03-gate-direct-e2e.test.ts` | 8 pass / 0 fail |
+| 기존 격리 테스트 | `bun test test/agent/plan-mode-subagent-bypass.test.ts` | 5 pass / 0 fail |
+| 상속 상한 마이그레이션 | `bun test test/storage/session-inherited-permission-migration.test.ts` | 1 pass / 0 fail |
+| 루트 계약과 플러그인 | `node --test 'tests/*.test.mjs'` | 170 pass / 0 fail |
+
+수용 기준마다 판정했다.
+
+| 기준 | 판정 |
+|---|---|
+| DG-05, RV-01부터 RV-05, AU-02부터 AU-05, CX-03부터 CX-05, SC-05가 PASS | 충족 |
+| SC-01부터 SC-04와 Phase 2 계약 테스트가 계속 PASS | 충족 |
+| 전체 게이트 PASS, `BASELINE_FAIL`과 `FLAKE_FAIL`이 빔 | 충족 |
+| 허가 토큰 검증이 가짜 Gate 기준으로 PASS, PT-07은 FUTURE CONTRACT | 충족 |
+
+남은 일은 다섯 가지다.
+
+| 항목 | 상태 |
+|---|---|
+| PT-07 실제 croak-gate 연동 | croak-gate의 발급 구현을 기다린다 |
+| 감사 보존 기간 정리 | `Audit.prune`은 있으나 주기적으로 부르는 작업이 없다 |
+| 허가 nonce 기록 | 프로세스 메모리에만 있다. 다시 시작하면 사라진다 |
+| `hwp_cli`의 `-o` 저장 경로 | 검사하지 않는다. 쓰기 전 권한 질문은 있다 |
+| Phase 3 제품 수용 | 리뷰어의 보안 수용 판정을 기다린다 |
 
 ## 5. 위험
 

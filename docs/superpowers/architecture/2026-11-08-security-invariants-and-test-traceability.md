@@ -1,6 +1,6 @@
 # Security Invariants & Test Traceability (Agent Principal & Delegation)
 
-- **상태**: Phase 4 구현 진행 중. 이 문서의 FUTURE CONTRACT 행은 Phase 4 계획의 Task에서 구현한다(§J)
+- **상태**: Phase 4 구현 완료(2026-11-09). 남은 FUTURE CONTRACT 행은 PT-07(실제 croak-gate 연동) 하나다
 - **날짜**: 2026-11-08 작성, 2026-11-09 갱신(Phase 4 Task 0)
 - **관련 문서**:
   - ADR: `docs/superpowers/adr/0001-agent-principal-and-delegation.md`
@@ -40,7 +40,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| AG-01 | 세션에 agent 이름이 저장되고 실행 시 메시지 단위 agent(`lastUser.agent`)가 사용된다(현재 동작 고정) | **NOT TESTED** | 코드 근거만 존재(`session.ts:607` 생성 시 저장, `session.ts:126` 읽기, `prompt.ts:1350` 실행 시 선택). `test/agent/agent.test.ts`는 **Definition/config**를 검증할 뿐 세션 agent 저장·`lastUser.agent` 사용을 검증하지 않음 → 이 작업에서 해당 동작 테스트를 **실행/확인하지 않음**. "신원"이 아니라 "이름"임을 명시 |
+| AG-01 | 세션에 agent 이름이 저장되고 실행 시 메시지 단위 agent(`lastUser.agent`)가 사용된다(현재 동작 고정) | **PASS** | Phase 4 Task 10. `prompt.test.ts -t "CX-01|AG-01"` 2 pass / 0 fail(2026-11-09). 세션 생성 때 넣은 agent 이름이 저장된다. 턴은 마지막 사용자 메시지의 agent로 실행된다. 이 이름은 신원이 아니다. 신원은 AG-02의 Principal이 맡는다 |
 | AG-02 | Principal 레지스트리가 런타임 발급 신원을 제공하고, 프롬프트/모델 출력에서 신원을 추출하지 않는다 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). ID는 `issuePrincipal` 안에서만 만든다. 발급 입력에는 ID 필드가 없다. owner는 `human:local`과 활성 Principal ID만 받는다. 형식이 틀린 owner(예: `agent: trust me`)는 거부한다 |
 | AG-03 | Definition과 Principal이 분리되어 동일 Definition에서 복수 Principal 생성 가능 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09) |
 | AG-04 | Run → Principal 참조가 정확히 1개(무결성) | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). 없는 Principal과 철회된 Principal로는 Run을 만들 수 없다. 부모 Run도 존재해야 한다 |
@@ -102,7 +102,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **NOT TESTED** | 코드 근거(`task.ts:277`: `resolvePromptParts(params.prompt)`만 전달). `test/tool/task.test.ts`에는 `resolvePromptParts`의 가짜 구현만 있고, 자식에 전달된 내용을 검사하는 테스트가 없다(2026-11-09 확인) |
+| CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **PASS** | Phase 4 Task 10. `prompt.test.ts -t "CX-01|AG-01"` 2 pass / 0 fail(2026-11-09). 실제 루프에서 부모 대화의 표식이 자식의 LLM 요청에 없다. 자식 요청에는 위임 프롬프트가 들어 있다 |
 | CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **PASS** | 2026-11-09 실행: `bun test test/session/sec03-gate-direct-e2e.test.ts` → 8 pass / 0 fail. 근거 테스트 "direct request after a real gate turn omits gate output and keeps direct history"(1 pass)는 gate 턴의 응답이 이후 direct 요청 본문에 없음을 확인한다. 요청 조립 지점 `prompt.ts:1465-1471` |
 | CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **PASS** | Phase 4 Task 6a. `bun test test/delegation/guard.test.ts` 13 pass / 0 fail, `bun test test/tool/task.test.ts` 30 pass / 0 fail(2026-11-09). 자식 결과는 그 위임을 만든 Run의 세션에만 들어간다. 포그라운드 결과와 백그라운드 주입 모두 넣기 직전에 확인한다. 조건이 맞지 않으면 결과를 넣지 않는다 |
 | CX-04 | Grant scope 밖 컨텍스트 접근 deny | **PASS** | Phase 4 Task 6a. `bun test test/delegation/guard.test.ts` 13 pass / 0 fail, `bun test test/tool/task.test.ts` 30 pass / 0 fail(2026-11-09). 다른 위임자가 소유한 자식 세션은 재개할 수 없다. 철회된 자식 Principal은 재개로 되살아나지 않는다. 파일 접근은 Task 5의 범위 검사가 막고, 위임 프롬프트의 파일 참조는 CX-05 수정이 막는다 |
@@ -174,11 +174,12 @@
 
 - **CX-02**: **PASS(2026-11-09)** — `sec03-gate-direct-e2e.test.ts` 8 pass / 0 fail.
 
-다음 항목은 검증 테스트가 없어 NOT TESTED로 둔다.
+- **CX-01, AG-01**: **PASS(2026-11-09, Phase 4 Task 10)**.
 
-- **CX-01**: 자식에 전달된 프롬프트를 검사하는 테스트가 없다.
-- **AG-01**: 세션 agent 저장과 실행 시 선택을 검사하는 테스트가 없다.
-- **AU-01**: 자유 형식 metadata 연결을 검사하는 테스트가 없다. Phase 4 Task 8의 typed 연결(AU-02)이 이 기능을 대신한다.
+다음 항목은 NOT TESTED로 둔다.
+
+- **AU-01**: 자유 형식 metadata 연결을 검사하는 테스트가 없다. Phase 4 Task 8의 typed 연결(AU-02 PASS)이 이 기능을 대신한다.
+- **SC-06**: 테스트로 확인하는 항목이 아니다. 게이트 리뷰에서 확인한다.
 
 > **주의**: 위 테스트를 **실행하지 않고** PASS로 승격하지 말 것. 상태 승격은 `docs/superpowers/plans/2026-11-08-phase3-plugin-port.md`의 Task 16/16a/16b/17 게이트에서만 한다.
 

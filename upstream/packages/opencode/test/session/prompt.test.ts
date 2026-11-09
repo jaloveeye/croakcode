@@ -1164,6 +1164,59 @@ for (const available of [true, false]) {
 }
 
 it.instance(
+  "CX-01: the child receives the task prompt only, not the parent conversation",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* llm.tool("task", { description: "inspect", prompt: "CX01_TASK_PROMPT", subagent_type: "general" })
+      yield* llm.text("child done")
+      yield* llm.text("parent done")
+      yield* user(chat.id, "CX01_PARENT_TURN with private context")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
+      const child = sent.filter((body) => body.includes("CX01_TASK_PROMPT") && !body.includes("child done"))
+      expect(child.length).toBeGreaterThanOrEqual(1)
+      for (const body of child) expect(body).not.toContain("CX01_PARENT_TURN")
+      // The parent's own requests still carry its conversation.
+      expect(sent.some((body) => body.includes("CX01_PARENT_TURN"))).toBe(true)
+    }),
+  30_000,
+)
+
+it.instance(
+  "AG-01: the session stores its agent name and a turn runs as the last user message's agent",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Pinned", agent: "plan" })
+      expect((yield* sessions.get(chat.id)).agent).toBe("plan")
+      yield* llm.text("planned")
+      const msg = yield* sessions.updateMessage({
+        id: MessageID.ascending(),
+        role: "user",
+        sessionID: chat.id,
+        agent: "plan",
+        model: ref,
+        time: { created: Date.now() },
+      })
+      yield* sessions.updatePart({ id: PartID.ascending(), messageID: msg.id, sessionID: chat.id, type: "text", text: "plan it" })
+      const result = yield* prompt.loop({ sessionID: chat.id })
+      expect(result.info.role).toBe("assistant")
+      if (result.info.role === "assistant") expect(result.info.agent).toBe("plan")
+    }),
+  30_000,
+)
+
+it.instance(
   "SC-05: an allow from the delegation layer never lifts a permission-engine deny",
   () =>
     Effect.gen(function* () {
