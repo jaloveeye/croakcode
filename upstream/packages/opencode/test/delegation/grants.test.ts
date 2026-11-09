@@ -40,10 +40,25 @@ describe("Lattice (shared with Task 4)", () => {
 
   test("finds a probe where the child is looser than the parent", () => {
     const parent = [allow("read"), deny("read", "/secret/*")]
-    expect(Lattice.looserProbe([allow("read")], parent)).toEqual({ permission: "read", pattern: "/secret/*" })
-    expect(Lattice.looserProbe([allow("read"), deny("read", "/secret/*")], parent)).toBeUndefined()
+    expect(Lattice.looserProbe([allow("read")], parent, "neutral")).toEqual({ permission: "read", pattern: "/secret/*" })
+    expect(Lattice.looserProbe([allow("read"), deny("read", "/secret/*")], parent, "neutral")).toBeUndefined()
     // A permission wildcard in the child is caught by the parent's specific deny.
-    expect(Lattice.looserProbe([allow("*")], [allow("*"), deny("bash")])).toEqual({ permission: "bash", pattern: "*" })
+    expect(Lattice.looserProbe([allow("*")], [allow("*"), deny("bash")], "neutral")).toEqual({ permission: "bash", pattern: "*" })
+  })
+})
+
+describe("layer semantics (Phase 4 Task 5)", () => {
+  test("a grant is an allow-list; a restriction layer only restricts", () => {
+    expect(Lattice.decideLayer("bash", "ls", [allow("read")], "deny")).toBe("deny")
+    expect(Lattice.decideLayer("bash", "ls", [deny("edit")], "neutral")).toBe("allow")
+    expect(Lattice.decideLayer("edit", "x", [deny("edit")], "neutral")).toBe("deny")
+  })
+
+  test("a point the parent grant does not name cannot be delegated further", () => {
+    expect(Lattice.looserProbe([allow("edit")], [allow("read")], "deny")).toEqual({ permission: "edit", pattern: "*" })
+    expect(Lattice.looserProbe([allow("edit")], [allow("read")], "neutral")).toBeUndefined()
+    // Asking is not denying: a delegator's "ask" does not block a grant.
+    expect(Lattice.looserProbe([allow("*")], [{ permission: "external_directory", pattern: "*", action: "ask" as const }], "neutral")).toBeUndefined()
   })
 })
 
@@ -398,6 +413,46 @@ describe("Delegation Store (Phase 4 Task 3)", () => {
         })
         .pipe(Effect.exit)
       expect(reason(exit)).toBe("parent_inactive")
+    }),
+  )
+
+  it.instance("the task-tool grant shape (allow * plus denies) issues at depth 2", () =>
+    Effect.gen(function* () {
+      const registry = yield* Registry.Service
+      const grants = yield* Grants.Service
+      const agentRules = [allow("*"), { permission: "external_directory", pattern: "*", action: "ask" as const }, deny("edit")]
+      const a = yield* registry.issuePrincipal({ ownerId: HUMAN_LOCAL, definition: "build", role: "root", capabilities: [allow("*")] })
+      const aRun = yield* registry.startRun({ principalId: a.id, sessionId: session(1), policyRevision: 0 })
+      const b = yield* registry.issuePrincipal({ ownerId: a.id, definition: "plan", role: "plan", capabilities: agentRules })
+      const ab = yield* grants.issue({
+        delegatorPrincipalId: a.id,
+        delegateePrincipalId: b.id,
+        parentRunId: aRun.id,
+        capabilities: Grants.delegationCapabilities({ delegator: a.capabilities, inherited: [] }),
+        scope,
+        bound: scope,
+        constraints: [],
+        expiresAt: Date.now() + HOUR,
+        policyRevision: 0,
+      })
+      const bRun = yield* registry.startRun({ principalId: b.id, sessionId: session(2), parentRunId: aRun.id, grantId: ab.id, policyRevision: 0 })
+      const c = yield* registry.issuePrincipal({ ownerId: b.id, definition: "general", role: "general", capabilities: [allow("*")] })
+      const bc = yield* grants.issue({
+        delegatorPrincipalId: b.id,
+        delegateePrincipalId: c.id,
+        parentGrantId: ab.id,
+        parentRunId: bRun.id,
+        capabilities: Grants.delegationCapabilities({ delegator: b.capabilities, parent: ab.capabilities, inherited: [deny("todowrite")] }),
+        scope,
+        constraints: [],
+        expiresAt: ab.expiresAt,
+        policyRevision: 0,
+      })
+      expect(bc.depth).toBe(2)
+      // B's edit deny travels into the grant.
+      expect(Lattice.decideLayer("edit", "x", bc.capabilities, "deny")).toBe("deny")
+      expect(Lattice.decideLayer("todowrite", "*", bc.capabilities, "deny")).toBe("deny")
+      expect(Lattice.decideLayer("read", "x", bc.capabilities, "deny")).toBe("allow")
     }),
   )
 })

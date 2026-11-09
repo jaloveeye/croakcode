@@ -63,7 +63,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| DG-01 | Grant 없이 위임(spawn) 시도 시 deny | **FUTURE CONTRACT** | Phase 4. 현재 task 도구는 Grant 개념 없음(확인된 사실) |
+| DG-01 | Grant 없이 위임(spawn) 시도 시 deny | **PASS** | Phase 4 Task 5/6. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). 위임 Run이 없는 하위 세션은 모든 도구 호출이 `no_run`으로 막힌다. task 도구는 부모의 활성 Run이 있어야 위임할 수 있다. `bun test test/session/prompt.test.ts -t "Phase 4|SC-05"` 5 pass / 0 fail(2026-11-09)의 Task 6 테스트는 부모와 자식 Run이 Grant로 이어지는지 DB에서 확인한다 |
 | DG-02 | `child.capabilities ⊆ parent.capabilities` | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 두 규칙 목록에 나오는 모든 (권한, 패턴) 지점에서 자식이 위임자와 부모 Grant보다 느슨하면 발급을 거부한다. 이 검사는 모든 와일드카드 겹침을 열거하지 않는다. 실행 시점 교집합(DG-05, Task 4)이 최종 강제다 |
 | DG-03 | `child.scope ⊆ parent.scope` 및 constraints 단조 강화 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 범위는 절대 경로만 받고, 부모 범위 밖의 경로와 형제 경로는 거부한다. 루트 Grant는 런타임이 준 범위 상한이 있어야 한다. 부모 제약이 빠지면 거부한다 |
 | DG-04 | `expiresAt`/`policyRevision` 단조성 및 순환 그래프 거부 | **PASS** | Phase 4 Task 3. `bun test test/delegation/grants.test.ts` 13 pass / 0 fail(2026-11-09). 만료 연장, 지난 만료 시각, revision 역행을 거부한다. 체인에 같은 Principal이 두 번 나오면 거부한다. 깊이 4 발급을 거부한다 |
@@ -85,9 +85,9 @@
 |---|---|---|---|
 | RV-01 | Grant 철회 시 하위 Grant 전체 `revoked` 전파 | **FUTURE CONTRACT** | Phase 4. 현재 revocation 개념 없음(확인된 사실) |
 | RV-02 | Principal 철회 시 발급 Grant 전체 + 참조 Run 철회 | **FUTURE CONTRACT** | Phase 4 |
-| RV-03 | 철회된 Grant로 도구 실행 직전 deny(fail-closed) | **FUTURE CONTRACT** | Phase 4. 현재 실행 직전 검사는 `ctx.ask`뿐(`session/tools.ts:64-72`) |
-| RV-04 | 오프라인 철회 지연 시 fail policy 준수 | **FUTURE CONTRACT** | Fail policy 미정의(ADR Decision Required). 상태는 FUTURE CONTRACT 단일 |
-| RV-05 | `expiresAt` 도달 시 자동 expired 처리 + 실행 deny | **FUTURE CONTRACT** | Phase 4 |
+| RV-03 | 철회된 Grant로 도구 실행 직전 deny(fail-closed) | **PASS** | Phase 4 Task 5. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). Run이 시작된 근거 Grant가 철회되면, Principal이 다른 경로의 활성 Grant를 가져도 deny한다. 실행 직전 검사는 native 도구, MCP 도구, 사용자 서브태스크 세 경로에 모두 들어 있다(`bun test test/session/prompt.test.ts -t "Phase 4|SC-05"` 5 pass / 0 fail(2026-11-09)) |
+| RV-04 | 오프라인 철회 지연 시 fail policy 준수 | **PASS** | Phase 4 Task 5. 사용자 결정은 "상태를 확인할 수 없으면 deny"다. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). Registry를 읽을 수 없으면 `no_run`, 체인을 읽을 수 없으면 `state_unreadable`로 deny한다 |
+| RV-05 | `expiresAt` 도달 시 자동 expired 처리 + 실행 deny | **PASS** | Phase 4 Task 5. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). 만료된 Grant는 판정 시점에 `expired`로 기록되고 deny된다 |
 
 ---
 
@@ -144,7 +144,7 @@
 | SC-02 | `session.permission` 덮어쓰기(`prompt.ts:1226-1233`)가 턴 스냅샷(§5.4)을 깨지 않음 | **PASS** | **검증 완료**: 일반(비-서브에이전트) 세션에서 `tools:{edit:false, bash:true}`가 정상 반영(edit=deny, bash=allow) — `test/session/prompt.test.ts` "SC-02: normal (non-subagent) session honours tools map enable/disable" PASS. inherited가 없으면 덮어쓰기 동작이 기존과 동일함을 확인. 잔여: 턴 중 `/mode` 변경 스냅샷은 §5.4 Task 16b에서 별도 검증. |
 | SC-03 | 손자 생성 제한(task 규칙 없는 subagent는 task 비활성) | **PASS** | **검증 완료**: `test/tool/task.test.ts` "SC-03: general subagent has task denied" PASS — `general`(task 규칙 없음) 자식 세션에 `{task:deny}` 주입됨, 실행 ruleset `Permission.evaluate("task","*")` = deny. 노출 게이트는 allow지만 세션 deny + `ctx.ask`로 실행 차단됨을 확인. |
 | SC-04 | 부모 취소 → 자식 abort 전파(포그라운드 abort chain + 백그라운드 metadata 매칭) | **PASS** | **실행 결과**: `bun test test/tool/task.test.ts` → **15 pass / 0 fail** (2026-11-08). 근거 테스트: `task.test.ts:290` "execute cancels child session when abort signal fires"(포그라운드), `task.test.ts:705` "cancelling a parent run recursively cancels descendant background tasks"(백그라운드 metadata 매칭, `expect(...status).toBe("cancelled")`). |
-| SC-05 | 위임 불변식이 §3.4 불변식을 약화시키지 않음(monotonic tightening) — 계약 교차 검증 | **FUTURE CONTRACT** | Phase 4 계약 테스트 |
+| SC-05 | 위임 불변식이 §3.4 불변식을 약화시키지 않음(monotonic tightening) — 계약 교차 검증 | **PASS** | Phase 4 Task 5. 위임 층은 deny만 더한다. allow와 ask는 기존 권한 엔진으로 넘긴다. `bun test test/session/prompt.test.ts -t "Phase 4|SC-05"` 5 pass / 0 fail(2026-11-09)의 SC-05 테스트는 위임 층이 allow할 때 기존 엔진의 deny가 그대로 남는지 확인한다. 한계: 위임 층의 ask는 강제하지 않는다 |
 | SC-06 | Phase 3에서 위임 안전성을 PASS로 주장하지 않음(정직성 검증) | **NOT TESTED** | 메타 주장은 테스트가 아니다. 이 문서는 미구현 항목을 FUTURE CONTRACT/NOT TESTED로 표기하나, SC-INV-4 준수 여부는 **게이트 리뷰에서 확인할 항목**이므로 NOT TESTED로 둔다 |
 
 ---
@@ -160,7 +160,7 @@
 | plan 부모 → general 자식 edit 상승(실제 `prompt()` 경로) | SC-01 **PASS**(수정 완료 2026-11-08) |
 | `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **PASS** |
 | abort 전파(포그라운드 `task.test.ts:290`, 백그라운드 `task.test.ts:705`) | SC-04 **PASS**(15 pass / 0 fail 실행) |
-| revocation 부재 | RV-01~05 **FUTURE CONTRACT**(Phase 4 Task 5, 7) |
+| 실행 직전 재인가(`src/delegation/guard.ts`) | RV-03~05 **PASS**(Task 5), RV-01~02 **FUTURE CONTRACT**(Task 7) |
 | Principal 레지스트리(`src/delegation/registry.ts`) | AG-02~04 **PASS**(Task 2), AG-05 **FUTURE CONTRACT**(Task 7) |
 
 ---

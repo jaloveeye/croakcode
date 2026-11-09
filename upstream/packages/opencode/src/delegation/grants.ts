@@ -32,6 +32,26 @@ export function effectiveMaxDepth(configured: number | undefined) {
   return Math.min(configured, MAX_DELEGATION_DEPTH)
 }
 
+/**
+ * The capabilities the task tool puts in a grant: allow everything, then the
+ * denies of the parent grant, the delegator and the inherited ceiling. The
+ * parent-run and own-policy layers bound what the delegatee can actually do;
+ * the grant carries the denies along the chain so it never escalates.
+ */
+export function delegationCapabilities(input: {
+  readonly delegator: Permission.Ruleset
+  readonly parent?: Permission.Ruleset
+  readonly inherited: Permission.Ruleset
+}): Permission.Ruleset {
+  const denies = (rules: Permission.Ruleset = []) => rules.filter((rule) => rule.action === "deny")
+  return [
+    { permission: "*", pattern: "*", action: "allow" },
+    ...denies(input.parent),
+    ...denies(input.delegator),
+    ...denies(input.inherited),
+  ]
+}
+
 export type Grant = {
   readonly id: GrantID
   readonly delegatorPrincipalId: PrincipalID
@@ -197,10 +217,15 @@ export const layer = Layer.effect(
       const maxDepth = effectiveMaxDepth(input.maxDepth)
       if (depth > maxDepth) return yield* reject("depth_exceeded", `depth ${depth} exceeds ${maxDepth}`)
 
-      // INV-3.1: capabilities ⊆ delegator ⊆ parent grant.
-      const sources = [delegator.capabilities, ...(parent ? [parent.capabilities] : [])]
-      for (const source of sources) {
-        const probe = Lattice.looserProbe(input.capabilities, source)
+      // INV-3.1: the grant may not let through what the delegator or the
+      // parent grant denies. A parent grant is an allow-list, so what it does
+      // not name counts as denied.
+      const sources: [Permission.Ruleset, Lattice.Unmatched][] = [
+        [delegator.capabilities, "neutral"],
+        ...(parent ? [[parent.capabilities, "deny"] as [Permission.Ruleset, Lattice.Unmatched]] : []),
+      ]
+      for (const [source, unmatched] of sources) {
+        const probe = Lattice.looserProbe(input.capabilities, source, unmatched)
         if (probe) return yield* reject("capability_escalation", `${probe.permission} ${probe.pattern}`)
       }
 

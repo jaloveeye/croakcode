@@ -35,6 +35,7 @@ import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt } from "../../src/session/prompt"
+import { Guard } from "../../src/delegation/guard"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { SessionStatus } from "../../src/session/status"
@@ -181,6 +182,7 @@ function makePrompt() {
   )
   const compact = SessionCompaction.layer.pipe(Layer.provide(flags), Layer.provideMerge(proc), Layer.provideMerge(deps))
   return SessionPrompt.layer.pipe(
+    Layer.provide(Guard.defaultLayer),
     Layer.provide(SessionRevert.defaultLayer),
     Layer.provide(Image.defaultLayer),
     Layer.provide(Reference.defaultLayer),

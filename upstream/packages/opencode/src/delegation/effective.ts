@@ -45,6 +45,13 @@ export type DecideInput = {
   readonly pattern: string
   /** An absolute filesystem path the call touches; checked against grant scope. */
   readonly path?: string
+  /**
+   * A tool-level check made before the tool runs, when its patterns are not
+   * known yet. A grant then denies only when it names no non-deny rule for
+   * the permission at all, or denies the permission outright; path-scoped
+   * grant rules are checked later at the pattern level.
+   */
+  readonly toolLevel?: boolean
 }
 
 export interface Interface {
@@ -84,10 +91,22 @@ export const layer = Layer.effect(
           layer = from
         }
       }
-      const decideIn = (ruleset: Parameters<typeof Lattice.decide>[2]) =>
-        Lattice.decide(input.permission, input.pattern, ruleset)
+      type Ruleset = Parameters<typeof Lattice.decide>[2]
+      // Organisation policy and a principal's rules restrict: an unnamed
+      // point has no opinion there.
+      const restrict = (ruleset: Ruleset) => Lattice.decideLayer(input.permission, input.pattern, ruleset, "neutral")
+      // A grant is an allow-list: an unnamed point is not delegated.
+      const delegated = (ruleset: Ruleset): Action => {
+        if (!input.toolLevel) return Lattice.decideLayer(input.permission, input.pattern, ruleset, "deny")
+        const outright = Lattice.explicit(input.permission, "*", ruleset)
+        if (outright?.action === "deny" && outright.pattern === "*") return "deny"
+        const named = ruleset.some(
+          (rule) => rule.action !== "deny" && Lattice.explicit(input.permission, rule.pattern, [rule]) !== undefined,
+        )
+        return named ? "allow" : "deny"
+      }
 
-      if (policy.status === "valid" && policy.rules) apply(decideIn(policy.rules), "organisation")
+      if (policy.status === "valid" && policy.rules) apply(restrict(policy.rules), "organisation")
 
       const run = yield* registry.getRun(input.runId)
       if (!run || run.status !== "running") return denied("run_inactive")
@@ -98,7 +117,21 @@ export const layer = Layer.effect(
       for (let step = 0; current && step < MAX_RUN_ANCESTORS; step++) {
         const principal = yield* registry.getPrincipal(current.principalId)
         if (!principal || principal.status !== "active") return denied("principal_inactive", first ? "principal" : "parent_run")
-        apply(decideIn(principal.capabilities), first ? "principal" : "parent_run")
+
+        // The grant this run started under must still hold, even when the
+        // principal has another active grant on a different path.
+        if (current.grantId) {
+          const own = yield* grants.listChain(current.grantId)
+          if (own.length === 0) return denied("grant_inactive", "grant")
+          for (const link of own) {
+            if (link.status !== "active") return denied("grant_inactive", "grant")
+            if (link.expiresAt <= Date.now()) {
+              yield* grants.expire(link.id)
+              return denied("grant_inactive", "grant")
+            }
+          }
+        }
+        apply(restrict(principal.capabilities), first ? "principal" : "parent_run")
 
         // Every active grant path to a non-root principal, intersected.
         if (principal.ownerId !== HUMAN_LOCAL) {
@@ -112,7 +145,7 @@ export const layer = Layer.effect(
                 yield* grants.expire(link.id)
                 return denied("grant_inactive", "grant")
               }
-              apply(decideIn(link.capabilities), "grant")
+              apply(delegated(link.capabilities), "grant")
               if (input.path !== undefined) {
                 const inside =
                   path.isAbsolute(input.path) &&
