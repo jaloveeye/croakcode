@@ -294,7 +294,9 @@ describe("HttpApi Server.listen", () => {
       return true
     }) as typeof process.stderr.write
     try {
-      const response = await Server.Default().app.request("/status")
+      // `/status` is not an API route and falls through to the web UI, which
+      // is unset by default. Use a real API route so the check stays on logging.
+      const response = await Server.Default().app.request("/global/health")
       expect(response.status).toBe(200)
     } finally {
       process.stderr.write = original
