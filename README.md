@@ -97,10 +97,7 @@ bun run typecheck
 
 루트 `phase1-*.e2e` 테스트는 `scripts/phase1-headless-check.sh`가 만든 DB를 읽습니다. 게이트 스크립트는 이 스크립트를 먼저 실행합니다. DB는 내장 `node:sqlite`로 읽으므로 `sqlite3` CLI는 필요 없습니다.
 
-`FLAKE_FAIL` (타이밍 민감, 재시도 시 통과):
-- `running task tool preserves metadata after tool-call transition`
-
-이 테스트는 CPU 부하에서도 20회 연속 통과했습니다. 원인을 확인하지 못해 목록에 남겨 둡니다. shell 출력 경쟁으로 실패하던 2건은 P2-2에서 고쳐 목록에서 뺐습니다.
+`FLAKE_FAIL`은 비어 있습니다. shell 출력 경쟁으로 실패하던 2건은 P2-2에서 고쳤습니다. `running task tool preserves metadata ...`는 실패 기록 없이 등록돼 있었습니다. 2026-11-09에 64회 실행해 실패가 없어 목록에서 뺐습니다. 게이트에서 실패하면 로그가 `LOG_DIR`에 남습니다.
 
 C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershell` 빌드에서 멈춥니다. 이때 `node_modules/.bin`이 생기지 않아 `bun run typecheck`가 `tsgo: command not found`로 실패합니다. 컴파일러를 설치할 수 없으면 `bun install --frozen-lockfile --ignore-scripts`로 링크를 완성합니다.
 
