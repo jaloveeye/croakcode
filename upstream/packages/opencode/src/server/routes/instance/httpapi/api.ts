@@ -11,6 +11,7 @@ import { GlobalApi } from "./groups/global"
 import { InstanceApi } from "./groups/instance"
 import { McpApi } from "./groups/mcp"
 import { PermissionApi } from "./groups/permission"
+import { DelegationApi } from "./groups/delegation"
 import { ProjectApi } from "./groups/project"
 import { ProviderApi } from "./groups/provider"
 import { PtyApi, PtyConnectApi } from "./groups/pty"
@@ -43,6 +44,7 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(PtyApi)
   .addHttpApi(QuestionApi)
   .addHttpApi(PermissionApi)
+  .addHttpApi(DelegationApi)
   .addHttpApi(ProviderApi)
   .addHttpApi(SessionApi)
   .addHttpApi(SyncApi)

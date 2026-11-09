@@ -44,7 +44,7 @@
 | AG-02 | Principal 레지스트리가 런타임 발급 신원을 제공하고, 프롬프트/모델 출력에서 신원을 추출하지 않는다 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). ID는 `issuePrincipal` 안에서만 만든다. 발급 입력에는 ID 필드가 없다. owner는 `human:local`과 활성 Principal ID만 받는다. 형식이 틀린 owner(예: `agent: trust me`)는 거부한다 |
 | AG-03 | Definition과 Principal이 분리되어 동일 Definition에서 복수 Principal 생성 가능 | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09) |
 | AG-04 | Run → Principal 참조가 정확히 1개(무결성) | **PASS** | Phase 4 Task 2. `bun test test/delegation/registry.test.ts` 8 pass / 0 fail(2026-11-09). 없는 Principal과 철회된 Principal로는 Run을 만들 수 없다. 부모 Run도 존재해야 한다 |
-| AG-05 | Principal 철회 시 참조 Run 중단 | **FUTURE CONTRACT** | Phase 4 |
+| AG-05 | Principal 철회 시 참조 Run 중단 | **PASS** | Phase 4 Task 7. `bun test test/delegation/revocation.test.ts` 5 pass / 0 fail, `bun test test/server/httpapi-delegation.test.ts` 4 pass / 0 fail(2026-11-09). 철회된 Principal의 실행 중인 Run은 `aborted`로 닫힌다. HTTP 경로가 그 세션을 취소한다. 다음 도구 호출은 `no_run`으로 막힌다 |
 
 ---
 
@@ -83,8 +83,8 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| RV-01 | Grant 철회 시 하위 Grant 전체 `revoked` 전파 | **FUTURE CONTRACT** | Phase 4. 현재 revocation 개념 없음(확인된 사실) |
-| RV-02 | Principal 철회 시 발급 Grant 전체 + 참조 Run 철회 | **FUTURE CONTRACT** | Phase 4 |
+| RV-01 | Grant 철회 시 하위 Grant 전체 `revoked` 전파 | **PASS** | Phase 4 Task 7. `bun test test/delegation/revocation.test.ts` 5 pass / 0 fail, `bun test test/server/httpapi-delegation.test.ts` 4 pass / 0 fail(2026-11-09). 하위 Grant를 한 트랜잭션에서 모두 철회하고 형제 경로는 건드리지 않는다. 이미 만료된 Grant는 `expired`를 유지하고, 그 아래 Grant는 철회한다 |
+| RV-02 | Principal 철회 시 발급 Grant 전체 + 참조 Run 철회 | **PASS** | Phase 4 Task 7. `bun test test/delegation/revocation.test.ts` 5 pass / 0 fail, `bun test test/server/httpapi-delegation.test.ts` 4 pass / 0 fail(2026-11-09). Principal이 발급한 Grant와 받은 Grant를 하위까지 철회한다. 그 아래 Run을 닫는다. 철회된 Principal은 재개로 되살아나지 않는다 |
 | RV-03 | 철회된 Grant로 도구 실행 직전 deny(fail-closed) | **PASS** | Phase 4 Task 5. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). Run이 시작된 근거 Grant가 철회되면, Principal이 다른 경로의 활성 Grant를 가져도 deny한다. 실행 직전 검사는 native 도구, MCP 도구, 사용자 서브태스크 세 경로에 모두 들어 있다(`bun test test/session/prompt.test.ts -t "Phase 4|SC-05"` 5 pass / 0 fail(2026-11-09)) |
 | RV-04 | 오프라인 철회 지연 시 fail policy 준수 | **PASS** | Phase 4 Task 5. 사용자 결정은 "상태를 확인할 수 없으면 deny"다. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). Registry를 읽을 수 없으면 `no_run`, 체인을 읽을 수 없으면 `state_unreadable`로 deny한다 |
 | RV-05 | `expiresAt` 도달 시 자동 expired 처리 + 실행 deny | **PASS** | Phase 4 Task 5. `bun test test/delegation/guard.test.ts` 11 pass / 0 fail(2026-11-09). 만료된 Grant는 판정 시점에 `expired`로 기록되고 deny된다 |
@@ -160,8 +160,8 @@
 | plan 부모 → general 자식 edit 상승(실제 `prompt()` 경로) | SC-01 **PASS**(수정 완료 2026-11-08) |
 | `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **PASS** |
 | abort 전파(포그라운드 `task.test.ts:290`, 백그라운드 `task.test.ts:705`) | SC-04 **PASS**(15 pass / 0 fail 실행) |
-| 실행 직전 재인가(`src/delegation/guard.ts`) | RV-03~05 **PASS**(Task 5), RV-01~02 **FUTURE CONTRACT**(Task 7) |
-| Principal 레지스트리(`src/delegation/registry.ts`) | AG-02~04 **PASS**(Task 2), AG-05 **FUTURE CONTRACT**(Task 7) |
+| 실행 직전 재인가(`src/delegation/guard.ts`)와 철회(`src/delegation/revocation.ts`) | RV-01~05 **PASS**(Task 5, 7) |
+| Principal 레지스트리(`src/delegation/registry.ts`) | AG-02~05 **PASS**(Task 2, 7) |
 
 ---
 

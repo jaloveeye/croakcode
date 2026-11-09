@@ -272,6 +272,11 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 - 활성 Run에 중단 신호를 보낸다.
 - 관리자 인증 HTTP 경로를 추가한다.
 - 테스트: RV-01, RV-02, RV-04, F3, F4.
+- 완료(2026-11-09): `src/delegation/revocation.ts`와 HTTP 경로 두 개를 추가했다. RV-01, RV-02, AG-05가 PASS다. RV-04는 Task 5에서 PASS가 됐다.
+- 경로는 `POST /delegation/grant/:grantID/revoke`와 `POST /delegation/principal/:principalID/revoke`다.
+- 비밀번호 없이 열린 서버에서는 로컬의 모든 프로세스가 철회를 부를 수 있다. 그래서 기존 인증 미들웨어에 더해, 서버 비밀번호가 없으면 403을 돌려준다.
+- 철회 서비스는 세션 실행 상태에 의존하지 않는다. 철회 결과로 중단할 세션 목록을 돌려주고, HTTP 핸들러가 그 세션을 취소한다.
+- 감사 기록은 Task 8에서 넣는다. 코드에 표시를 남겼다.
 
 ### Task 8. 실행 감사
 

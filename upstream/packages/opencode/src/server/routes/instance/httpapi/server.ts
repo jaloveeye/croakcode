@@ -76,6 +76,8 @@ import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
 import { mcpHandlers } from "./handlers/mcp"
 import { permissionHandlers } from "./handlers/permission"
+import { delegationHandlers } from "./handlers/delegation"
+import { Revocation } from "@/delegation/revocation"
 import { projectHandlers } from "./handlers/project"
 import { providerHandlers } from "./handlers/provider"
 import { ptyConnectHandlers, ptyHandlers } from "./handlers/pty"
@@ -141,6 +143,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     ptyHandlers,
     questionHandlers,
     permissionHandlers,
+    delegationHandlers.pipe(Layer.provide(ServerAuth.Config.defaultLayer)),
     providerHandlers,
     sessionHandlers,
     syncHandlers,
@@ -211,6 +214,7 @@ export function createRoutes(
       MCP.defaultLayer,
       ModelsDev.defaultLayer,
       Permission.defaultLayer,
+      Revocation.defaultLayer,
       Plugin.defaultLayer,
       Project.defaultLayer,
       ProviderAuth.defaultLayer,
