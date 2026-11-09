@@ -7,6 +7,7 @@ import type { Permission } from "../permission"
 import type { SessionID } from "../session/schema"
 import { Database } from "@/storage/db"
 import { AgentRunTable } from "./delegation.sql"
+import { Audit } from "./audit"
 import { Effective } from "./effective"
 import { Grants } from "./grants"
 import { Policy } from "./policy"
@@ -137,7 +138,10 @@ export const layer = Layer.effect(
       toolLevel: boolean,
     ) {
       const run = yield* registry.activeRun(sessionID).pipe(Effect.catchDefect(() => Effect.succeed(undefined)))
-      if (!run) return yield* new DelegationDeniedError({ permission, reason: "no_run" })
+      if (!run) {
+        Audit.record({ eventType: "tool.denied", sessionId: sessionID, tool: permission, decision: "deny", errorCode: "no_run" })
+        return yield* new DelegationDeniedError({ permission, reason: "no_run" })
+      }
       const decision = yield* effective.decide({
         runId: run.id,
         permission,
@@ -145,9 +149,22 @@ export const layer = Layer.effect(
         ...(toolLevel ? { toolLevel: true } : {}),
         ...(!toolLevel && path.isAbsolute(pattern) ? { path: pattern } : {}),
       })
+      // AU-03: the tool-level decision is recorded for every call; pattern
+      // checks record denies only, so one call does not write one row per path.
+      const base = {
+        principalId: run.principalId,
+        runId: run.id,
+        sessionId: sessionID,
+        ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
+        ...(run.grantId ? { grantId: run.grantId } : {}),
+        tool: permission,
+        policyRevision: decision.policyRevision,
+      }
       if (decision.action === "deny") {
+        Audit.record({ ...base, eventType: "tool.denied", decision: "deny", errorCode: decision.reason })
         return yield* new DelegationDeniedError({ permission, reason: decision.reason })
       }
+      if (toolLevel) Audit.record({ ...base, eventType: "tool.allowed", decision: "allow" })
     })
 
     const checkTool = Effect.fn("DelegationGuard.checkTool")(function* (sessionID: SessionID, permission: string) {

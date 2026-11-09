@@ -8,7 +8,7 @@ import os from "os"
 import { createHmac } from "node:crypto"
 import { jsonSchema } from "ai"
 import { eq } from "drizzle-orm"
-import { AgentRunTable, DelegationGrantTable } from "../../src/delegation/delegation.sql"
+import { AgentRunTable, DelegationGrantTable, ExecutionAuditTable } from "../../src/delegation/delegation.sql"
 import { fileURLToPath, pathToFileURL } from "url"
 import { NamedError } from "@croakcode/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
@@ -1037,6 +1037,53 @@ it.instance(
       )
       expect(grant?.parent_run_id).toBe(parentRun!.id)
       expect(grant?.delegatee_principal_id).toBe(childRun!.principal_id)
+    }),
+  30_000,
+)
+
+it.instance(
+  "AU-04: a real loop leaves audit rows with decisions only, never prompt, arguments or output",
+  () =>
+    Effect.gen(function* () {
+      const { llm, dir } = yield* useServerConfig(providerCfg)
+      const file = path.join(dir, "AU04_ARGUMENT_NAME.txt")
+      yield* writeText(file, "AU04_FILE_CONTENT")
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [
+          { permission: "*", pattern: "*", action: "allow" },
+          { permission: "read", pattern: "*", action: "ask" },
+        ],
+      })
+      // The engine asks for read; reply once so the call can finish.
+      const permissions = yield* Permission.Service
+      const replier = yield* Effect.gen(function* () {
+        while (true) {
+          const pending = yield* permissions.list()
+          const req = pending.find((item) => item.sessionID === chat.id)
+          if (req) return yield* permissions.reply({ requestID: req.id, reply: "once" })
+          yield* Effect.sleep("20 millis")
+        }
+      }).pipe(Effect.forkChild)
+      yield* llm.tool("read", { filePath: file })
+      yield* llm.text("done")
+      yield* user(chat.id, "AU04_PROMPT_TEXT please read")
+      yield* prompt.loop({ sessionID: chat.id })
+      yield* Fiber.interrupt(replier)
+
+      const rows = Database.use((db) => db.select().from(ExecutionAuditTable).all())
+      const mine = rows.filter((row) => row.session_id === chat.id)
+      const kinds = new Set(mine.map((row) => row.event_type))
+      expect(kinds.has("run.started")).toBe(true)
+      expect(kinds.has("run.ended")).toBe(true)
+      expect(kinds.has("tool.allowed")).toBe(true)
+      expect(kinds.has("tool.asked")).toBe(true)
+      const dump = JSON.stringify(rows)
+      for (const marker of ["AU04_PROMPT_TEXT", "AU04_ARGUMENT_NAME", "AU04_FILE_CONTENT"]) {
+        expect(dump).not.toContain(marker)
+      }
     }),
   30_000,
 )

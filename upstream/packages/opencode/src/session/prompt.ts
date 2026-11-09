@@ -51,6 +51,7 @@ import { SessionRunState } from "./run-state"
 import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Guard } from "@/delegation/guard"
+import { Audit } from "@/delegation/audit"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
 import { ModelV2 } from "@croakcode/core/model"
@@ -404,11 +405,13 @@ export const layer = Layer.effect(
           ask: (req: any) =>
             guard.checkPatterns(sessionID, req.permission, req.patterns).pipe(
               Effect.andThen(
-                permission.ask({
-                  ...req,
-                  sessionID,
-                  ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
-                }),
+                permission
+                  .ask({
+                    ...req,
+                    sessionID,
+                    ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
+                  })
+                  .pipe(Effect.tapError((err) => Effect.sync(() => Audit.engineDenied(sessionID, req.permission, err._tag)))),
               ),
               Effect.orDie,
             ),

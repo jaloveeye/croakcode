@@ -4,6 +4,7 @@ import type { Permission } from "../permission"
 import type { SessionID } from "../session/schema"
 import { Database } from "@/storage/db"
 import { AgentPrincipalTable, AgentRunTable } from "./delegation.sql"
+import { Audit } from "./audit"
 import {
   GrantID,
   HUMAN_LOCAL,
@@ -177,6 +178,7 @@ export const layer = Layer.effect(
           .returning()
           .get(),
       )
+      Audit.record({ eventType: "principal.created", principalId: row.id })
       return toPrincipal(row)
     })
 
@@ -211,6 +213,7 @@ export const layer = Layer.effect(
           .where(eq(AgentPrincipalTable.id, id))
           .run(),
       )
+      Audit.record({ eventType: "principal.revoked", principalId: id })
     })
 
     const startRun = Effect.fn("DelegationRegistry.startRun")(function* (input: {
@@ -227,14 +230,16 @@ export const layer = Layer.effect(
         )
         if (!parent) return yield* new RunNotFoundError({ runId: input.parentRunId })
       }
-      const row = Database.transaction((db) => {
+      const { row, closed } = Database.transaction((db) => {
         // INV-2.4: one active run per session. A new run closes the previous
         // one as aborted; it did not reach a recorded end.
-        db.update(AgentRunTable)
+        const closed = db
+          .update(AgentRunTable)
           .set({ status: "aborted", time_ended: Date.now() })
           .where(and(eq(AgentRunTable.session_id, input.sessionId), eq(AgentRunTable.status, "running")))
-          .run()
-        return db
+          .returning()
+          .all()
+        const row = db
           .insert(AgentRunTable)
           .values({
             id: RunID.ascending(),
@@ -246,6 +251,20 @@ export const layer = Layer.effect(
           })
           .returning()
           .get()
+        return { row, closed }
+      })
+      for (const old of closed) {
+        Audit.record({ eventType: "run.aborted", runId: old.id, principalId: old.principal_id, sessionId: old.session_id })
+      }
+      // AU-02: the typed parent/child run link is recorded with every start.
+      Audit.record({
+        eventType: "run.started",
+        runId: row.id,
+        principalId: row.principal_id,
+        sessionId: row.session_id,
+        ...(row.parent_run_id ? { parentRunId: row.parent_run_id } : {}),
+        ...(row.grant_id ? { grantId: row.grant_id } : {}),
+        policyRevision: row.policy_revision,
       })
       return toRun(row)
     })
@@ -255,13 +274,23 @@ export const layer = Layer.effect(
       status: Exclude<RunStatus, "running">,
     ) {
       // Only a running run changes; a finished run keeps its first outcome.
-      Database.use((db) =>
+      const ended = Database.use((db) =>
         db
           .update(AgentRunTable)
           .set({ status, time_ended: Date.now() })
           .where(and(eq(AgentRunTable.id, id), eq(AgentRunTable.status, "running")))
-          .run(),
+          .returning()
+          .get(),
       )
+      if (ended) {
+        Audit.record({
+          eventType: status === "completed" ? "run.ended" : "run.aborted",
+          runId: ended.id,
+          principalId: ended.principal_id,
+          sessionId: ended.session_id,
+          ...(ended.parent_run_id ? { parentRunId: ended.parent_run_id } : {}),
+        })
+      }
     })
 
     const getRun = Effect.fn("DelegationRegistry.getRun")(function* (id: RunID) {

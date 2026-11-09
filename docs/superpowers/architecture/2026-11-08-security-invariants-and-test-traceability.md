@@ -121,11 +121,11 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| AU-01 | 실행 기록이 parentSessionId/sessionId metadata로 연결된다(현재 동작) | **NOT TESTED** | 코드 근거만 존재(`task.ts:243-253`) + `x-parent-session-id` 헤더(`session/llm/request.ts:169`). 이 작업에서 실행 기록 연결을 검증하는 테스트를 **실행하지 않음** → NOT TESTED. **free-form이며 typed 아님** — AU-02로 보강 필요 |
-| AU-02 | parentRunId/childRunId **typed** 교차 Run 연결 | **FUTURE CONTRACT** | Phase 4. 현재 typed 필드 없음(확인된 사실) |
-| AU-03 | 도구 실행 allow/deny/ask + errorCode + policyRevision 감사 기록 | **FUTURE CONTRACT** | Phase 4. 현재 감사 레코드 스키마 없음 |
-| AU-04 | 프롬프트 원문 미기록 + usage/보안 감사 분리 | **FUTURE CONTRACT** | §4.4 계약 존재, 구현·검증은 Phase 4 |
-| AU-05 | 철회 이벤트 감사 기록 | **FUTURE CONTRACT** | Phase 4 |
+| AU-01 | 실행 기록이 parentSessionId/sessionId metadata로 연결된다(현재 동작) | **NOT TESTED** | 코드 근거만 존재(`task.ts:243-253`) + `x-parent-session-id` 헤더(`session/llm/request.ts:169`). 이 작업에서 실행 기록 연결을 검증하는 테스트를 **실행하지 않음** → NOT TESTED. **free-form이며 typed 아님** — AU-02로 보강 필요. Phase 4 Task 8의 typed 연결(AU-02 PASS)이 이 자유 형식 연결을 대신한다 |
+| AU-02 | parentRunId/childRunId **typed** 교차 Run 연결 | **PASS** | Phase 4 Task 8. `bun test test/delegation/audit.test.ts` 5 pass / 0 fail(2026-11-09). `run.started` 기록에 `parent_run_id`와 `grant_id`가 열로 들어간다. 부모 Run ID로 자식 Run 시작 기록을 조회할 수 있다 |
+| AU-03 | 도구 실행 allow/deny/ask + errorCode + policyRevision 감사 기록 | **PASS** | Phase 4 Task 8. `bun test test/delegation/audit.test.ts` 5 pass / 0 fail(2026-11-09), `bun test test/session/prompt.test.ts -t AU-04` 1 pass / 0 fail(2026-11-09). 위임 층은 도구 호출마다 `tool.allowed` 또는 `tool.denied`를 사유, 정책 revision과 함께 남긴다. 패턴 단위 검사는 거부만 남긴다. 권한 엔진 단계는 규칙이 ask이면 `tool.asked`를, 엔진이 거부하면 거부 종류와 함께 `tool.denied`를 남긴다. 한계: 이전에 저장된 승인으로 묻지 않고 끝난 호출도 `tool.asked`로 기록될 수 있다 |
+| AU-04 | 프롬프트 원문 미기록 + usage/보안 감사 분리 | **PASS** | Phase 4 Task 8. `bun test test/session/prompt.test.ts -t AU-04` 1 pass / 0 fail(2026-11-09). 실제 루프의 감사 행 전체에 사용자 프롬프트, 도구 인자, 도구 출력의 표식이 없다. 감사 테이블에는 이 내용을 담는 열이 없다(마이그레이션 테스트). 사용량 기록은 별도 JSONL 파일이다 |
+| AU-05 | 철회 이벤트 감사 기록 | **PASS** | Phase 4 Task 8. `bun test test/delegation/audit.test.ts` 5 pass / 0 fail(2026-11-09). Principal 철회, 철회된 Grant마다 `grant.revoked`, 닫힌 Run마다 `run.aborted`가 남는다 |
 
 ---
 
