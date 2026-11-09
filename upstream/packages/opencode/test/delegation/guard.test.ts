@@ -154,6 +154,51 @@ describe("delegation guard (Phase 4 Task 5/6)", () => {
   )
 })
 
+describe("context isolation (Phase 4 Task 6a)", () => {
+  it.instance("CX-04: a child session cannot be resumed by a delegator that does not own it", () =>
+    Effect.gen(function* () {
+      const guard = yield* Guard.Service
+      const registry = yield* Registry.Service
+      // Parent P1 delegates child C.
+      yield* guard.beginRun({ sessionID: session(1), agent: "build" })
+      yield* guard.delegate({ parentSessionID: session(1), childSessionID: session(3), agent: "general", capabilities: [allow("*")], inherited: [] })
+      yield* guard.endRun(session(3), "completed")
+      // Another root session P2 tries to resume C.
+      yield* guard.beginRun({ sessionID: session(2), agent: "build" })
+      const foreign = yield* guard
+        .delegate({ parentSessionID: session(2), childSessionID: session(3), agent: "general", capabilities: [allow("*")], inherited: [] })
+        .pipe(Effect.exit)
+      expect(reason(foreign)).toBe("context_out_of_scope")
+      expect(yield* registry.activeRun(session(3))).toBeUndefined()
+      // P1 itself may resume C, under the same child principal.
+      const before = (yield* registry.getRun((yield* guard.delegate({ parentSessionID: session(1), childSessionID: session(3), agent: "general", capabilities: [allow("*")], inherited: [] })).runId))!
+      expect((yield* registry.getPrincipal(before.principalId))?.ownerId).toBe((yield* registry.activeRun(session(1)))!.principalId)
+    }),
+  )
+
+  it.instance("CX-03: a child result is deliverable only to the session of the run that delegated it", () =>
+    Effect.gen(function* () {
+      const guard = yield* Guard.Service
+      yield* guard.beginRun({ sessionID: session(1), agent: "build" })
+      yield* guard.beginRun({ sessionID: session(2), agent: "build" })
+      const { runId } = yield* guard.delegate({
+        parentSessionID: session(1),
+        childSessionID: session(3),
+        agent: "general",
+        capabilities: [allow("*")],
+        inherited: [],
+      })
+      expect(yield* guard.deliverable(runId, session(1))).toBe(true)
+      expect(yield* guard.deliverable(runId, session(2))).toBe(false)
+      expect(yield* guard.deliverable(runId, session(3))).toBe(false)
+      // A parent loop that ended and restarted is the same session: still deliverable.
+      yield* guard.endRun(session(1), "completed")
+      yield* guard.beginRun({ sessionID: session(1), agent: "build" })
+      expect(yield* guard.deliverable(runId, session(1))).toBe(true)
+    }),
+  )
+})
+
 // RV-04: state that cannot be read is a deny.
 const brokenRegistry = Layer.succeed(
   Registry.Service,

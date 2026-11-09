@@ -14,6 +14,7 @@ import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { TaskTool, delegatedPromptParts, type TaskPromptOps } from "../../src/tool/task"
+import { RunID } from "../../src/delegation/schema"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -132,7 +133,8 @@ function stubOps(opts?: { onPrompt?: (input: SessionPrompt.PromptInput) => void;
   return {
     cancel: () => Effect.void,
     resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
-    delegate: () => Effect.void,
+    delegate: () => Effect.succeed({ runId: RunID.ascending() }),
+    deliverable: () => Effect.succeed(true),
     prompt: (input) =>
       Effect.sync(() => {
         opts?.onPrompt?.(input)
@@ -355,6 +357,62 @@ describe("tool.task", () => {
     }),
   )
 
+  it.instance("CX-03: a child result that is not deliverable to this session is withheld", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const promptOps: TaskPromptOps = { ...stubOps({ text: "CX03_CHILD_RESULT" }), deliverable: () => Effect.succeed(false) }
+      const exit = yield* def
+        .execute(
+          { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general" },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(JSON.stringify(exit)).not.toContain("CX03_CHILD_RESULT")
+    }),
+  )
+
+  it.instance("a failed delegation stops the task before the child runs", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+      const promptOps: TaskPromptOps = {
+        ...stubOps({ onPrompt: () => (prompted = true) }),
+        delegate: () => Effect.fail(new Error("Delegated authority does not allow \"task\" here (no_parent_run).")),
+      }
+      const exit = yield* def
+        .execute(
+          { description: "inspect bug", prompt: "look", subagent_type: "general" },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+    }),
+  )
+
   it.instance("execute asks by default and skips checks when bypassed", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()
@@ -415,7 +473,8 @@ describe("tool.task", () => {
             cancelled.resolve(sessionID)
           }),
         resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
-        delegate: () => Effect.void,
+        delegate: () => Effect.succeed({ runId: RunID.ascending() }),
+    deliverable: () => Effect.succeed(true),
         prompt: (input) =>
           Effect.promise(() => {
             ready.resolve(input)

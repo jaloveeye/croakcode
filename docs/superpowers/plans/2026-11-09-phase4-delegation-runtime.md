@@ -262,6 +262,9 @@ Gate가 도구 실행마다 허가 토큰을 발급하고, croakcode가 실행 �
 - 테스트: CX-03, CX-04, CX-05. CX-05 테스트는 수정 전 코드에서 실패해야 한다.
 
 CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼저 별도 PR로 고친다. 2026-11-09에 `delegatedPromptParts`로 고쳤다. 사용자가 실행하는 서브태스크 명령도 같은 실행 경로를 쓰므로, 명령 템플릿의 파일 참조도 텍스트 안내로 바뀐다.
+- 완료(2026-11-09): CX-03과 CX-04가 PASS다. `Guard.delegate`가 자식 Run ID를 돌려준다. `Guard.deliverable`이 결과를 넣을 세션을 확인한다.
+- 재개할 때 이전 Principal의 owner가 지금 위임자가 아니면 `context_out_of_scope`로 거부한다. 처음 구현은 이때 새 Principal을 조용히 발급했다.
+- 위임이 실패하면 task 도구는 자식을 실행하지 않고 오류를 돌려준다.
 
 ### Task 7. 철회
 
