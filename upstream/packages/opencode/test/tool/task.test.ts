@@ -132,6 +132,7 @@ function stubOps(opts?: { onPrompt?: (input: SessionPrompt.PromptInput) => void;
   return {
     cancel: () => Effect.void,
     resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+    delegate: () => Effect.void,
     prompt: (input) =>
       Effect.sync(() => {
         opts?.onPrompt?.(input)
@@ -414,6 +415,7 @@ describe("tool.task", () => {
             cancelled.resolve(sessionID)
           }),
         resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+        delegate: () => Effect.void,
         prompt: (input) =>
           Effect.promise(() => {
             ready.resolve(input)

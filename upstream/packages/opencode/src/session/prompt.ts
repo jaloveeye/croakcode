@@ -50,6 +50,7 @@ import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Guard } from "@/delegation/guard"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
 import { ModelV2 } from "@croakcode/core/model"
@@ -133,11 +134,13 @@ export const layer = Layer.effect(
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
+    const guard = yield* Guard.Service
     const ops = Effect.fn("SessionPrompt.ops")(function* () {
       return {
         cancel: (sessionID: SessionID) => cancel(sessionID),
         resolvePromptParts: (template: string) => resolvePromptParts(template),
         prompt: (input: PromptInput) => prompt(input).pipe(Effect.catch(Effect.die)),
+        delegate: (input) => guard.delegate(input).pipe(Effect.mapError((err) => new Error(err.message))),
       } satisfies TaskPromptOps
     })
 
@@ -376,8 +379,12 @@ export const layer = Layer.effect(
 
       let error: Error | undefined
       const taskAbort = new AbortController()
-      const result = yield* taskTool
-        .execute(taskArgs, {
+      const result = yield* guard
+        .checkTool(sessionID, TaskTool.id)
+        .pipe(Effect.orDie)
+        .pipe(
+          Effect.andThen(
+            taskTool.execute(taskArgs, {
           agent: task.agent,
           messageID: assistantMessage.id,
           sessionID,
@@ -394,14 +401,19 @@ export const layer = Layer.effect(
               } satisfies MessageV2.ToolPart)
             }),
           ask: (req: any) =>
-            permission
-              .ask({
-                ...req,
-                sessionID,
-                ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
-              })
-              .pipe(Effect.orDie),
-        })
+            guard.checkPatterns(sessionID, req.permission, req.patterns).pipe(
+              Effect.andThen(
+                permission.ask({
+                  ...req,
+                  sessionID,
+                  ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
+                }),
+              ),
+              Effect.orDie,
+            ),
+            }),
+          ),
+        )
         .pipe(
           Effect.catchCause((cause) => {
             const defect = Cause.squash(cause)
@@ -1422,6 +1434,7 @@ export const layer = Layer.effect(
               Effect.provideService(ToolRegistry.Service, registry),
               Effect.provideService(MCP.Service, mcp),
               Effect.provideService(Truncate.Service, truncate),
+              Effect.provideService(Guard.Service, guard),
             )
 
             if (lastUser.format?.type === "json_schema") {
@@ -1542,10 +1555,30 @@ export const layer = Layer.effect(
       },
     )
 
+    // Phase 4 Task 5: every loop runs inside a delegation run. A top-level
+    // session gets a root run; a delegated child uses the run the task tool
+    // issued. The run ends with the loop.
+    const delegatedLoop = (sessionID: SessionID) =>
+      Effect.gen(function* () {
+        const info = yield* sessions.get(sessionID).pipe(Effect.orDie)
+        yield* guard
+          .beginRun({
+            sessionID,
+            ...(info.parentID ? { parentID: info.parentID } : {}),
+            agent: info.agent ?? "unknown",
+          })
+          .pipe(Effect.catchDefect((defect) => elog.warn("delegation run not started", { sessionID, defect: String(defect) })))
+        return yield* runLoop(sessionID)
+      }).pipe(
+        Effect.onExit((exit) =>
+          guard.endRun(sessionID, Exit.isSuccess(exit) ? "completed" : "aborted").pipe(Effect.catchDefect(() => Effect.void)),
+        ),
+      )
+
     const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
-      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), delegatedLoop(input.sessionID))
     })
 
     const shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError> = Effect.fn(
@@ -1686,7 +1719,7 @@ export const layer = Layer.effect(
 export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
     Layer.provide(SessionRunState.defaultLayer),
-    Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, Todo.defaultLayer)),
+    Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, Todo.defaultLayer, Guard.defaultLayer)),
     Layer.provide(SessionCompaction.defaultLayer),
     Layer.provide(SessionProcessor.defaultLayer),
     Layer.provide(Command.defaultLayer),

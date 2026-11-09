@@ -3,7 +3,12 @@ import { FetchHttpClient } from "effect/unstable/http"
 import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import path from "path"
-import { existsSync } from "fs"
+import { existsSync, mkdtempSync, writeFileSync } from "fs"
+import os from "os"
+import { createHmac } from "node:crypto"
+import { jsonSchema } from "ai"
+import { eq } from "drizzle-orm"
+import { AgentRunTable, DelegationGrantTable } from "../../src/delegation/delegation.sql"
 import { fileURLToPath, pathToFileURL } from "url"
 import { NamedError } from "@croakcode/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
@@ -35,6 +40,7 @@ import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt } from "../../src/session/prompt"
+import { Guard } from "../../src/delegation/guard"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
@@ -113,12 +119,15 @@ function errorTool(parts: MessageV2.Part[]) {
   return part?.state.status === "error" ? (part as ErrorToolPart) : undefined
 }
 
+// Tests may register MCP tools here; the stub returns whatever is present.
+const mcpTools: Record<string, any> = {}
+
 const mcp = Layer.succeed(
   MCP.Service,
   MCP.Service.of({
     status: () => Effect.succeed({}),
     clients: () => Effect.succeed({}),
-    tools: () => Effect.succeed({}),
+    tools: () => Effect.succeed({ ...mcpTools }),
     prompts: () => Effect.succeed({}),
     resources: () => Effect.succeed({}),
     add: () => Effect.succeed({ status: { status: "disabled" as const } }),
@@ -220,6 +229,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
     Layer.provideMerge(deps),
   )
   return SessionPrompt.layer.pipe(
+    Layer.provide(Guard.defaultLayer),
     Layer.provide(SessionRevert.defaultLayer),
     Layer.provide(Image.defaultLayer),
     Layer.provide(Reference.defaultLayer),
@@ -877,6 +887,190 @@ it.instance(
       for (const body of sent) expect(body).not.toContain("CX05_SECRET_CONTENT")
       // The mention itself still reaches the child as text, so it can ask to read.
       expect(sent.some((body) => body.includes(path.basename(outside)))).toBe(true)
+    }),
+  30_000,
+)
+
+// Phase 4 Task 5/6: delegated authority on the three execution paths.
+const withPolicy = <A, E, R>(body: unknown, self: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const saved = { file: process.env.CROAKCODE_ADMIN_POLICY_FILE, key: process.env.CROAKCODE_ADMIN_POLICY_KEY }
+      const dir = mkdtempSync(path.join(os.tmpdir(), "croak-policy-"))
+      const file = path.join(dir, "policy.json")
+      const text = JSON.stringify(body)
+      writeFileSync(file, text)
+      writeFileSync(`${file}.sig`, createHmac("sha256", "phase4-test-key").update(text).digest("hex"))
+      process.env.CROAKCODE_ADMIN_POLICY_FILE = file
+      process.env.CROAKCODE_ADMIN_POLICY_KEY = "phase4-test-key"
+      return saved
+    }),
+    () => self,
+    (saved) =>
+      Effect.sync(() => {
+        if (saved.file === undefined) delete process.env.CROAKCODE_ADMIN_POLICY_FILE
+        else process.env.CROAKCODE_ADMIN_POLICY_FILE = saved.file
+        if (saved.key === undefined) delete process.env.CROAKCODE_ADMIN_POLICY_KEY
+        else process.env.CROAKCODE_ADMIN_POLICY_KEY = saved.key
+      }),
+  )
+
+it.instance(
+  "Phase 4: the native tool path re-checks delegated authority before running",
+  () =>
+    Effect.gen(function* () {
+      const { llm, dir } = yield* useServerConfig(providerCfg)
+      yield* writeText(path.join(dir, "note.txt"), "PHASE4_NATIVE_CONTENT")
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* llm.tool("read", { filePath: path.join(dir, "note.txt") })
+      yield* llm.text("done")
+      yield* user(chat.id, "hello")
+      yield* withPolicy({ revision: 1, rules: [{ permission: "read", pattern: "*", action: "deny" }] }, prompt.loop({ sessionID: chat.id }))
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const assistant = msgs.find((m) => m.info.role === "assistant" && m.parts.some((p) => p.type === "tool"))
+      const tool = assistant ? errorTool(assistant.parts) : undefined
+      expect(tool?.state.error).toContain("Delegated authority")
+      const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
+      for (const body of sent) expect(body).not.toContain("PHASE4_NATIVE_CONTENT")
+    }),
+  30_000,
+)
+
+it.instance(
+  "Phase 4: the MCP tool path re-checks delegated authority before running",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      let ran = false
+      mcpTools.fake_mcp = {
+        description: "fake MCP tool",
+        inputSchema: jsonSchema({ type: "object", properties: {} }),
+        execute: async () => {
+          ran = true
+          return { content: [{ type: "text", text: "MCP_RAN" }] }
+        },
+      }
+      try {
+        const prompt = yield* SessionPrompt.Service
+        const sessions = yield* Session.Service
+        const chat = yield* sessions.create({
+          title: "Pinned",
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        })
+        yield* llm.tool("fake_mcp", {})
+        yield* llm.text("done")
+        yield* user(chat.id, "hello")
+        yield* withPolicy(
+          { revision: 1, rules: [{ permission: "fake_mcp", pattern: "*", action: "deny" }] },
+          prompt.loop({ sessionID: chat.id }),
+        )
+        expect(ran).toBe(false)
+        const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+        const assistant = msgs.find((m) => m.info.role === "assistant" && m.parts.some((p) => p.type === "tool"))
+        const tool = assistant ? errorTool(assistant.parts) : undefined
+        expect(tool?.state.error).toContain("Delegated authority")
+      } finally {
+        delete mcpTools.fake_mcp
+      }
+    }),
+  30_000,
+)
+
+it.instance(
+  "Phase 4: the user-invoked subtask path re-checks delegated authority",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Pinned" })
+      yield* llm.text("done")
+      const msg = yield* user(chat.id, "hello")
+      yield* addSubtask(chat.id, msg.id)
+      yield* withPolicy({ revision: 1, rules: [{ permission: "task", pattern: "*", action: "deny" }] }, prompt.loop({ sessionID: chat.id }))
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const task = msgs
+        .flatMap((m) => m.parts)
+        .find((p): p is MessageV2.ToolPart => p.type === "tool" && p.tool === "task")
+      expect(task?.state.status).toBe("error")
+      if (task?.state.status === "error") expect(task.state.error).toContain("Delegated authority")
+      // The child never ran.
+      expect((yield* sessions.children(chat.id)).length).toBe(0)
+    }),
+  30_000,
+)
+
+it.instance(
+  "Phase 4 Task 6: the task tool links the child run to the parent run through a grant",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* llm.tool("task", { description: "inspect", prompt: "look", subagent_type: "general" })
+      yield* llm.text("child done")
+      yield* llm.text("parent done")
+      yield* user(chat.id, "hello")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const [child] = yield* sessions.children(chat.id)
+      expect(child).toBeDefined()
+      const rows = Database.use((db) => db.select().from(AgentRunTable).all())
+      const parentRun = rows.find((row) => row.session_id === chat.id)
+      const childRun = rows.find((row) => row.session_id === child!.id)
+      expect(parentRun?.status).toBe("completed")
+      expect(childRun?.status).toBe("completed")
+      expect(childRun?.parent_run_id).toBe(parentRun!.id)
+      const grant = Database.use((db) =>
+        db.select().from(DelegationGrantTable).where(eq(DelegationGrantTable.id, childRun!.grant_id!)).get(),
+      )
+      expect(grant?.parent_run_id).toBe(parentRun!.id)
+      expect(grant?.delegatee_principal_id).toBe(childRun!.principal_id)
+    }),
+  30_000,
+)
+
+it.instance(
+  "SC-05: an allow from the delegation layer never lifts a permission-engine deny",
+  () =>
+    Effect.gen(function* () {
+      const { llm, dir } = yield* useServerConfig(providerCfg)
+      yield* writeText(path.join(dir, "note.txt"), "SC05_CONTENT")
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        // A path-level deny keeps the read tool exposed, so the call reaches
+        // the permission engine (a tool-wide deny would hide the tool).
+        permission: [
+          { permission: "*", pattern: "*", action: "allow" },
+          { permission: "read", pattern: "*note.txt", action: "deny" },
+        ],
+      })
+      yield* llm.tool("read", { filePath: path.join(dir, "note.txt") })
+      yield* llm.text("done")
+      yield* user(chat.id, "hello")
+      // No organisation policy: the delegation layer allows read.
+      yield* prompt.loop({ sessionID: chat.id })
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const assistant = msgs.find((m) => m.info.role === "assistant" && m.parts.some((p) => p.type === "tool"))
+      const tool = assistant ? errorTool(assistant.parts) : undefined
+      expect(tool?.tool).toBe("read")
+      expect(tool?.state.error).not.toContain("Delegated authority")
+      expect(tool?.state.error).toContain("rule which prevents")
+      const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
+      for (const body of sent) expect(body).not.toContain("SC05_CONTENT")
     }),
   30_000,
 )

@@ -213,6 +213,17 @@ describe("effective authorization (Phase 4 Task 4)", () => {
       const bash = yield* effective.decide({ runId: viaSecond.id, permission: "bash", pattern: "ls" })
       expect(bash.action).toBe("deny")
       expect((yield* effective.decide({ runId: viaSecond.id, permission: "read", pattern: "*" })).action).toBe("allow")
+
+      // Revoking the grant this run started under denies it, even though the
+      // principal still holds an active grant on the other path.
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db.update(DelegationGrantTable).set({ status: "revoked" }).where(eq(DelegationGrantTable.id, second.id)).run(),
+        ),
+      )
+      const revoked = yield* effective.decide({ runId: viaSecond.id, permission: "read", pattern: "*" })
+      expect(revoked.action).toBe("deny")
+      expect(revoked.reason).toBe("grant_inactive")
     }),
   )
 
@@ -277,6 +288,37 @@ describe("effective authorization (Phase 4 Task 4)", () => {
       expect(outside.reason).toBe("out_of_scope")
       const relative = yield* effective.decide({ runId: bRun.id, permission: "read", pattern: "*", path: "src/a.ts" })
       expect(relative.action).toBe("deny")
+    }),
+  )
+
+  it.instance("a tool-level check does not let a path-scoped grant rule deny the whole tool", () =>
+    Effect.gen(function* () {
+      delete process.env.CROAKCODE_ADMIN_POLICY_FILE
+      const { bRun } = yield* delegated({
+        a: [allow("*")],
+        b: [allow("*")],
+        grant: [allow("read", "/work/project/*")],
+      })
+      const effective = yield* Effective.Service
+      const tool = (permission: string) => effective.decide({ runId: bRun.id, permission, pattern: "*", toolLevel: true })
+      expect((yield* tool("read")).action).toBe("allow")
+      expect((yield* tool("bash")).action).toBe("deny")
+      const outside = yield* effective.decide({ runId: bRun.id, permission: "read", pattern: "/etc/passwd" })
+      expect(outside.action).toBe("deny")
+      const inside = yield* effective.decide({ runId: bRun.id, permission: "read", pattern: "/work/project/a.ts" })
+      expect(inside.action).toBe("allow")
+    }),
+  )
+
+  it.instance("an organisation policy that names nothing about a tool does not block it", () =>
+    Effect.gen(function* () {
+      writePolicy({ revision: 1, rules: [deny("webfetch")] })
+      const registry = yield* Registry.Service
+      const effective = yield* Effective.Service
+      const a = yield* registry.issuePrincipal({ ownerId: HUMAN_LOCAL, definition: "build", role: "r", capabilities: [allow("*")] })
+      const run = yield* registry.startRun({ principalId: a.id, sessionId: session(1), policyRevision: 1 })
+      expect((yield* effective.decide({ runId: run.id, permission: "read", pattern: "*" })).action).toBe("allow")
+      expect((yield* effective.decide({ runId: run.id, permission: "webfetch", pattern: "x" })).action).toBe("deny")
     }),
   )
 })

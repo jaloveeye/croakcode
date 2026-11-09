@@ -7,6 +7,7 @@ import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
+import type { Permission } from "../permission"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
 import { connectionFor, containsGateContext, originFor } from "@/session/llm/mode"
@@ -40,6 +41,17 @@ export function delegatedPromptParts(
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
   resolvePromptParts(template: string): Effect.Effect<SessionPrompt.PromptInput["parts"]>
+  /**
+   * Phase 4: issue the child principal, grant and run under the parent's
+   * active run. Fails when the parent run cannot delegate.
+   */
+  delegate(input: {
+    parentSessionID: SessionID
+    childSessionID: SessionID
+    agent: string
+    capabilities: Permission.Ruleset
+    inherited: Permission.Ruleset
+  }): Effect.Effect<void, Error>
   prompt(input: SessionPrompt.PromptInput): Effect.Effect<MessageV2.WithParts>
 }
 
@@ -351,6 +363,16 @@ export const TaskTool = Tool.define(
       if (existing?.status === "running") {
         return yield* Effect.fail(new Error(`Task ${nextSession.id} is already running.`))
       }
+
+      // Phase 4 Task 6: the child runs only under an explicit grant from the
+      // parent's active run (INV-5.4). Covers foreground, background and resume.
+      yield* ops.delegate({
+        parentSessionID: ctx.sessionID,
+        childSessionID: nextSession.id,
+        agent: next.name,
+        capabilities: next.permission,
+        inherited: inheritedPermission,
+      })
 
       if (runInBackground) {
         const info = yield* background.start({

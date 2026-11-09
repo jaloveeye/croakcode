@@ -47,17 +47,37 @@ export function explicit(permission: string, pattern: string, ruleset: Permissio
 }
 
 /**
- * The first probe where `child` explicitly decides more loosely than
- * `parent`, if any. A point the child does not mention is skipped: there the
- * child layer falls back to "ask", and the execution-time intersection with
- * the parent keeps the parent's stricter decision. Requiring every grant to
- * restate its delegator's denies would add nothing to the enforcement.
+ * How a layer reads a point none of its rules names. A restriction layer
+ * (organisation policy, a principal's own rules) has no opinion there. A
+ * grant is an allow-list: what it does not name, it does not delegate.
  */
-export function looserProbe(child: Permission.Ruleset, parent: Permission.Ruleset) {
-  return probes(child, parent).find((probe) => {
+export type Unmatched = "neutral" | "deny"
+
+export function decideLayer(
+  permission: string,
+  pattern: string,
+  ruleset: Permission.Ruleset,
+  unmatched: Unmatched,
+): Action {
+  const rule = explicit(permission, pattern, ruleset)
+  if (rule) return rule.action
+  return unmatched === "deny" ? "deny" : "allow"
+}
+
+/**
+ * The first probe where `child` lets through something `source` denies.
+ *
+ * Delegation layers are enforced as denies only: an allow or ask passes to
+ * the existing permission engine. So a grant escalates exactly when its
+ * source denies a point and the grant names that point without denying it.
+ * A point the grant does not name is a deny for an allow-list grant, so it
+ * cannot escalate.
+ */
+export function looserProbe(child: Permission.Ruleset, source: Permission.Ruleset, sourceUnmatched: Unmatched) {
+  return probes(child, source).find((probe) => {
     const rule = explicit(probe.permission, probe.pattern, child)
-    if (!rule) return false
-    return looser(rule.action, decide(probe.permission, probe.pattern, parent))
+    if (!rule || rule.action === "deny") return false
+    return decideLayer(probe.permission, probe.pattern, source, sourceUnmatched) === "deny"
   })
 }
 

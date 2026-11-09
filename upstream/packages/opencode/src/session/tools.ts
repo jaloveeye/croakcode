@@ -18,6 +18,7 @@ import { SessionProcessor } from "./processor"
 import { PartID } from "./schema"
 import * as Log from "@croakcode/core/util/log"
 import { EffectBridge } from "@/effect/bridge"
+import { Guard } from "@/delegation/guard"
 
 const log = Log.create({ service: "session.tools" })
 
@@ -38,6 +39,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   const registry = yield* ToolRegistry.Service
   const mcp = yield* MCP.Service
   const truncate = yield* Truncate.Service
+  // Phase 4: delegated authority is re-checked right before each tool runs.
+  const guard = yield* Guard.Service
 
   const context = (args: Record<string, unknown>, options: ToolExecutionOptions): Tool.Context => ({
     sessionID: input.session.id,
@@ -62,14 +65,17 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
         }
       }),
     ask: (req) =>
-      permission
-        .ask({
-          ...req,
-          sessionID: input.session.id,
-          tool: { messageID: input.processor.message.id, callID: options.toolCallId },
-          ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
-        })
-        .pipe(Effect.orDie),
+      guard.checkPatterns(input.session.id, req.permission, req.patterns).pipe(
+        Effect.andThen(
+          permission.ask({
+            ...req,
+            sessionID: input.session.id,
+            tool: { messageID: input.processor.message.id, callID: options.toolCallId },
+            ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
+          }),
+        ),
+        Effect.orDie,
+      ),
   })
 
   for (const item of yield* registry.tools({
@@ -90,6 +96,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
               { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
               { args },
             )
+            yield* guard.checkTool(ctx.sessionID, item.id).pipe(Effect.orDie)
             const result = yield* item.execute(args, ctx)
             const output = {
               ...result,
@@ -131,6 +138,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId },
             { args },
           )
+          yield* guard.checkTool(ctx.sessionID, key).pipe(Effect.orDie)
           const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.gen(function* () {
             yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
             return yield* Effect.promise(() => execute(args, opts))
