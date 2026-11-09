@@ -8,6 +8,7 @@ import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { Permission } from "../permission"
+import type { RunID } from "../delegation/schema"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
 import { connectionFor, containsGateContext, originFor } from "@/session/llm/mode"
@@ -51,7 +52,9 @@ export interface TaskPromptOps {
     agent: string
     capabilities: Permission.Ruleset
     inherited: Permission.Ruleset
-  }): Effect.Effect<void, Error>
+  }): Effect.Effect<{ runId: RunID }, Error>
+  /** CX-03: whether the child run's result may be delivered into this session. */
+  deliverable(childRunId: RunID, sessionID: SessionID): Effect.Effect<boolean>
   prompt(input: SessionPrompt.PromptInput): Effect.Effect<MessageV2.WithParts>
 }
 
@@ -333,6 +336,8 @@ export const TaskTool = Tool.define(
         state: "completed" | "error",
         text: string,
       ) {
+        // CX-03: deliver only into the session of the run that delegated.
+        if (!(yield* ops.deliverable(childRunId, ctx.sessionID))) return
         const currentParent = yield* sessions.get(ctx.sessionID)
         // SEC-03: the injected sub-agent result is model/tool output. Stamp it
         // with the provenance of the run that produced it so a later direct-mode
@@ -366,7 +371,7 @@ export const TaskTool = Tool.define(
 
       // Phase 4 Task 6: the child runs only under an explicit grant from the
       // parent's active run (INV-5.4). Covers foreground, background and resume.
-      yield* ops.delegate({
+      const { runId: childRunId } = yield* ops.delegate({
         parentSessionID: ctx.sessionID,
         childSessionID: nextSession.id,
         agent: next.name,
@@ -415,6 +420,9 @@ export const TaskTool = Tool.define(
         () =>
           Effect.gen(function* () {
             const text = yield* runTask()
+            if (!(yield* ops.deliverable(childRunId, ctx.sessionID))) {
+              return yield* Effect.fail(new Error("Sub-agent result is not deliverable to this session."))
+            }
             const origin = yield* resultOrigin()
             return {
               title: params.description,

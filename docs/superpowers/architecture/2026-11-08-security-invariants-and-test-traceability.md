@@ -104,8 +104,8 @@
 |---|---|---|---|
 | CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **NOT TESTED** | 코드 근거(`task.ts:277`: `resolvePromptParts(params.prompt)`만 전달). `test/tool/task.test.ts`에는 `resolvePromptParts`의 가짜 구현만 있고, 자식에 전달된 내용을 검사하는 테스트가 없다(2026-11-09 확인) |
 | CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **PASS** | 2026-11-09 실행: `bun test test/session/sec03-gate-direct-e2e.test.ts` → 8 pass / 0 fail. 근거 테스트 "direct request after a real gate turn omits gate output and keeps direct history"(1 pass)는 gate 턴의 응답이 이후 direct 요청 본문에 없음을 확인한다. 요청 조립 지점 `prompt.ts:1465-1471` |
-| CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **FUTURE CONTRACT** | Phase 4 Task 6a |
-| CX-04 | Grant scope 밖 컨텍스트 접근 deny | **FUTURE CONTRACT** | Phase 4 Task 6a |
+| CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **PASS** | Phase 4 Task 6a. `bun test test/delegation/guard.test.ts` 13 pass / 0 fail, `bun test test/tool/task.test.ts` 30 pass / 0 fail(2026-11-09). 자식 결과는 그 위임을 만든 Run의 세션에만 들어간다. 포그라운드 결과와 백그라운드 주입 모두 넣기 직전에 확인한다. 조건이 맞지 않으면 결과를 넣지 않는다 |
+| CX-04 | Grant scope 밖 컨텍스트 접근 deny | **PASS** | Phase 4 Task 6a. `bun test test/delegation/guard.test.ts` 13 pass / 0 fail, `bun test test/tool/task.test.ts` 30 pass / 0 fail(2026-11-09). 다른 위임자가 소유한 자식 세션은 재개할 수 없다. 철회된 자식 Principal은 재개로 되살아나지 않는다. 파일 접근은 Task 5의 범위 검사가 막고, 위임 프롬프트의 파일 참조는 CX-05 수정이 막는다 |
 | CX-05 | 모델이 쓴 위임 프롬프트의 파일 참조가 권한 확인 없이 읽히지 않는다 | **PASS** | 2026-11-09 재현 뒤 수정했다. 수정 전에는 read와 `external_directory`를 deny한 세션에서 위임 프롬프트의 `@/절대경로` 파일 내용이 자식의 LLM 요청 본문에 실렸다. `task.ts`의 `delegatedPromptParts`가 위임 프롬프트의 파일 part를 텍스트 안내로 바꾼다. 자식은 read 도구로 읽어야 하고, read 도구는 권한 확인과 before 훅을 거친다. 실행 증거: `prompt.test.ts -t CX-05` 수정 전 0 pass / 1 fail, 수정 후 1 pass / 0 fail. `task.test.ts -t CX-05` 1 pass |
 
 ---

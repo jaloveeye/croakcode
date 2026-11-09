@@ -141,6 +141,7 @@ export const layer = Layer.effect(
         resolvePromptParts: (template: string) => resolvePromptParts(template),
         prompt: (input: PromptInput) => prompt(input).pipe(Effect.catch(Effect.die)),
         delegate: (input) => guard.delegate(input).pipe(Effect.mapError((err) => new Error(err.message))),
+        deliverable: (childRunId, sessionID) => guard.deliverable(childRunId, sessionID),
       } satisfies TaskPromptOps
     })
 

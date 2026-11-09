@@ -11,7 +11,7 @@ import { Effective } from "./effective"
 import { Grants } from "./grants"
 import { Policy } from "./policy"
 import { Registry } from "./registry"
-import { HUMAN_LOCAL, type PrincipalID } from "./schema"
+import { HUMAN_LOCAL, type PrincipalID, type RunID } from "./schema"
 
 // Phase 4 Task 5/6 — the runtime side of the delegation layer.
 //
@@ -52,7 +52,12 @@ export interface Interface {
     readonly agent: string
     readonly capabilities: Permission.Ruleset
     readonly inherited: Permission.Ruleset
-  }) => Effect.Effect<void, DelegationDeniedError>
+  }) => Effect.Effect<{ readonly runId: RunID }, DelegationDeniedError>
+  /**
+   * CX-03: whether a child run's result may be delivered into `sessionID`.
+   * Only the session of the run that delegated it qualifies.
+   */
+  readonly deliverable: (childRunId: RunID, sessionID: SessionID) => Effect.Effect<boolean>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@croakcode/DelegationGuard") {}
@@ -172,13 +177,17 @@ export const layer = Layer.effect(
       const parentGrant = parentRun.grantId ? yield* grants.get(parentRun.grantId) : undefined
       if (parentRun.grantId && !parentGrant) return yield* deny("grant_inactive")
 
-      // Reuse the child's principal on resume when it is still ours and active.
+      // CX-04: a child session that already ran belongs to the principal that
+      // delegated it. Resuming it from any other delegator would hand that
+      // principal the child's context, so it is refused. A revoked child
+      // principal is not revived.
       const previous = lastPrincipalOf(input.childSessionID)
       const known = previous ? yield* registry.getPrincipal(previous) : undefined
-      const delegatee =
-        known && known.status === "active" && known.ownerId === delegator.id
-          ? known
-          : yield* registry
+      if (known && known.ownerId !== delegator.id) return yield* deny("context_out_of_scope")
+      if (known && known.status !== "active") return yield* deny("principal_inactive")
+      const delegatee = known
+        ? known
+        : yield* registry
               .issuePrincipal({
                 ownerId: delegator.id,
                 definition: input.agent,
@@ -214,7 +223,7 @@ export const layer = Layer.effect(
         })
         .pipe(Effect.mapError((err) => deny(err.reason)))
 
-      yield* registry
+      const run = yield* registry
         .startRun({
           principalId: delegatee.id,
           sessionId: input.childSessionID,
@@ -223,9 +232,22 @@ export const layer = Layer.effect(
           policyRevision: grant.policyRevision,
         })
         .pipe(Effect.mapError((err) => deny(err._tag)))
+      return { runId: run.id }
     })
 
-    return Service.of({ beginRun, endRun, checkTool, checkPatterns, delegate })
+    const deliverable = Effect.fn("DelegationGuard.deliverable")(function* (
+      childRunId: RunID,
+      sessionID: SessionID,
+    ) {
+      return yield* Effect.gen(function* () {
+        const child = yield* registry.getRun(childRunId)
+        if (!child?.parentRunId) return false
+        const parent = yield* registry.getRun(child.parentRunId)
+        return parent?.sessionId === sessionID
+      }).pipe(Effect.catchDefect(() => Effect.succeed(false)))
+    })
+
+    return Service.of({ beginRun, endRun, checkTool, checkPatterns, delegate, deliverable })
   }),
 )
 
