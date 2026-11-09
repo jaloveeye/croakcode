@@ -202,6 +202,7 @@ Gate가 도구 실행마다 허가 토큰을 발급하고, croakcode가 실행 �
 - `src/delegation/registry.ts`에 Principal 발급, 조회, 폐기와 Run 생성, 종료를 둔다.
 - 발급은 런타임 서비스 계층에서만 부른다. HTTP 경로로는 발급하지 않는다.
 - 테스트: AG-01부터 AG-05까지. 폐기된 Principal로 Run을 만들 수 없는지 확인한다.
+- 완료(2026-11-09): `src/delegation/registry.ts`. AG-02부터 AG-04까지 PASS. AG-01은 기존 이름 기반 동작이라 이 Task의 대상에서 뺐다. AG-05의 Run 중단은 Task 7에서 한다. 한 세션에서 새 Run을 시작하면 이전 활성 Run은 `aborted`로 닫는다(INV-2.4).
 
 ### Task 3. Delegation Store
 
