@@ -13,6 +13,29 @@ import { connectionFor, containsGateContext, originFor } from "@/session/llm/mod
 import { Cause, Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { fileURLToPath } from "url"
+
+/**
+ * CX-05: a task prompt is written by the model, not the user. Turning its
+ * `@file` mentions into file parts would load the file through the prompt's
+ * file-part path, which calls the read tool with a no-op permission check and
+ * skips `tool.execute.before` hooks. A model could then pull any file into
+ * the child's context and the provider request. Keep each mention as text so
+ * the child opens it with the read tool, under its own permissions.
+ */
+export function delegatedPromptParts(
+  parts: SessionPrompt.PromptInput["parts"],
+): SessionPrompt.PromptInput["parts"] {
+  return parts.map((part) => {
+    if (part.type !== "file") return part
+    const location = part.url.startsWith("file:") ? fileURLToPath(part.url) : part.url
+    return {
+      type: "text" as const,
+      synthetic: true,
+      text: `Referenced file: ${part.filename ?? location} (${location}). Use the read tool to open it.`,
+    }
+  })
+}
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -274,7 +297,7 @@ export const TaskTool = Tool.define(
       })
 
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
-        const parts = yield* ops.resolvePromptParts(params.prompt)
+        const parts = delegatedPromptParts(yield* ops.resolvePromptParts(params.prompt))
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: nextSession.id,

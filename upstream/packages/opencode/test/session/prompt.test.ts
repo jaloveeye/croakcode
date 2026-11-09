@@ -843,6 +843,45 @@ it.instance(
 )
 
 it.instance(
+  "CX-05: a model-written @file mention in a task prompt does not reach the child unchecked",
+  () =>
+    Effect.gen(function* () {
+      const { llm, dir } = yield* useServerConfig(providerCfg)
+      // A file outside the worktree that this session may not read.
+      const outside = path.join(path.dirname(dir), `cx05-${path.basename(dir)}.txt`)
+      yield* writeText(outside, "CX05_SECRET_CONTENT")
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({
+        title: "Pinned",
+        permission: [
+          { permission: "*", pattern: "*", action: "allow" },
+          { permission: "read", pattern: outside, action: "deny" },
+          { permission: "external_directory", pattern: "*", action: "deny" },
+        ],
+      })
+      // The parent model delegates with a prompt that mentions the file.
+      yield* llm.tool("task", {
+        description: "summarize file",
+        prompt: `summarize @${outside}`,
+        subagent_type: "general",
+      })
+      yield* llm.text("child done")
+      yield* llm.text("parent done")
+      yield* user(chat.id, "hello")
+
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
+      expect(sent.length).toBeGreaterThanOrEqual(2)
+      for (const body of sent) expect(body).not.toContain("CX05_SECRET_CONTENT")
+      // The mention itself still reaches the child as text, so it can ask to read.
+      expect(sent.some((body) => body.includes(path.basename(outside)))).toBe(true)
+    }),
+  30_000,
+)
+
+it.instance(
   "loop sets status to busy then idle",
   () =>
     Effect.gen(function* () {
