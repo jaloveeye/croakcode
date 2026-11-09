@@ -30,16 +30,12 @@ bash scripts/link-plugin-deps.sh
 # updated to the croakcode strings and are no longer listed.
 # The help-text snapshot now pins its locale, and the .croakcode TUI plugin
 # tests resolve @opentui/solid through scripts/link-plugin-deps.sh.
+# The web UI proxy no longer has a built-in host and CORS no longer trusts
+# *.opencode.ai, so the two server tests that depended on them pass.
 # FLAKE_FAIL: timing-sensitive tests, retried once. A first-run failure that
 # passes on retry is reported as FLAKY_PASS (never as plain PASS).
 # Any failure outside these lists — first run or retry — blocks the gate.
-BASELINE_FAIL=(
-  # Environment-dependent (see README "알려진 실패"): the built-in web UI proxy
-  # targets app.croakcode.ai, which has no DNS record, so /status returns 500.
-  "HttpApi Server.listen > default in-process handler does not emit Effect HTTP response logs"
-  # CORS allowlist still matches *.opencode.ai, not the croakcode UI origin.
-  "HttpApi CORS > adds CORS headers to unauthorized responses"
-)
+BASELINE_FAIL=()
 # P2-2 fixed the shell reader race behind "captures stderr in output" and
 # "cancel finalizes interrupted bash tool output"; both were removed. The task
 # metadata test passed 20/20 under CPU load but its cause is not confirmed.

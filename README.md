@@ -48,6 +48,7 @@ bun install
 | 변수 | 필수 | 설명 |
 |---|---|---|
 | `CROAK_AUTH_URL` | 로그인을 쓸 때 | croak-gate 로그인 서버 주소입니다. 기본값이 없으므로 설정하지 않으면 `/login`이 오류를 표시하고, 모델 요청에 토큰을 싣지 않습니다 |
+| `CROAKCODE_WEB_UI_URL` | 원격 웹 UI를 쓸 때 | 내장 UI가 없을 때 프록시할 웹 UI 호스트입니다. 기본값이 없습니다. 설정하지 않으면 UI 경로가 404를 돌려줍니다. 프록시 요청에는 로컬 서버의 `authorization`과 `cookie`를 싣지 않습니다 |
 | `LITELLM_BASE_URL` | `litellm-head` 공급자를 쓸 때 | `croakcode.jsonc`의 공급자 주소입니다 |
 
 ## 테스트
@@ -90,12 +91,9 @@ bun run typecheck
 
 ## 알려진 실패 (회귀 아님)
 
-2026-11-09에 전체 테스트 실패를 원인별로 나눴습니다. 리브랜딩 뒤 갱신되지 않은 테스트 15건은 기대값을 고쳤습니다. help-text 스냅샷은 영어 로캘로 고정했습니다. TUI 플러그인 테스트는 `scripts/link-plugin-deps.sh`로 의존성을 찾습니다. 남은 실패 2건은 제품 결정이 필요합니다.
+2026-11-09에 전체 테스트 실패를 원인별로 나눴습니다. 리브랜딩 뒤 갱신되지 않은 테스트 15건은 기대값을 고쳤습니다. help-text 스냅샷은 영어 로캘로 고정했습니다. TUI 플러그인 테스트는 `scripts/link-plugin-deps.sh`로 의존성을 찾습니다.
 
-| 테스트 | 원인 | 해소 조건 |
-|---|---|---|
-| `HttpApi Server.listen > default in-process handler ...` | 웹 UI 프록시 대상 `app.croakcode.ai`에 DNS가 없어 `/status`가 500을 돌려줍니다 | UI 도메인 결정 |
-| `HttpApi CORS > adds CORS headers to unauthorized responses` | CORS 허용 목록이 아직 `*.opencode.ai`를 신뢰합니다 | 허용 도메인 결정 |
+웹 UI 프록시의 기본 주소를 지웠습니다. 원격 UI는 `CROAKCODE_WEB_UI_URL`을 설정할 때만 씁니다. CORS 허용 목록에서 `*.opencode.ai`를 뺐습니다. 원격 origin이 필요하면 `--cors`로 지정합니다. 이 조치로 `BASELINE_FAIL`은 비었습니다.
 
 루트 `phase1-*.e2e` 테스트는 `scripts/phase1-headless-check.sh`가 만든 DB를 읽습니다. 게이트 스크립트는 이 스크립트를 먼저 실행합니다. DB는 내장 `node:sqlite`로 읽으므로 `sqlite3` CLI는 필요 없습니다.
 
