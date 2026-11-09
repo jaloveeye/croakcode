@@ -17,7 +17,7 @@ import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { ServerAuth } from "../../src/server/auth"
 import { authorizationRouterMiddleware } from "../../src/server/routes/instance/httpapi/middleware/authorization"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
-import { serveEmbeddedUIEffect, serveUIEffect } from "../../src/server/shared/ui"
+import { serveEmbeddedUIEffect, serveUIEffect, uiUpstream } from "../../src/server/shared/ui"
 import { testEffect } from "../lib/effect"
 
 void Log.init({ print: false })
@@ -41,6 +41,9 @@ const testStateLayer = Layer.effectDiscard(
     )
   }),
 )
+
+// Stand-in for CROAKCODE_WEB_UI_URL. There is no built-in UI host.
+const TEST_UI_URL = "https://ui.example.test"
 
 const it = testEffect(Layer.mergeAll(testStateLayer, AppFileSystem.defaultLayer, RuntimeFlags.layer()))
 
@@ -93,7 +96,7 @@ function uiApp(input?: {
         const client = yield* HttpClient.HttpClient
         const flags = yield* RuntimeFlags.Service
         yield* router.add("*", "/*", (request) =>
-          serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
+          serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi, webUiUrl: TEST_UI_URL }),
         )
       }),
     ).pipe(
@@ -139,7 +142,7 @@ function routeOrderingApp() {
           Effect.succeed(HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })),
         )
         yield* router.add("*", "/*", (request) =>
-          serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
+          serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi, webUiUrl: TEST_UI_URL }),
         )
       }),
     ).pipe(
@@ -184,6 +187,72 @@ function responseText(response: Response) {
 }
 
 describe("HttpApi UI fallback", () => {
+  it.live("returns 404 without proxying when no web UI is configured", () =>
+    Effect.gen(function* () {
+      let called = false
+      const response = yield* Effect.gen(function* () {
+        const fs = yield* AppFileSystem.Service
+        const client = yield* HttpClient.HttpClient
+        return yield* serveUIEffect(HttpServerRequest.fromWeb(new Request("http://localhost/status")), {
+          fs,
+          client,
+          disableEmbeddedWebUi: true,
+        })
+      }).pipe(
+        Effect.provide(
+          httpClient(new Response("ui"), () => {
+            called = true
+          }),
+        ),
+        Effect.map(HttpServerResponse.toWeb),
+      )
+
+      expect(response.status).toBe(404)
+      expect(yield* responseText(response)).toContain("CROAKCODE_WEB_UI_URL")
+      expect(called).toBe(false)
+    }),
+  )
+
+  it.live("does not forward local credentials to the web UI host", () =>
+    Effect.gen(function* () {
+      let forwarded: Record<string, string> | undefined
+      yield* Effect.gen(function* () {
+        const fs = yield* AppFileSystem.Service
+        const client = yield* HttpClient.HttpClient
+        return yield* serveUIEffect(
+          HttpServerRequest.fromWeb(
+            new Request("http://localhost/", {
+              headers: { authorization: "Basic c2VjcmV0", cookie: "session=1", accept: "text/html" },
+            }),
+          ),
+          { fs, client, disableEmbeddedWebUi: true, webUiUrl: TEST_UI_URL },
+        )
+      }).pipe(
+        Effect.provide(
+          httpClient(new Response("ui"), (request) => {
+            forwarded = request.headers
+          }),
+        ),
+      )
+
+      expect(forwarded?.["authorization"]).toBeUndefined()
+      expect(forwarded?.["cookie"]).toBeUndefined()
+      expect(forwarded?.["accept"]).toBe("text/html")
+      expect(forwarded?.["host"]).toBe("ui.example.test")
+    }),
+  )
+
+  it.live("accepts only absolute http(s) web UI URLs", () =>
+    Effect.sync(() => {
+      expect(uiUpstream(undefined)).toBeUndefined()
+      expect(uiUpstream("not a url")).toBeUndefined()
+      expect(uiUpstream("file:///etc/passwd")).toBeUndefined()
+      expect(uiUpstream("javascript:alert(1)")).toBeUndefined()
+      expect(uiUpstream("https://ui.example.test")?.host).toBe("ui.example.test")
+      expect(uiUpstream("http://127.0.0.1:3000")?.port).toBe("3000")
+    }),
+  )
+
   it.live("serves the web UI through the HTTP API app", () =>
     Effect.gen(function* () {
       let proxiedUrl: string | undefined
@@ -201,7 +270,7 @@ describe("HttpApi UI fallback", () => {
       expect(response.status).toBe(200)
       expect(response.headers.get("content-type")).toContain("text/html")
       expect(yield* responseText(response)).toBe("<html>opencode</html>")
-      expect(proxiedUrl).toBe("https://app.croakcode.ai/")
+      expect(proxiedUrl).toBe("https://ui.example.test/")
     }),
   )
 
@@ -216,7 +285,7 @@ describe("HttpApi UI fallback", () => {
         return yield* serveUIEffect(HttpServerRequest.fromWeb(new Request("http://localhost/assets/app.js")), {
           fs,
           client,
-          disableEmbeddedWebUi: flags.disableEmbeddedWebUi,
+          disableEmbeddedWebUi: flags.disableEmbeddedWebUi, webUiUrl: TEST_UI_URL,
         })
       }).pipe(
         Effect.provide(
@@ -246,7 +315,7 @@ describe("HttpApi UI fallback", () => {
       )
 
       expect(response.status).toBe(200)
-      expect(proxiedUrl).toBe("https://app.croakcode.ai/assets/app.js")
+      expect(proxiedUrl).toBe("https://ui.example.test/assets/app.js")
       expect(response.headers.get("content-encoding")).toBeNull()
       expect(response.headers.get("content-length")).not.toBe("999")
       expect(response.headers.get("content-type")).toContain("text/javascript")
@@ -266,7 +335,7 @@ describe("HttpApi UI fallback", () => {
         return yield* serveUIEffect(HttpServerRequest.fromWeb(new Request("http://localhost/")), {
           fs,
           client,
-          disableEmbeddedWebUi: flags.disableEmbeddedWebUi,
+          disableEmbeddedWebUi: flags.disableEmbeddedWebUi, webUiUrl: TEST_UI_URL,
         })
       }).pipe(
         Effect.provide(

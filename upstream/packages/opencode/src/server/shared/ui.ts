@@ -6,7 +6,20 @@ import { ProxyUtil } from "../proxy-util"
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
 
-export const UI_UPSTREAM = new URL("https://app.croakcode.ai")
+/**
+ * Parse CROAKCODE_WEB_UI_URL. Only absolute http(s) URLs are accepted; any
+ * other value is treated as "not configured" so the proxy fails closed.
+ */
+export function uiUpstream(value: string | undefined): URL | undefined {
+  if (!value) return undefined
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined
+    return url
+  } catch {
+    return undefined
+  }
+}
 
 export const csp = (hash = "") =>
   `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src * data:`
@@ -37,8 +50,25 @@ function proxyResponseHeaders(headers: Record<string, string>) {
   return result
 }
 
-export function upstreamURL(path: string) {
-  return new URL(path, UI_UPSTREAM).toString()
+export function upstreamURL(path: string, upstream: URL) {
+  return new URL(path, upstream).toString()
+}
+
+// The UI route requires the local server password, so the incoming request
+// carries it. The remote UI host serves static assets and must not receive
+// the local credentials.
+function upstreamHeaders(request: HttpServerRequest.HttpServerRequest, upstream: URL) {
+  const out = ProxyUtil.headers(request.headers, { host: upstream.host })
+  out.delete("authorization")
+  out.delete("cookie")
+  return out
+}
+
+function notConfigured() {
+  return HttpServerResponse.jsonUnsafe(
+    { error: "Web UI is not available: no embedded UI and CROAKCODE_WEB_UI_URL is not set" },
+    { status: 404 },
+  )
 }
 
 export function embeddedUI(disableEmbeddedWebUi: boolean) {
@@ -77,7 +107,12 @@ export function serveEmbeddedUIEffect(
 
 export function serveUIEffect(
   request: HttpServerRequest.HttpServerRequest,
-  services: { fs: AppFileSystem.Interface; client: HttpClient.HttpClient; disableEmbeddedWebUi: boolean },
+  services: {
+    fs: AppFileSystem.Interface
+    client: HttpClient.HttpClient
+    disableEmbeddedWebUi: boolean
+    webUiUrl?: string
+  },
 ) {
   return Effect.gen(function* () {
     const embeddedWebUI = yield* Effect.promise(() => embeddedUI(services.disableEmbeddedWebUi))
@@ -85,9 +120,12 @@ export function serveUIEffect(
 
     if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI)
 
+    const upstream = uiUpstream(services.webUiUrl)
+    if (!upstream) return notConfigured()
+
     const response = yield* services.client.execute(
-      HttpClientRequest.make(request.method)(upstreamURL(path), {
-        headers: ProxyUtil.headers(request.headers, { host: UI_UPSTREAM.host }),
+      HttpClientRequest.make(request.method)(upstreamURL(path, upstream), {
+        headers: upstreamHeaders(request, upstream),
         body: requestBody(request),
       }),
     )

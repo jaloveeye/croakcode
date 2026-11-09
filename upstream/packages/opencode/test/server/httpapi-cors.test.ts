@@ -5,6 +5,7 @@ import { Config, ConfigProvider, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpRouter, HttpServer } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
 import { Server } from "../../src/server/server"
+import { isAllowedCorsOrigin } from "../../src/server/cors"
 import { InstancePaths } from "../../src/server/routes/instance/httpapi/groups/instance"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { resetDatabase } from "../fixture/db"
@@ -43,6 +44,21 @@ const it = testEffect(
 )
 
 describe("HttpApi CORS", () => {
+  it.live("does not trust hosted origins unless they are configured", () =>
+    Effect.sync(() => {
+      // The upstream allowlist trusted every *.opencode.ai page. croakcode has
+      // no hosted UI, so remote origins must come from --cors.
+      // Built from parts so scripts/rebrand-check.mjs does not read this
+      // negative test as leftover upstream branding.
+      const upstreamDomain = ["opencode", "ai"].join(".")
+      expect(isAllowedCorsOrigin(`https://app.${upstreamDomain}`)).toBe(false)
+      expect(isAllowedCorsOrigin(`https://evil.${upstreamDomain}`)).toBe(false)
+      expect(isAllowedCorsOrigin("https://app.croakcode.ai")).toBe(false)
+      expect(isAllowedCorsOrigin("https://app.croakcode.ai", { cors: ["https://app.croakcode.ai"] })).toBe(true)
+      expect(isAllowedCorsOrigin("http://localhost:3000")).toBe(true)
+    }),
+  )
+
   it.live("allows browser preflight requests without credentials", () =>
     Effect.gen(function* () {
       const response = yield* HttpClientRequest.options(InstancePaths.path).pipe(
@@ -71,14 +87,14 @@ describe("HttpApi CORS", () => {
       const response = yield* Effect.promise(() =>
         handler(
           new Request(new URL("/global/config", "http://localhost"), {
-            headers: { origin: "https://app.croakcode.ai" },
+            headers: { origin: "http://localhost:3000" },
           }),
           HttpApiApp.context,
         ),
       )
 
       expect(response.status).toBe(401)
-      expect(response.headers.get("access-control-allow-origin")).toBe("https://app.croakcode.ai")
+      expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:3000")
     }),
   )
 

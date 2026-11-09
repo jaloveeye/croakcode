@@ -19,6 +19,13 @@ export class Service extends ConfigService.Service<Service>()("@croakcode/Runtim
   disableDefaultPlugins: bool("CROAKCODE_DISABLE_DEFAULT_PLUGINS"),
   disableChannelDb: bool("CROAKCODE_DISABLE_CHANNEL_DB"),
   disableEmbeddedWebUi: bool("CROAKCODE_DISABLE_EMBEDDED_WEB_UI"),
+  // Remote web UI host to proxy when no embedded UI is bundled. Unset by
+  // default: croakcode has no hosted web UI, and a built-in domain nobody
+  // controls would receive proxied requests.
+  webUiUrl: Config.string("CROAKCODE_WEB_UI_URL").pipe(
+    Config.map((value) => value.trim() || undefined),
+    Config.orElse(() => Config.succeed(undefined)),
+  ),
   disableExternalSkills: bool("CROAKCODE_DISABLE_EXTERNAL_SKILLS"),
   disableLspDownload: bool("CROAKCODE_DISABLE_LSP_DOWNLOAD"),
   skipMigrations: bool("CROAKCODE_SKIP_MIGRATIONS"),

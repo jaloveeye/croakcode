@@ -1,4 +1,4 @@
-import { Effect, Stream } from "effect"
+import { Effect, Fiber, Stream } from "effect"
 import os from "os"
 import { createWriteStream } from "node:fs"
 import * as Tool from "./tool"
@@ -443,6 +443,9 @@ export const ShellTool = Tool.define(
       let cut = false
       let expired = false
       let aborted = false
+      // Once the command has ended, the reader only drains what is left in the
+      // pipe; live metadata updates no longer matter and would slow the drain.
+      let draining = false
 
       const closeSink = Effect.fnUntraced(function* () {
         const stream = sink
@@ -481,12 +484,15 @@ export const ShellTool = Tool.define(
           yield* Effect.addFinalizer(closeSink)
           const handle = yield* spawner.spawn(cmd(input.shell, input.command, input.cwd, input.env))
 
-          yield* Effect.forkScoped(
+          const reader = yield* Effect.forkScoped(
             Stream.runForEach(Stream.decodeText(handle.all), (chunk) => {
               const size = Buffer.byteLength(chunk, "utf-8")
               list.push({ text: chunk, size })
               used += size
-              while (used > keep && list.length > 1) {
+              // Drop a head chunk only while the rest still covers `keep` bytes.
+              // Dropping whenever `used > keep` could discard one large chunk and
+              // leave only a small trailing one, so the kept tail lost its lines.
+              while (list.length > 1 && used - list[0].size >= keep) {
                 const item = list.shift()
                 if (!item) break
                 used -= item.size
@@ -510,17 +516,20 @@ export const ShellTool = Tool.define(
                       }),
                     ),
                     Effect.andThen(
-                      ctx.metadata({
-                        metadata: {
-                          output: last,
-                          description: input.description,
-                        },
-                      }),
+                      draining
+                        ? Effect.void
+                        : ctx.metadata({
+                            metadata: {
+                              output: last,
+                              description: input.description,
+                            },
+                          }),
                     ),
                   )
                 }
               }
 
+              if (draining) return Effect.void
               return ctx.metadata({
                 metadata: {
                   output: last,
@@ -553,6 +562,16 @@ export const ShellTool = Tool.define(
             expired = true
             yield* handle.kill({ forceKillAfter: "3 seconds" }).pipe(Effect.orDie)
           }
+
+          // P2-2: closing the scope interrupts the reader, so wait for it to
+          // consume the rest of the pipe first. Otherwise output, truncation
+          // state and outputPath reflect only what the reader had reached.
+          // After a normal exit the pipe is already closed and the drain ends
+          // on its own. After a kill, a grandchild may still hold the pipe, so
+          // the wait is bounded.
+          draining = true
+          const drain = Fiber.join(reader).pipe(Effect.ignore)
+          yield* exit.kind === "exit" ? drain : drain.pipe(Effect.timeout("5 seconds"), Effect.ignore)
 
           return exit.kind === "exit" ? exit.code : null
         }),
