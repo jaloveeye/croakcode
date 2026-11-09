@@ -13,7 +13,8 @@ export function signAdminPolicy(body, key) {
 
 /**
  * Verify an admin policy body against a signature, fail-closed.
- * Returns false on malformed JSON, length mismatch, or mismatched HMAC.
+ * Returns false on a missing or empty key, malformed JSON, length mismatch,
+ * or mismatched HMAC. Never throws.
  *
  * @param {string} body
  * @param {string} signature
@@ -22,6 +23,11 @@ export function signAdminPolicy(body, key) {
  */
 export function verifyAdminPolicy(body, signature, opts) {
   const { key } = opts ?? {};
+
+  // A missing, empty, or non-key value cannot verify anything. An empty key is
+  // rejected because anyone can compute an HMAC with it.
+  const keyLength = typeof key === "string" ? key.length : Buffer.isBuffer(key) ? key.length : 0;
+  if (keyLength === 0) return false;
 
   // Malformed body fails before any signature work.
   try {

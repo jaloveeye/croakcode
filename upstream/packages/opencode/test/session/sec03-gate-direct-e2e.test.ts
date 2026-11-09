@@ -409,7 +409,7 @@ const waitInjectedTurn = (sessionID: Session.Info["id"]) =>
   )
 
 const injectedOrigin = (msg: MessageV2.WithParts) =>
-  msg.parts.find((p) => p.type === "text" && p.text.includes("<task id="))?.metadata?.origin
+  msg.parts.find((p): p is MessageV2.TextPart => p.type === "text" && p.text.includes("<task id="))?.metadata?.origin
 
 const backgroundTask = { description: "inspect bug", prompt: "CHILD_TASK_PROMPT", subagent_type: "general", background: true }
 
