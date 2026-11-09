@@ -47,6 +47,9 @@ bun install
 
 | 변수 | 필수 | 설명 |
 |---|---|---|
+| `CROAKCODE_EXECUTION_PERMIT` | 실행 허가를 쓸 때 | `required`이면 gate 모드의 도구 호출마다 Gate가 서명한 허가 토큰을 요구합니다. 기본은 꺼짐입니다. 형식은 `docs/superpowers/architecture/2026-11-09-execution-permit-protocol.md`에 있습니다 |
+| `CROAKCODE_GATE_PERMIT_PUBLIC_KEY` | 실행 허가를 쓸 때 | Gate의 Ed25519 공개키입니다. 허가를 켰는데 없으면 모든 도구를 거부합니다 |
+| `CROAKCODE_GATE_PERMIT_URL` | 실행 허가를 쓸 때 | 허가를 발급하는 Gate 주소입니다. 기본값이 없습니다. 허가를 켰는데 없으면 모든 도구를 거부합니다 |
 | `CROAK_AUTH_URL` | 로그인을 쓸 때 | croak-gate 로그인 서버 주소입니다. 기본값이 없으므로 설정하지 않으면 `/login`이 오류를 표시하고, 모델 요청에 토큰을 싣지 않습니다 |
 | `CROAKCODE_WEB_UI_URL` | 원격 웹 UI를 쓸 때 | 내장 UI가 없을 때 프록시할 웹 UI 호스트입니다. 기본값이 없습니다. 설정하지 않으면 UI 경로가 404를 돌려줍니다. 프록시 요청에는 로컬 서버의 `authorization`과 `cookie`를 싣지 않습니다 |
 | `LITELLM_BASE_URL` | `litellm-head` 공급자를 쓸 때 | `croakcode.jsonc`의 공급자 주소입니다 |

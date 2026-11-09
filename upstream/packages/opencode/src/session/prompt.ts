@@ -381,6 +381,10 @@ export const layer = Layer.effect(
 
       let error: Error | undefined
       const taskAbort = new AbortController()
+      // A user-invoked subtask is not a model tool call, so it needs no Gate
+      // execution permit (Task 9); every tool the child then runs goes through
+      // the tool wrappers and their permit check. Reading the connection mode
+      // here would also add a second snapshot before the step's (SEC-03).
       const result = yield* guard
         .checkTool(sessionID, TaskTool.id)
         .pipe(Effect.orDie)
@@ -1432,6 +1436,7 @@ export const layer = Layer.effect(
               bypassAgentCheck,
               messages: msgs,
               promptOps,
+              connectionMode: connection.mode,
             }).pipe(
               Effect.provideService(Plugin.Service, plugin),
               Effect.provideService(Permission.Service, permission),

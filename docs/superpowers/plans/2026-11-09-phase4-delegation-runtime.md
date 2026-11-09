@@ -296,6 +296,12 @@ CX-05는 Grant 기반 시설에 기대지 않는다. 그래서 Task 1보다 먼�
 - `contracts/src/server-auth.mjs`의 초안을 실제 형식으로 바꾼다.
 - 요청 형식 문서 `docs/superpowers/architecture/2026-11-09-execution-permit-protocol.md`를 쓴다.
 - 테스트: 가짜 Gate가 서명한 토큰으로 정상 실행, 서명 위조, 필드 불일치, 만료, nonce 재사용, 공개키 없음을 확인한다.
+- 완료(2026-11-09): `permit.ts`, `permit-client.ts`, `Guard.authorizeExecution`을 추가하고 도구 래퍼 두 곳에 연결했다. PT-01부터 PT-06까지 PASS다. PT-07은 croak-gate 구현을 기다린다.
+- 프로토콜 문서는 `docs/superpowers/architecture/2026-11-09-execution-permit-protocol.md`다. `contracts/src/server-auth.mjs`를 실제 형식으로 바꿨다.
+- Gate 주소에 기본값을 두지 않고 `CROAKCODE_GATE_PERMIT_URL`로만 받는다. 허가 요청에는 croak 로그인 액세스 토큰을 쓴다.
+- 토큰의 `rev`는 일치 검사에 넣지 않았다. Gate의 revision과 로컬 관리자 정책의 revision은 같은 값이라는 보장이 없다. 그래서 `rev`는 기록에만 쓴다.
+- 연결 모드는 설정이 없으면 gate다. 그래서 허가를 켜면 별도 설정 없이 모든 도구 호출에 적용된다.
+- 허가 검증은 native 도구와 MCP 도구 경로에 넣었다. 사용자가 실행하는 서브태스크 경로에는 넣지 않았다. 이 경로는 모델의 도구 호출이 아니고, 자식이 실행하는 도구는 모두 래퍼의 허가 검증을 지난다. 이 경로에서 연결 모드를 따로 읽으면 단계마다 스냅샷을 하나만 두는 SEC-03 규칙도 깨진다(`tests/sec03-origin.test.mjs`).
 
 ### Task 10. 문서와 게이트
 

@@ -5,7 +5,7 @@ import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import path from "path"
 import { existsSync, mkdtempSync, writeFileSync } from "fs"
 import os from "os"
-import { createHmac } from "node:crypto"
+import { createHmac, generateKeyPairSync, sign as cryptoSign } from "node:crypto"
 import { jsonSchema } from "ai"
 import { eq } from "drizzle-orm"
 import { AgentRunTable, DelegationGrantTable, ExecutionAuditTable } from "../../src/delegation/delegation.sql"
@@ -1087,6 +1087,81 @@ it.instance(
     }),
   30_000,
 )
+
+// Phase 4 Task 9: a real loop against a local fake Gate that signs permits.
+const withFakeGate = <A, E, R>(available: boolean, self: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const keys = generateKeyPairSync("ed25519")
+      const server = Bun.serve({
+        port: 0,
+        async fetch(req) {
+          if (!available) return new Response("down", { status: 503 })
+          const body = (await req.json()) as Record<string, unknown>
+          const now = Date.now()
+          const segment = Buffer.from(
+            JSON.stringify({ aud: "croakcode", ...body, iat: now, exp: now + 30_000, nonce: Math.random().toString(36).slice(2) }),
+          ).toString("base64url")
+          return Response.json({ token: `${segment}.${cryptoSign(null, Buffer.from(segment, "ascii"), keys.privateKey).toString("base64url")}` })
+        },
+      })
+      const dir = mkdtempSync(path.join(os.tmpdir(), "croak-cfg-"))
+      const far = new Date(Date.now() + 86_400_000).toISOString()
+      writeFileSync(
+        path.join(dir, "session.json"),
+        JSON.stringify({ access_token: "t", access_expires_at: far, refresh_token: "r", session_expires_at: far }),
+      )
+      const keys2 = ["CROAKCODE_EXECUTION_PERMIT", "CROAKCODE_GATE_PERMIT_PUBLIC_KEY", "CROAKCODE_GATE_PERMIT_URL", "CROAK_CONFIG_DIR"]
+      const saved = Object.fromEntries(keys2.map((k) => [k, process.env[k]]))
+      process.env.CROAKCODE_EXECUTION_PERMIT = "required"
+      process.env.CROAKCODE_GATE_PERMIT_PUBLIC_KEY = keys.publicKey.export({ format: "der", type: "spki" }).subarray(-32).toString("base64")
+      process.env.CROAKCODE_GATE_PERMIT_URL = `http://127.0.0.1:${server.port}`
+      process.env.CROAK_CONFIG_DIR = dir
+      return { server, saved }
+    }),
+    () => self,
+    ({ server, saved }) =>
+      Effect.sync(() => {
+        server.stop(true)
+        for (const [k, v] of Object.entries(saved)) {
+          if (v === undefined) delete process.env[k]
+          else process.env[k] = v
+        }
+      }),
+  )
+
+for (const available of [true, false]) {
+  it.instance(
+    `Phase 4 Task 9: in gate mode a tool runs only with a Gate permit (gate ${available ? "up" : "down"})`,
+    () =>
+      Effect.gen(function* () {
+        const { llm, dir } = yield* useServerConfig(providerCfg)
+        yield* writeText(path.join(dir, "permit.txt"), "PERMIT_FILE_CONTENT")
+        const prompt = yield* SessionPrompt.Service
+        const sessions = yield* Session.Service
+        const chat = yield* sessions.create({
+          title: "Pinned",
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        })
+        yield* llm.tool("read", { filePath: path.join(dir, "permit.txt") })
+        yield* llm.text("done")
+        yield* user(chat.id, "hello")
+        yield* withFakeGate(available, prompt.loop({ sessionID: chat.id }))
+        const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+        const assistant = msgs.find((m) => m.info.role === "assistant" && m.parts.some((p) => p.type === "tool"))
+        const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
+        if (available) {
+          completedTool(assistant!.parts)
+          expect(sent.some((body) => body.includes("PERMIT_FILE_CONTENT"))).toBe(true)
+        } else {
+          const tool = errorTool(assistant!.parts)
+          expect(tool?.state.error).toContain("permit_unavailable")
+          for (const body of sent) expect(body).not.toContain("PERMIT_FILE_CONTENT")
+        }
+      }),
+    30_000,
+  )
+}
 
 it.instance(
   "SC-05: an allow from the delegation layer never lifts a permission-engine deny",
