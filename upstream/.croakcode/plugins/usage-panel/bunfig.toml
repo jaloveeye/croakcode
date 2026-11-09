@@ -1,4 +1,5 @@
 # Tests need the Solid JSX transform that the opencode TUI applies to plugins.
-# node_modules is a local symlink to the opencode build (see README).
+# Dependencies resolve through ../node_modules, a symlink made by
+# scripts/link-plugin-deps.sh (see README).
 [test]
 preload = ["@opentui/solid/preload"]

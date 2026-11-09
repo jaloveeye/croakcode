@@ -23,10 +23,13 @@ echo "== upstream core package =="
 (cd upstream/packages/core && bun test)
 
 echo "== upstream opencode (provider/tool/session/cli-help/skill) =="
+bash scripts/link-plugin-deps.sh
 # BASELINE_FAIL: accepted pre-existing failures that depend on the environment
 # or on an open product decision. Stale rebrand tests (NVIDIA X-Title, xai,
 # parsePluginSpecifier, server auth username, ACP login id, CLI hints) were
 # updated to the croakcode strings and are no longer listed.
+# The help-text snapshot now pins its locale, and the .croakcode TUI plugin
+# tests resolve @opentui/solid through scripts/link-plugin-deps.sh.
 # FLAKE_FAIL: timing-sensitive tests, retried once. A first-run failure that
 # passes on retry is reported as FLAKY_PASS (never as plain PASS).
 # Any failure outside these lists — first run or retry — blocks the gate.
@@ -36,13 +39,6 @@ BASELINE_FAIL=(
   "HttpApi Server.listen > default in-process handler does not emit Effect HTTP response logs"
   # CORS allowlist still matches *.opencode.ai, not the croakcode UI origin.
   "HttpApi CORS > adds CORS headers to unauthorized responses"
-  # Snapshot recorded under a Korean locale; output follows the runner's LANG.
-  "opencode CLI help-text snapshots > every documented command emits stable help text"
-  # .croakcode plugins resolve @opentui/solid from upstream/.croakcode upward;
-  # the isolated linker does not place it on that path.
-  "croak-auth TUI registers /login /logout /whoami /agent-perm and both slots"
-  "croak-auth TUI slash commands are callable palette entries"
-  "usage-panel registers the three host slots with order 90"
 )
 FLAKE_FAIL=(
   "tool.shell abort > captures stderr in output"
