@@ -1092,7 +1092,7 @@ it.instance(
     const providers = yield* list
     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
       "HTTP-Referer": "https://croakcode.ai/",
-      "X-Title": "opencode",
+      "X-Title": "croakcode",
       "X-BILLING-INVOKE-ORIGIN": "OpenCode",
     })
   }),
@@ -1105,7 +1105,7 @@ it.instance(
     const providers = yield* list
     expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
       "HTTP-Referer": "https://croakcode.ai/",
-      "X-Title": "opencode",
+      "X-Title": "croakcode",
       "X-BILLING-INVOKE-ORIGIN": "OpenCode",
     })
   }),

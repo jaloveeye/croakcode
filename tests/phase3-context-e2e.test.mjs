@@ -146,16 +146,25 @@ test("5c. gate token is attached in gate mode for the configured gate origin", a
   // Import session lib lazily: tests/croak-auth-session.test.mjs sets
   // CROAK_AUTH_URL before importing it, and module env is read at call time.
   const S = await import(path.join(root, "upstream/.croakcode/plugins/lib/croak-auth-session.js"))
+  // There is no built-in gate address; configure a test one for this case.
+  const saved = process.env.CROAK_AUTH_URL
+  process.env.CROAK_AUTH_URL = saved ?? "https://gate.test"
   const gateBase = `${S.authUrl()}/v1`
-  const ok = shouldAttachToken({
-    model: { providerID: "litellm-head" },
-    provider: { id: "litellm-head", options: { baseURL: gateBase } },
-    connection: { mode: "gate" },
-  })
-  const missingMode = shouldAttachToken({
-    model: { providerID: "litellm-head" },
-    provider: { id: "litellm-head", options: { baseURL: gateBase } },
-  })
+  let ok, missingMode
+  try {
+    ok = shouldAttachToken({
+      model: { providerID: "litellm-head" },
+      provider: { id: "litellm-head", options: { baseURL: gateBase } },
+      connection: { mode: "gate" },
+    })
+    missingMode = shouldAttachToken({
+      model: { providerID: "litellm-head" },
+      provider: { id: "litellm-head", options: { baseURL: gateBase } },
+    })
+  } finally {
+    if (saved === undefined) delete process.env.CROAK_AUTH_URL
+    else process.env.CROAK_AUTH_URL = saved
+  }
   // gateBase uses the current authUrl() origin, so origin equality holds.
   assert.equal(ok, true)
   assert.equal(missingMode, false, "missing mode must fail closed (no token)")
