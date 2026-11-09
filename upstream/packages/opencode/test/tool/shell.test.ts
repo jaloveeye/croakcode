@@ -2,6 +2,7 @@ import { describe, expect } from "bun:test"
 import { Cause, Effect, Exit, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import os from "os"
+import { existsSync } from "fs"
 import path from "path"
 import { Config } from "@/config/config"
 import { Shell } from "../../src/shell/shell"
@@ -1026,6 +1027,75 @@ describe("tool.shell permissions", () => {
 })
 
 describe("tool.shell abort", () => {
+  if (process.platform !== "win32") {
+    // P2-2: the stream consumer must drain the pipe before the result is built.
+    // A slow metadata sink (a busy session DB in production) makes the consumer
+    // lag behind the process, which is when exit or abort used to drop chunks.
+    const slowCtx = { ...ctx, metadata: () => Effect.sleep("2 millis") }
+    it.live(
+      "keeps output written right before the command exits",
+      () =>
+        runIn(
+          projectRoot,
+          Effect.gen(function* () {
+            for (let i = 0; i < 5; i++) {
+              const result = yield* run(
+                {
+                  // stdout and stderr are separate pipes, so their relative order in
+                  // the merged stream is not fixed. END_MARK (stdout) must reach the
+                  // kept tail; ERR_MARK (stderr) must reach the saved full output.
+                  command: `seq 1 ${Truncate.MAX_LINES * 20}; echo ERR_MARK >&2; echo END_MARK`,
+                  description: "Output then exit",
+                },
+                slowCtx,
+              )
+              expect(result.output).toContain("END_MARK")
+              expect(result.metadata.truncated).toBe(true)
+              const saved = yield* (yield* AppFileSystem.Service).readFileString(
+                (result.metadata as { outputPath?: string }).outputPath!,
+              )
+              expect(saved).toContain("END_MARK")
+              expect(saved).toContain("ERR_MARK")
+            }
+          }),
+        ),
+      60_000,
+    )
+
+    it.live(
+      "keeps output written before an abort and records truncation",
+      () =>
+        runIn(
+          projectRoot,
+          Effect.gen(function* () {
+            const tmp = yield* tmpdirScoped()
+            const done = path.join(tmp, "done")
+            const controller = new AbortController()
+            // Abort only after the shell has written all of its output.
+            const watcher = setInterval(() => {
+              if (!controller.signal.aborted && existsSync(done)) controller.abort()
+            }, 5)
+            const result = yield* run(
+              {
+                command: `seq 1 ${Truncate.MAX_LINES * 20}; echo END_MARK; touch ${squote(done)}; sleep 30`,
+                description: "Output then hang",
+              },
+              { ...slowCtx, abort: controller.signal },
+            ).pipe(Effect.ensuring(Effect.sync(() => clearInterval(watcher))))
+            expect(result.output).toContain("User aborted the command")
+            expect(result.output).toContain("END_MARK")
+            expect(result.metadata.truncated).toBe(true)
+            const file = (result.metadata as { outputPath?: string }).outputPath
+            expect(typeof file).toBe("string")
+            expect(result.output).toContain(`Full output saved to: ${file}`)
+            const saved = yield* (yield* AppFileSystem.Service).readFileString(file!)
+            expect(saved).toContain("END_MARK")
+          }),
+        ),
+      30_000,
+    )
+  }
+
   it.live(
     "preserves output when aborted",
     () =>
