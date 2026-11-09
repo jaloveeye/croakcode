@@ -106,7 +106,7 @@
 | CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **PASS** | 2026-11-09 실행: `bun test test/session/sec03-gate-direct-e2e.test.ts` → 8 pass / 0 fail. 근거 테스트 "direct request after a real gate turn omits gate output and keeps direct history"(1 pass)는 gate 턴의 응답이 이후 direct 요청 본문에 없음을 확인한다. 요청 조립 지점 `prompt.ts:1465-1471` |
 | CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **FUTURE CONTRACT** | Phase 4 Task 6a |
 | CX-04 | Grant scope 밖 컨텍스트 접근 deny | **FUTURE CONTRACT** | Phase 4 Task 6a |
-| CX-05 | 모델이 쓴 위임 프롬프트의 파일 참조가 권한 확인 없이 읽히지 않는다 | **FAIL** | 2026-11-09 재현. read와 `external_directory`를 deny한 세션에 작업 트리 밖 파일 part를 넘기자 내용이 메시지에 들어갔다. 파일 part 변환(`prompt.ts:879-897`)이 read 도구를 `ask: () => Effect.void`로 부른다. 모델이 쓴 `@~/` 참조는 `resolvePromptParts`에서 파일 part가 된다(`task.ts:277`). 도구 래퍼를 거치지 않아 before 훅도 돌지 않는다. Phase 4 Task 6a에서 먼저 고친다 |
+| CX-05 | 모델이 쓴 위임 프롬프트의 파일 참조가 권한 확인 없이 읽히지 않는다 | **PASS** | 2026-11-09 재현 뒤 수정했다. 수정 전에는 read와 `external_directory`를 deny한 세션에서 위임 프롬프트의 `@/절대경로` 파일 내용이 자식의 LLM 요청 본문에 실렸다. `task.ts`의 `delegatedPromptParts`가 위임 프롬프트의 파일 part를 텍스트 안내로 바꾼다. 자식은 read 도구로 읽어야 하고, read 도구는 권한 확인과 before 훅을 거친다. 실행 증거: `prompt.test.ts -t CX-05` 수정 전 0 pass / 1 fail, 수정 후 1 pass / 0 fail. `task.test.ts -t CX-05` 1 pass |
 
 ---
 

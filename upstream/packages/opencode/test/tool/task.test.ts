@@ -1,4 +1,4 @@
-import { afterEach, describe, expect } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { Effect, Exit, Fiber, Layer } from "effect"
 import { Agent } from "../../src/agent/agent"
 import { Permission } from "../../src/permission"
@@ -13,7 +13,7 @@ import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { ModelID, ProviderID } from "../../src/provider/schema"
-import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
+import { TaskTool, delegatedPromptParts, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -1208,4 +1208,21 @@ describe("tool.task", () => {
       }),
     { git: true },
   )
+})
+
+describe("CX-05 delegatedPromptParts", () => {
+  test("turns file parts into a text pointer and keeps other parts", () => {
+    const parts = delegatedPromptParts([
+      { type: "text", text: "summarize" },
+      { type: "file", url: "file:///etc/passwd", filename: "/etc/passwd", mime: "text/plain" },
+      { type: "agent", name: "explore" },
+    ])
+    expect(parts).toHaveLength(3)
+    expect(parts[0]).toEqual({ type: "text", text: "summarize" })
+    expect(parts[1].type).toBe("text")
+    expect(parts.some((part) => part.type === "file")).toBe(false)
+    expect(parts[1].type === "text" && parts[1].text).toContain("/etc/passwd")
+    expect(parts[1].type === "text" && parts[1].text).toContain("read tool")
+    expect(parts[2]).toEqual({ type: "agent", name: "explore" })
+  })
 })
