@@ -46,7 +46,7 @@ FLAKE_FAIL=()
 
 run_upstream() {
   local log="$1"
-  (cd upstream/packages/opencode && bun test test/provider test/tool test/session test/cli/help test/skill 2>&1) | tee "$log" || true
+  (cd upstream/packages/opencode && bun test test/provider test/tool test/session test/cli/help test/skill test/delegation 2>&1) | tee "$log" || true
 }
 
 is_baseline() {

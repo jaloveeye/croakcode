@@ -11,6 +11,10 @@ const prefixes = {
   pty: "pty",
   tool: "tool",
   workspace: "wrk",
+  // Phase 4 delegation runtime
+  principal: "apr",
+  run: "run",
+  grant: "grt",
 } as const
 
 const LENGTH = 26
