@@ -1,7 +1,7 @@
 # 실행 허가 토큰 프로토콜
 
 - **날짜**: 2026-11-09
-- **상태**: croakcode 쪽 검증 구현 완료. croak-gate 쪽 발급은 구현 전이다.
+- **상태**: croakcode 쪽 검증과 croak-gate 쪽 발급과 대조를 구현했다. 운영 서버 배포 전이다.
 - **관련 문서**: Phase 4 계획 §2.8과 Task 9(`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`), 보안 추적표 §K
 
 ## 1. 목적
@@ -85,8 +85,10 @@ croakcode는 다음 순서로 확인하고, 하나라도 맞지 않으면 그 �
 
 ## 7. 시험 상태
 
+§6의 Gate 쪽 구현은 croakagent 저장소(github.com/jaloveeye/croakagent)의 `docs/execution-permits.md`가 설명한다.
+
 | 항목 | 상태 |
 |---|---|
 | 토큰 검증 규칙(PT-01부터 PT-06) | croakcode 단위 테스트와 가짜 Gate 테스트로 PASS |
 | 실제 루프의 gate 모드 실행 | 로컬 가짜 Gate로 PASS |
-| 실제 croak-gate 연동(PT-07) | croak-gate 발급 구현 뒤에 시험한다 |
+| 실제 croak-gate 연동(PT-07) | croakagent `gateway/tests/e2e_permits.py` 17건 PASS. 로컬 Docker 스택 |

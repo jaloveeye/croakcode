@@ -171,7 +171,7 @@ export type Config =
 
 /**
  * CROAKCODE_EXECUTION_PERMIT=required turns verification on (default off,
- * because croak-gate does not issue permits yet). Gate's key comes from
+ * until every client has Gate's public key). Gate's key comes from
  * CROAKCODE_GATE_PERMIT_PUBLIC_KEY and the issuing endpoint from
  * CROAKCODE_GATE_PERMIT_URL. Neither has a default: when verification is on
  * and either is missing, every tool is denied.

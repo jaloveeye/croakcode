@@ -1,6 +1,6 @@
 # Security Invariants & Test Traceability (Agent Principal & Delegation)
 
-- **상태**: Phase 4 구현 완료(2026-11-09). 남은 FUTURE CONTRACT 행은 PT-07(실제 croak-gate 연동) 하나다
+- **상태**: Phase 4 구현 완료(2026-11-09). PT-07(실제 croak-gate 연동)도 로컬 검증으로 PASS다
 - **날짜**: 2026-11-08 작성, 2026-11-09 갱신(Phase 4 Task 0)
 - **관련 문서**:
   - ADR: `docs/superpowers/adr/0001-agent-principal-and-delegation.md`
@@ -251,4 +251,4 @@ SC-06은 테스트로 확인할 항목이 아니다. 게이트 리뷰에서 확�
 | PT-04 | 만료된 토큰은 deny. 시계 오차 30초까지 허용 | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 유효 기간이 60초를 넘는 토큰과 발급 시각이 미래인 토큰도 거부한다 |
 | PT-05 | 같은 nonce를 두 번 쓰면 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 한계: 사용한 nonce는 프로세스 메모리에만 있다 |
 | PT-06 | 검증을 켰는데 Gate 공개키가 없으면 모든 도구 deny | **PASS** | Phase 4 Task 9. `bun test test/delegation/permit.test.ts` 8 pass, `bun test test/delegation/permit-guard.test.ts` 9 pass, `prompt.test.ts -t "Task 9"` 2 pass(2026-11-09). 발급 주소가 없을 때, Gate에 닿지 않을 때, Run이 없을 때도 거부한다. 실제 루프에서 Gate가 응답하지 않으면 도구가 막히고 파일 내용이 모델 요청에 실리지 않는다 |
-| PT-07 | 실제 croak-gate가 발급한 토큰으로 연동 | **FUTURE CONTRACT** | croak-gate 발급 구현 뒤에 검증한다. Phase 4 수용 시점에도 이 상태로 남을 수 있다 |
+| PT-07 | 실제 croak-gate가 발급한 토큰으로 연동 | **PASS** | croakagent 저장소의 `gateway/tests/e2e_permits.py` 17건 PASS(2026-11-09, 로컬 Docker 스택). croakcode의 `script/permit-live-check.ts`가 실제 croak-gate에서 허가를 받아 공개키로 검증한다. 해시 일치는 `test/delegation/permit-parity.test.ts`가 확인한다. 운영 서버 배포는 하지 않았다 |

@@ -5,7 +5,7 @@
 > **현재 상태: Phase 3 제품 수용 HOLD.**
 > SEC-01/02/03(P0) 수정과 SEC-03 후속 수정은 `master`에 merge되었습니다. Gate→Direct 운영 경로는 무-fixture E2E로 검증했습니다. 리뷰어가 보안 수용을 판정할 때까지 HOLD 표시를 유지합니다. 상세: [`docs/superpowers/phase0/phase3-equivalence-matrix.md`](docs/superpowers/phase0/phase3-equivalence-matrix.md)
 >
-> **Phase 4(위임 런타임): 구현 완료(2026-11-09).** 수용 기준의 테스트가 모두 통과합니다. 실제 croak-gate와의 실행 허가 연동(PT-07)만 croak-gate 구현을 기다립니다. 계획과 수용 기록: [`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`](docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md)
+> **Phase 4(위임 런타임): 구현 완료(2026-11-09).** 수용 기준의 테스트가 모두 통과합니다. 실제 croak-gate와의 실행 허가 연동(PT-07)도 로컬에서 통과했습니다. 계획과 수용 기록: [`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`](docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md)
 
 ## 저장소 구조
 
@@ -131,7 +131,7 @@ C 컴파일러가 없으면 `upstream`의 `bun install`이 `tree-sitter-powershe
 | CX-05 — 모델이 쓴 위임 프롬프트의 `@파일` 참조가 권한 확인 없이 읽힘 | **수정 완료** (PR #18) |
 | 웹 UI 프록시가 로컬 서버 비밀번호를 외부 도메인으로 전달 | **수정 완료** (PR #12) |
 | Phase 4 위임 런타임 — 실행 직전 재인가, 효과 권한 교집합, 철회, 감사, 컨텍스트 격리 | **구현 완료**. DG, RV, AU, CX, SC-05 항목 PASS (`docs/superpowers/architecture/2026-11-08-security-invariants-and-test-traceability.md`) |
-| Phase 4 실행 허가 토큰 — 클라이언트 쪽 검증 | **구현 완료**. 기본은 꺼짐. 실제 croak-gate 연동(PT-07)은 croak-gate 구현 대기 |
+| Phase 4 실행 허가 토큰 — 클라이언트 쪽 검증 | **구현 완료**. 기본은 꺼짐. 실제 croak-gate 연동(PT-07)은 로컬 검증 PASS. 운영 배포 전 |
 
 ## 문서
 
