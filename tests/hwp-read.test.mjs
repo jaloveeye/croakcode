@@ -33,6 +33,12 @@ test("sortPageFiles orders by page number, not by name", () => {
   assert.deepEqual(sortPageFiles(["d_010.md", "d_002.md", "d_001.md", "done", "d_assets"]), ["d_001.md", "d_002.md", "d_010.md"])
 })
 
+test("sortPageFiles treats a lone unnumbered export as page 1", () => {
+  // rhwp export-markdown names a one-page document `<name>.md`.
+  assert.deepEqual(sortPageFiles(["d.md", "done"]), ["d.md"])
+  assert.deepEqual(sortPageFiles(["a.md", "b.md", "done"]), [])
+})
+
 import { classifyCli, convertArgs, hwpCli } from "../upstream/.croakcode/plugins/hwp-read.js"
 
 test("classifyCli separates read, write and blocked commands", () => {
@@ -59,10 +65,53 @@ test("hwpCli asks before writing and never runs blocked commands", async () => {
   const denied = { directory: "/tmp", ask: async () => { throw new Error("rejected") } }
   await assert.rejects(() => hwpCli({ args: ["edit", "replace-text", "/nope.hwp", "--find", "a", "--replace", "b"] }, denied), /rejected/)
   const out = await hwpCli({ args: ["edit", "--help"] }, ctx)
-  // This environment has no `rhwp` binary, so the child exits non-zero (ENOENT -> exit 1).
-  // Assert the wrapper contract that does not depend on the binary: read commands run
-  // without asking for permission and the result reports the command plus an exit code.
+  // The wrapper contract that does not depend on the binary: read commands run without
+  // asking for permission and the result reports the command plus an exit code. With
+  // the binary installed, hwp-read.rhwp.test.mjs checks the exit 0 path.
   assert.match(out, /^\$ rhwp edit --help$/m)
   assert.match(out, /^exit \d+$/m)
   assert.equal(asked.length, 0)
+})
+
+import { hwpMemo, memoOutputPath, planMemo, DEFAULT_MEMO_AUTHOR } from "../upstream/.croakcode/plugins/hwp-read.js"
+
+test("memoOutputPath writes next to the input, never over it", () => {
+  assert.equal(memoOutputPath("/w/보고서.hwp"), "/w/보고서_memo.hwp")
+  assert.equal(memoOutputPath("/w/a.b.hwpx"), "/w/a.b_memo.hwpx")
+})
+
+test("planMemo maps actions to rhwp session tools and validates input", () => {
+  assert.deepEqual(planMemo("list", {}, "/w/a.hwp", "/w"), { write: false, name: "hwp_doc_memos", args: {} })
+  const create = planMemo("create", { section: 0, para: 2, start: 1, end: 4, text: "확인" }, "/w/a.hwp", "/w")
+  assert.equal(create.name, "hwp_doc_create_memo")
+  assert.equal(create.output, "/w/a_memo.hwp")
+  assert.deepEqual(create.args, { target: { section: 0, para: 2, cellPath: [] }, start: 1, end: 4, text: "확인", author: DEFAULT_MEMO_AUTHOR })
+  assert.equal(planMemo("update", { fieldId: 3, text: "고침" }, "/w/a.hwp", "/w").name, "hwp_doc_update_memo")
+  assert.deepEqual(planMemo("delete", { fieldId: 3, output: "out.hwp" }, "/w/a.hwp", "/w"), {
+    write: true,
+    output: "/w/out.hwp",
+    name: "hwp_doc_delete_memo",
+    args: { fieldId: 3 },
+  })
+  assert.throws(() => planMemo("rename", {}, "/w/a.hwp", "/w"), /action은/)
+  assert.throws(() => planMemo("create", { start: 4, end: 4, text: "x" }, "/w/a.hwp", "/w"), /end는/)
+  assert.throws(() => planMemo("create", { start: 0, end: 1, text: " " }, "/w/a.hwp", "/w"), /text가 비어/)
+  assert.throws(() => planMemo("create", { start: 0, end: 1, text: "x", cellPath: [[1, 2]] }, "/w/a.hwp", "/w"), /cellPath/)
+  assert.throws(() => planMemo("update", { fieldId: 1 }, "/w/a.hwp", "/w"), /하나 이상/)
+  assert.throws(() => planMemo("delete", { fieldId: -1 }, "/w/a.hwp", "/w"), /fieldId/)
+  // The output must be an HWP document and never a key or secret file.
+  assert.throws(() => planMemo("delete", { fieldId: 1, output: "/home/u/.ssh/authorized_keys" }, "/w/a.hwp", "/w"), /\.hwp/)
+  assert.throws(() => planMemo("delete", { fieldId: 1, output: "/home/u/.ssh/x.hwp" }, "/w/a.hwp", "/w"), /비밀 파일/)
+})
+
+test("hwp_memo asks before a write and stops before rhwp runs when refused", async () => {
+  const asked = []
+  const denied = { directory: "/w", ask: async (req) => { asked.push(req); throw new Error("rejected") } }
+  await assert.rejects(
+    () => hwpMemo({ path: "/nope/a.hwp", action: "delete", memo: { fieldId: 1 } }, denied),
+    /rejected/,
+  )
+  assert.equal(asked.length, 1)
+  assert.equal(asked[0].permission, "edit")
+  assert.deepEqual(asked[0].patterns, ["/nope/a_memo.hwp"])
 })
