@@ -209,6 +209,9 @@ Gate가 도구 실행마다 허가 토큰을 발급하고, croakcode가 실행 �
 - `src/delegation/grants.ts`에 Grant 발급, 조회, 체인 조회, 만료를 둔다.
 - 발급 검증: 부분집합, 범위, 만료 시각, revision, 순환, 깊이 3을 확인한다.
 - 테스트: DG-01부터 DG-06까지. 깊이 4 발급 거부와 순환 거부를 포함한다.
+- 완료(2026-11-09): `src/delegation/grants.ts`와 `src/delegation/lattice.ts`를 추가했다. DG-02부터 DG-04까지 PASS다.
+- DG-01은 Task 6에서 검증한다. DG-05와 DG-06은 Task 4에서 검증한다.
+- 계획에 없던 검사 두 가지를 더했다. 하위 위임은 부모 Grant를 받은 Principal만 할 수 있다. 부모 Run은 위임하는 Principal의 실행 중인 Run이어야 한다.
 
 ### Task 4. 효과 권한 계산기
 
