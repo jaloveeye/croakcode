@@ -65,7 +65,12 @@ export function stripImages(md) {
 /** Page files sorted by their numeric suffix; index 0 is page 1. */
 export function sortPageFiles(names) {
   const num = (n) => Number(n.match(/_(\d+)\.md$/)?.[1] ?? NaN)
-  return names.filter((n) => n.endsWith(".md") && !Number.isNaN(num(n))).sort((a, b) => num(a) - num(b))
+  const numbered = names.filter((n) => n.endsWith(".md") && !Number.isNaN(num(n))).sort((a, b) => num(a) - num(b))
+  if (numbered.length > 0) return numbered
+  // rhwp export-markdown writes a one-page document as `<name>.md`, without a
+  // page number. That single file is page 1.
+  const plain = names.filter((n) => n.endsWith(".md"))
+  return plain.length === 1 ? plain : []
 }
 
 function run(args, timeout) {

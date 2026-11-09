@@ -33,6 +33,12 @@ test("sortPageFiles orders by page number, not by name", () => {
   assert.deepEqual(sortPageFiles(["d_010.md", "d_002.md", "d_001.md", "done", "d_assets"]), ["d_001.md", "d_002.md", "d_010.md"])
 })
 
+test("sortPageFiles treats a lone unnumbered export as page 1", () => {
+  // rhwp export-markdown names a one-page document `<name>.md`.
+  assert.deepEqual(sortPageFiles(["d.md", "done"]), ["d.md"])
+  assert.deepEqual(sortPageFiles(["a.md", "b.md", "done"]), [])
+})
+
 import { classifyCli, convertArgs, hwpCli } from "../upstream/.croakcode/plugins/hwp-read.js"
 
 test("classifyCli separates read, write and blocked commands", () => {
@@ -59,9 +65,9 @@ test("hwpCli asks before writing and never runs blocked commands", async () => {
   const denied = { directory: "/tmp", ask: async () => { throw new Error("rejected") } }
   await assert.rejects(() => hwpCli({ args: ["edit", "replace-text", "/nope.hwp", "--find", "a", "--replace", "b"] }, denied), /rejected/)
   const out = await hwpCli({ args: ["edit", "--help"] }, ctx)
-  // This environment has no `rhwp` binary, so the child exits non-zero (ENOENT -> exit 1).
-  // Assert the wrapper contract that does not depend on the binary: read commands run
-  // without asking for permission and the result reports the command plus an exit code.
+  // The wrapper contract that does not depend on the binary: read commands run without
+  // asking for permission and the result reports the command plus an exit code. With
+  // the binary installed, hwp-read.rhwp.test.mjs checks the exit 0 path.
   assert.match(out, /^\$ rhwp edit --help$/m)
   assert.match(out, /^exit \d+$/m)
   assert.equal(asked.length, 0)

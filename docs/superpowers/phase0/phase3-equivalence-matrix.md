@@ -29,7 +29,7 @@
 | tool-policy (`/net-off` `/net-on` `/tool-status`, deny) | `node --test tests/tool-policy.test.mjs` → **8 pass** | PASS |
 | usage-meter (JSONL) | `node --test tests/usage-meter.test.mjs` → **4 pass** | PASS |
 | usage-panel (슬롯 3종·order 90) | `bun test test/usage-panel` → **55 pass**; `test/plugins/usage-panel.test.ts` → **1 pass** | PASS |
-| hwp-read / hwp_cli | `node --test tests/hwp-read.test.mjs` → **8 pass** (rhwp 바이너리 미설치 → `exit 0` 미검증, wrapper 계약만 확인 — 아래 잔여 리스크) | PASS(부분) |
+| hwp-read / hwp_cli | `node --test tests/hwp-read.test.mjs` → **9 pass**(래퍼 규칙). 2026-11-09 rhwp v0.8.7로 `node --test tests/hwp-read.rhwp.test.mjs` → **4 pass**(실제 실행). 이 검증에서 1쪽 문서의 쪽 읽기가 실패하는 결함을 찾아 고쳤다 | PASS |
 | croak-auth TUI (/login /logout /whoami /agent-perm) | `bun test test/plugins/croak-auth-tui.test.ts` → **2 pass** (슬래시 4개+슬롯 2개); `node --test tests/croak-auth-tui-registration.test.mjs` → **2 pass** | PASS |
 | stall-recovery | 폐기 결정 기록 | ACCEPTED DEVIATION |
 | vendor/opencode-cache-hit | 폐기 결정 기록 (아래) | ACCEPTED DEVIATION |
@@ -183,7 +183,7 @@ SEC-03 후속 수정 뒤에도 백그라운드 결과는 task 도구 단위에�
 ## 잔여 리스크 / 명시적 미검증
 
 - **Gate→Direct 실경로 재전송 E2E**: 일반 응답, 압축, 하위 에이전트 결과를 무-fixture E2E로 검증했다. 실제 Gate 서버 대신 `TestLLMServer`를 썼으므로 Gate 쪽 헤더와 인증은 이 E2E 범위 밖이다. direct 모드의 토큰 차단은 `phase3-context-e2e(5)`가 따로 검증한다.
-- **rhwp 바이너리 미설치**: `hwpCli`의 `exit 0` 경로는 이 환경에서 검증 불가. 테스트는 wrapper 계약(`$ rhwp …` echo, `exit \d+`, read 명령은 ask 없음, write는 ask, blocked 차단)만 확인. 실 바이너리 설치 환경에서 재검증 필요.
+- **rhwp 바이너리 검증(해소, 2026-11-09)**: rhwp v0.8.7(`~/.local/bin/rhwp`)로 검증했다. 대상은 `hwp_cli`의 `exit 0` 경로와 `hwp_read`의 요약, 쪽 읽기, 캐시다. 테스트는 `tests/hwp-read.rhwp.test.mjs`이고, 바이너리가 없으면 건너뛴다. 검증 중에 결함 하나를 찾았다. rhwp는 1쪽 문서를 쪽 번호 없이 `<이름>.md`로 내보낸다. 그런데 `sortPageFiles`는 `_001.md` 형식만 쪽 파일로 보았다. 그래서 1쪽 문서를 쪽 단위로 읽으면 "문서는 0쪽이다" 오류가 났다. 번호 없는 파일이 하나뿐이면 1쪽으로 읽도록 고쳤다.
 - **플러그인 로더 경로 해석**: `src/session/llm/mode.ts`·`prompt.ts`가 `.croakcode/plugins/lib/connection.js`를 상대 경로로 import한다. Bun 런타임은 `upstream/.croakcode`(레벨 5)로 해석하고 `tsgo`는 `upstream/packages/.croakcode`(레벨 3)로 해석한다. `src/connection.d.ts` 모듈 선언으로 typecheck는 통과하나, 번들링 시 이 경로가 보존되는지는 패키지 빌드에서 확인 필요(Phase 4).
 - **`cancel finalizes interrupted bash tool output`**: baseline(`2f9a1d8` 이전)에서도 실패하는 환경성 flake. 회귀 아님.
 - **plugin.xai / parsePluginSpecifier 테스트**: `@opencode`→`@croakcode` 브랜딩 패치 관련 기존 실패(baseline 동일). 회귀 아님.
