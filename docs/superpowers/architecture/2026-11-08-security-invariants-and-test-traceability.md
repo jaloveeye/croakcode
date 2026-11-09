@@ -1,11 +1,12 @@
 # Security Invariants & Test Traceability (Agent Principal & Delegation)
 
-- **상태**: Proposed (설계 승인 대기 — 런타임 구현 없음)
-- **날짜**: 2026-11-08
+- **상태**: Phase 4 구현 진행 중. 이 문서의 FUTURE CONTRACT 행은 Phase 4 계획의 Task에서 구현한다(§J)
+- **날짜**: 2026-11-08 작성, 2026-11-09 갱신(Phase 4 Task 0)
 - **관련 문서**:
   - ADR: `docs/superpowers/adr/0001-agent-principal-and-delegation.md`
   - 위임 아키텍처: `docs/superpowers/architecture/2026-11-08-agent-principal-delegation.md`
   - Phase 3 계획: `docs/superpowers/plans/2026-11-08-phase3-plugin-port.md`
+  - Phase 4 계획: `docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`
   - 설계 명세 §6.6 상태 기준: `docs/superpowers/specs/2026-11-07-croakcode-agent-core-design.md`
 
 > 이 문서는 위임 모델의 **보안 불변식**과 이를 검증하는 **테스트 추적표**를 고정한다. **가짜 PASS 금지** — 각 행은 **정확히 하나의 상태**만 가진다.
@@ -39,7 +40,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| AG-01 | 세션에 agent 이름이 저장되고 실행 시 메시지 단위 agent(`lastUser.agent`)가 사용된다(현재 동작 고정) | **NOT TESTED** | 코드 근거만 존재(`session.ts:209-221`, `prompt.ts:1334`). `test/agent/agent.test.ts`는 **Definition/config**를 검증할 뿐 세션 agent 저장·`lastUser.agent` 사용을 검증하지 않음 → 이 작업에서 해당 동작 테스트를 **실행/확인하지 않음**. "신원"이 아니라 "이름"임을 명시 |
+| AG-01 | 세션에 agent 이름이 저장되고 실행 시 메시지 단위 agent(`lastUser.agent`)가 사용된다(현재 동작 고정) | **NOT TESTED** | 코드 근거만 존재(`session.ts:607` 생성 시 저장, `session.ts:126` 읽기, `prompt.ts:1350` 실행 시 선택). `test/agent/agent.test.ts`는 **Definition/config**를 검증할 뿐 세션 agent 저장·`lastUser.agent` 사용을 검증하지 않음 → 이 작업에서 해당 동작 테스트를 **실행/확인하지 않음**. "신원"이 아니라 "이름"임을 명시 |
 | AG-02 | Principal 레지스트리가 런타임 발급 신원을 제공하고, 프롬프트/모델 출력에서 신원을 추출하지 않는다 | **FUTURE CONTRACT** | Phase 4. 현재 코드에 레지스트리 없음(확인된 사실) |
 | AG-03 | Definition과 Principal이 분리되어 동일 Definition에서 복수 Principal 생성 가능 | **FUTURE CONTRACT** | Phase 4 |
 | AG-04 | Run → Principal 참조가 정확히 1개(무결성) | **FUTURE CONTRACT** | Phase 4 |
@@ -66,7 +67,7 @@
 | DG-02 | `child.capabilities ⊆ parent.capabilities` | **FUTURE CONTRACT** | Phase 4 |
 | DG-03 | `child.scope ⊆ parent.scope` 및 constraints 단조 강화 | **FUTURE CONTRACT** | Phase 4 |
 | DG-04 | `expiresAt`/`policyRevision` 단조성 및 순환 그래프 거부 | **FUTURE CONTRACT** | Phase 4 |
-| DG-05 | 효과 권한 교집합(min) 계산; 서브 에이전트 부모 권한 초과 불가 | **NOT TESTED** | 교집합 검사 테스트가 **존재하지 않음** → FAIL이 아니라 NOT TESTED. 코드 근거: 현재 런타임은 교집합이 아니라 `merge`(평탄)+`findLast`(마지막 우선) — `upstream/packages/core/src/permission.ts:21-35`(확인된 사실). 교집합 검사 없음(INV-8 미구현). Phase 3에서 통합 재현 테스트로 고정 필요 |
+| DG-05 | 효과 권한 교집합(min) 계산; 서브 에이전트 부모 권한 초과 불가 | **NOT TESTED** | 교집합 검사 테스트가 **존재하지 않음** → FAIL이 아니라 NOT TESTED. 코드 근거: 현재 런타임은 교집합이 아니라 `merge`(평탄)+`findLast`(마지막 우선) — `upstream/packages/core/src/permission.ts:21-35`(확인된 사실). 교집합 검사 없음(INV-8 미구현). Phase 4 Task 4에서 검증한다 |
 | DG-06 | 다중 위임 경로 union 증폭 금지(교집합) | **FUTURE CONTRACT** | Phase 4 |
 
 ---
@@ -101,8 +102,8 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **NOT TESTED** | 코드 근거(`task.ts:183-199`: `resolvePromptParts(params.prompt)`만 전달). `test/tool/task.test.ts`는 존재하나 이 작업에서 **실행 결과를 기록하지 않음** → NOT TESTED. Phase 3에서 실행해 PASS 확정 |
-| CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **NOT TESTED** | Phase 3 Task 16b(§5.4 시나리오 5 E2E)에서 검증 예정. 요청 조립 지점 `prompt.ts:1439-1445`(확인된 사실). 이 작업에서는 **실행하지 않음** |
+| CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **NOT TESTED** | 코드 근거(`task.ts:277`: `resolvePromptParts(params.prompt)`만 전달). `test/tool/task.test.ts`에는 `resolvePromptParts`의 가짜 구현만 있고, 자식에 전달된 내용을 검사하는 테스트가 없다(2026-11-09 확인) |
+| CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **PASS** | 2026-11-09 실행: `bun test test/session/sec03-gate-direct-e2e.test.ts` → 8 pass / 0 fail. 근거 테스트 "direct request after a real gate turn omits gate output and keeps direct history"(1 pass)는 gate 턴의 응답이 이후 direct 요청 본문에 없음을 확인한다. 요청 조립 지점 `prompt.ts:1465-1471` |
 | CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **FUTURE CONTRACT** | Phase 4 |
 | CX-04 | Grant scope 밖 컨텍스트 접근 deny | **FUTURE CONTRACT** | Phase 4 |
 
@@ -119,7 +120,7 @@
 ### 테스트 추적표
 | ID | 검증 내용 | 상태 | 근거/비고 |
 |---|---|---|---|
-| AU-01 | 실행 기록이 parentSessionId/sessionId metadata로 연결된다(현재 동작) | **NOT TESTED** | 코드 근거만 존재(`task.ts:168-178`) + `x-parent-session-id` 헤더(`session/llm/request.ts:165`). 이 작업에서 실행 기록 연결을 검증하는 테스트를 **실행하지 않음** → NOT TESTED. **free-form이며 typed 아님** — AU-02로 보강 필요 |
+| AU-01 | 실행 기록이 parentSessionId/sessionId metadata로 연결된다(현재 동작) | **NOT TESTED** | 코드 근거만 존재(`task.ts:243-253`) + `x-parent-session-id` 헤더(`session/llm/request.ts:169`). 이 작업에서 실행 기록 연결을 검증하는 테스트를 **실행하지 않음** → NOT TESTED. **free-form이며 typed 아님** — AU-02로 보강 필요 |
 | AU-02 | parentRunId/childRunId **typed** 교차 Run 연결 | **FUTURE CONTRACT** | Phase 4. 현재 typed 필드 없음(확인된 사실) |
 | AU-03 | 도구 실행 allow/deny/ask + errorCode + policyRevision 감사 기록 | **FUTURE CONTRACT** | Phase 4. 현재 감사 레코드 스키마 없음 |
 | AU-04 | 프롬프트 원문 미기록 + usage/보안 감사 분리 | **FUTURE CONTRACT** | §4.4 계약 존재, 구현·검증은 Phase 4 |
@@ -151,15 +152,15 @@
 
 | 코드 확인 사실(레이블) | 테스트 상태 |
 |---|---|
-| `task` 자식 세션 `parentID` 설정(`task.ts:142-159`) | (세션생성 코드 확인 — **대응 테스트 행 없음**, AG-01과 무관) |
-| `merge` = 평탄 + `findLast`(`packages/core/src/permission.ts:21-35`) | DG-05 **NOT TESTED**(교집합 미구현) |
-| `deriveSubagentSessionPermission` deny 전달(`subagent-permissions.ts:17-34`) | 생성 직후에는 deny 유지, `prompt()` 덮어쓰기 후 **SC-01 FAIL** (재현 완료) |
-| `prompt()` session.permission 덮어쓰기(`prompt.ts:1226-1233`) | SC-02 **NOT TESTED** |
+| `task` 자식 세션 `parentID` 설정(`task.ts:208-225`) | (세션생성 코드 확인 — **대응 테스트 행 없음**, AG-01과 무관) |
+| `merge` = 평탄 + `findLast`(`packages/core/src/permission.ts:21-35`) | DG-05 **NOT TESTED**(교집합 미구현, Phase 4 Task 4) |
+| `deriveSubagentSessionPermission` deny 전달(`subagent-permissions.ts:20-37`) | SC-01 **PASS**. 수정 전에는 `prompt()` 덮어쓰기 뒤 deny가 사라졌다. 2026-11-08 수정 뒤 영속 상한으로 유지된다 |
+| `prompt()` session.permission 덮어쓰기(`prompt.ts:1236-1249`) | SC-02 **PASS** |
 | plan 부모 → general 자식 edit 상승(실제 `prompt()` 경로) | SC-01 **PASS**(수정 완료 2026-11-08) |
-| `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **NOT TESTED** |
+| `task`/`todowrite` 주입 deny로 손자 제한(세션 deny + `ctx.ask`) | SC-03 **PASS** |
 | abort 전파(포그라운드 `task.test.ts:290`, 백그라운드 `task.test.ts:705`) | SC-04 **PASS**(15 pass / 0 fail 실행) |
-| revocation 부재 | RV-01~05 **FUTURE CONTRACT** |
-| Principal 부재 | AG-02~05 **FUTURE CONTRACT** |
+| revocation 부재 | RV-01~05 **FUTURE CONTRACT**(Phase 4 Task 5, 7) |
+| Principal 부재 | AG-02~05 **FUTURE CONTRACT**(Phase 4 Task 2, 7) |
 
 ---
 
@@ -170,10 +171,13 @@
 - **SC-03**: **PASS** — general 서브에이전트 task deny 주입 + 실행 시 차단.
 - **SC-04**: **완료(PASS)** — `test/tool/task.test.ts` → 15 pass / 0 fail (포그라운드 abort + 백그라운드 재귀 취소).
 
-다음 항목은 **아직 실행/기록하지 않았으므로 NOT TESTED**로 둔다(Phase 3에서 실행해 PASS/FAIL 확정):
+- **CX-02**: **PASS(2026-11-09)** — `sec03-gate-direct-e2e.test.ts` 8 pass / 0 fail.
 
-- **CX-01**: `test/tool/task.test.ts` 실행 → 자식 프롬프트 전달 확인.
-- **CX-02**: Phase 3 Task 16b E2E 실행.
+다음 항목은 검증 테스트가 없어 NOT TESTED로 둔다.
+
+- **CX-01**: 자식에 전달된 프롬프트를 검사하는 테스트가 없다.
+- **AG-01**: 세션 agent 저장과 실행 시 선택을 검사하는 테스트가 없다.
+- **AU-01**: 자유 형식 metadata 연결을 검사하는 테스트가 없다. Phase 4 Task 8의 typed 연결(AU-02)이 이 기능을 대신한다.
 
 > **주의**: 위 테스트를 **실행하지 않고** PASS로 승격하지 말 것. 상태 승격은 `docs/superpowers/plans/2026-11-08-phase3-plugin-port.md`의 Task 16/16a/16b/17 게이트에서만 한다.
 
@@ -183,22 +187,65 @@
 
 | 항목 | 파일:라인 |
 |---|---|
-| task 자식 세션 생성 + permission | `upstream/packages/opencode/src/tool/task.ts:142-159` |
-| task tools 맵 | `upstream/packages/opencode/src/tool/task.ts:193-197` |
-| deriveSubagentSessionPermission | `upstream/packages/opencode/src/agent/subagent-permissions.ts:17-34` |
+| task 자식 세션 생성 + permission | `upstream/packages/opencode/src/tool/task.ts:208-225` |
+| task tools 맵 | `upstream/packages/opencode/src/tool/task.ts:276-295` |
+| deriveSubagentSessionPermission | `upstream/packages/opencode/src/agent/subagent-permissions.ts:20-37` |
 | merge/evaluate | `upstream/packages/core/src/permission.ts:21-35` |
-| prompt session.permission 덮어쓰기 | `upstream/packages/opencode/src/session/prompt.ts:1226-1233` |
-| setPermission 전체 교체 | `upstream/packages/opencode/src/session/session.ts:735-739` |
-| abort 전파 | `upstream/packages/opencode/src/tool/task.ts:260-269`, `run-state.ts:122-128` |
-| registry 노출 게이트 | `upstream/packages/opencode/src/tool/registry.ts:330-341` |
+| prompt session.permission 덮어쓰기 | `upstream/packages/opencode/src/session/prompt.ts:1236-1249` |
+| setPermission 전체 교체 | `upstream/packages/opencode/src/session/session.ts:820-825` |
+| abort 전파 | `upstream/packages/opencode/src/tool/task.ts:360-390`, `run-state.ts:76-85` |
+| registry 노출 게이트 | `upstream/packages/opencode/src/tool/registry.ts:330-339` |
 | execution gate(ctx.ask) | `upstream/packages/opencode/src/session/tools.ts:64-72` |
-| metadata 연결 | `upstream/packages/opencode/src/tool/task.ts:168-178` |
-| x-parent-session-id | `upstream/packages/opencode/src/session/llm/request.ts:165` |
-| 세션 agent 저장 | `upstream/packages/opencode/src/session/session.ts:209-221` |
-| 실행 시 agent 선택 | `upstream/packages/opencode/src/session/prompt.ts:1334` |
-| provenance metadata | `upstream/packages/opencode/src/session/message-v2.ts:103-119, 316-323` |
-| 요청 조립 필터 | `upstream/packages/opencode/src/session/prompt.ts:1439-1445` |
+| metadata 연결 | `upstream/packages/opencode/src/tool/task.ts:243-253` |
+| x-parent-session-id | `upstream/packages/opencode/src/session/llm/request.ts:169` |
+| 세션 agent 저장 | `upstream/packages/opencode/src/session/session.ts:607` |
+| 실행 시 agent 선택 | `upstream/packages/opencode/src/session/prompt.ts:1350` |
+| provenance metadata | `upstream/packages/opencode/src/session/message-v2.ts:103-118`(TextPart), `:316-323`(ToolPart) |
+| 요청 조립 필터 | `upstream/packages/opencode/src/session/prompt.ts:1465-1471` |
 | 기존 격리 테스트 | `upstream/packages/opencode/test/agent/plan-mode-subagent-bypass.test.ts` |
 | 격리 테스트 실행 결과 | 5 pass / 0 fail (2026-11-08 실행) |
 | task 테스트 실행 결과 | 15 pass / 0 fail (2026-11-08 실행) — SC-04 근거 |
 | 실행 증거 보존 | `docs/superpowers/evidence/agent-principal-delegation/2026-11-08-test-evidence.md` |
+
+코드 위치는 2026-11-09 `master` 기준으로 갱신했다.
+
+---
+
+## J. Phase 4 작업 대응표
+
+Phase 4 계획(`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`)의 Task와 이 문서의 ID를 잇는다. 상태는 각 Task가 끝날 때 테스트 실행 결과로 바꾼다.
+
+| Task | 대상 ID |
+|---|---|
+| Task 2. Agent Registry와 Run 저장소 | AG-02, AG-03, AG-04 |
+| Task 3. Delegation Store | DG-02, DG-03, DG-04 |
+| Task 4. 효과 권한 계산기 | DG-05, DG-06 |
+| Task 5. 실행 직전 재인가 | RV-03, RV-04, RV-05, SC-05 |
+| Task 6. task 도구 연결 | DG-01. SC-01부터 SC-04까지 회귀 확인 |
+| Task 7. 철회 | AG-05, RV-01, RV-02 |
+| Task 8. 실행 감사 | AU-02, AU-03, AU-04, AU-05 |
+| Task 9. 실행 허가 토큰 | PT-01부터 PT-07까지(§K) |
+
+RV-04는 사용자 결정에 따라 "상태를 확인할 수 없으면 deny"로 검증한다.
+
+CX-03과 CX-04는 Phase 4 계획의 어느 Task에도 들어 있지 않다. 두 행은 Grant `scope`로 컨텍스트 접근을 제한하는 기능이다. 계획의 `scope`는 도구 실행 범위만 다룬다. 이 두 행은 FUTURE CONTRACT로 두고, 구현 여부는 사용자 결정으로 정한다.
+
+SC-06은 테스트로 확인할 항목이 아니다. 게이트 리뷰에서 확인한다.
+
+## K. 실행 허가 토큰 (PT)
+
+### 불변식
+- **PT-INV-1**: 허가 토큰 검증을 켜면 유효한 토큰 없이 도구를 실행하지 않는다.
+- **PT-INV-2**: 토큰은 세션, Principal, Run, 도구, 인자 해시에 묶인다. 다른 호출에 재사용할 수 없다.
+- **PT-INV-3**: 검증할 수 없으면 실행을 거부한다.
+
+### 테스트 추적표
+| ID | 검증 내용 | 상태 | 근거/비고 |
+|---|---|---|---|
+| PT-01 | 가짜 Gate가 서명한 유효 토큰으로 실행이 허용된다 | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-02 | 서명이 위조된 토큰은 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-03 | 세션, Principal, Run, 도구, 인자 해시 중 하나라도 다르면 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-04 | 만료된 토큰은 deny. 시계 오차 30초까지 허용 | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-05 | 같은 nonce를 두 번 쓰면 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-06 | 검증을 켰는데 Gate 공개키가 없으면 모든 도구 deny | **FUTURE CONTRACT** | Phase 4 Task 9 |
+| PT-07 | 실제 croak-gate가 발급한 토큰으로 연동 | **FUTURE CONTRACT** | croak-gate 발급 구현 뒤에 검증한다. Phase 4 수용 시점에도 이 상태로 남을 수 있다 |
