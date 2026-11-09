@@ -104,8 +104,9 @@
 |---|---|---|---|
 | CX-01 | `task` 도구가 자식에 `params.prompt`만 전달(부모 대화 전체 미주입) | **NOT TESTED** | 코드 근거(`task.ts:277`: `resolvePromptParts(params.prompt)`만 전달). `test/tool/task.test.ts`에는 `resolvePromptParts`의 가짜 구현만 있고, 자식에 전달된 내용을 검사하는 테스트가 없다(2026-11-09 확인) |
 | CX-02 | gate context(`origin:"gate"`)가 direct 요청 조립 시 제외 | **PASS** | 2026-11-09 실행: `bun test test/session/sec03-gate-direct-e2e.test.ts` → 8 pass / 0 fail. 근거 테스트 "direct request after a real gate turn omits gate output and keeps direct history"(1 pass)는 gate 턴의 응답이 이후 direct 요청 본문에 없음을 확인한다. 요청 조립 지점 `prompt.ts:1465-1471` |
-| CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **FUTURE CONTRACT** | Phase 4 |
-| CX-04 | Grant scope 밖 컨텍스트 접근 deny | **FUTURE CONTRACT** | Phase 4 |
+| CX-03 | 다중 위임 경로 간 교차 컨텍스트 누수 없음 | **FUTURE CONTRACT** | Phase 4 Task 6a |
+| CX-04 | Grant scope 밖 컨텍스트 접근 deny | **FUTURE CONTRACT** | Phase 4 Task 6a |
+| CX-05 | 모델이 쓴 위임 프롬프트의 파일 참조가 권한 확인 없이 읽히지 않는다 | **FAIL** | 2026-11-09 재현. read와 `external_directory`를 deny한 세션에 작업 트리 밖 파일 part를 넘기자 내용이 메시지에 들어갔다. 파일 part 변환(`prompt.ts:879-897`)이 read 도구를 `ask: () => Effect.void`로 부른다. 모델이 쓴 `@~/` 참조는 `resolvePromptParts`에서 파일 part가 된다(`task.ts:277`). 도구 래퍼를 거치지 않아 before 훅도 돌지 않는다. Phase 4 Task 6a에서 먼저 고친다 |
 
 ---
 
@@ -222,13 +223,14 @@ Phase 4 계획(`docs/superpowers/plans/2026-11-09-phase4-delegation-runtime.md`)
 | Task 4. 효과 권한 계산기 | DG-05, DG-06 |
 | Task 5. 실행 직전 재인가 | RV-03, RV-04, RV-05, SC-05 |
 | Task 6. task 도구 연결 | DG-01. SC-01부터 SC-04까지 회귀 확인 |
+| Task 6a. 컨텍스트 격리 | CX-03, CX-04, CX-05 |
 | Task 7. 철회 | AG-05, RV-01, RV-02 |
 | Task 8. 실행 감사 | AU-02, AU-03, AU-04, AU-05 |
 | Task 9. 실행 허가 토큰 | PT-01부터 PT-07까지(§K) |
 
 RV-04는 사용자 결정에 따라 "상태를 확인할 수 없으면 deny"로 검증한다.
 
-CX-03과 CX-04는 Phase 4 계획의 어느 Task에도 들어 있지 않다. 두 행은 Grant `scope`로 컨텍스트 접근을 제한하는 기능이다. 계획의 `scope`는 도구 실행 범위만 다룬다. 이 두 행은 FUTURE CONTRACT로 두고, 구현 여부는 사용자 결정으로 정한다.
+CX-03과 CX-04는 처음 계획에 없었다. 2026-11-09 사용자 결정으로 Task 6a에 넣었다. Task 6a를 준비하면서 CX-05의 권한 우회를 재현했다.
 
 SC-06은 테스트로 확인할 항목이 아니다. 게이트 리뷰에서 확인한다.
 
