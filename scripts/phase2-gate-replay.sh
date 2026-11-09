@@ -40,9 +40,10 @@ BASELINE_FAIL=(
   # CORS allowlist still matches *.opencode.ai, not the croakcode UI origin.
   "HttpApi CORS > adds CORS headers to unauthorized responses"
 )
+# P2-2 fixed the shell reader race behind "captures stderr in output" and
+# "cancel finalizes interrupted bash tool output"; both were removed. The task
+# metadata test passed 20/20 under CPU load but its cause is not confirmed.
 FLAKE_FAIL=(
-  "tool.shell abort > captures stderr in output"
-  "cancel finalizes interrupted bash tool output through normal truncation"
   "running task tool preserves metadata after tool-call transition"
 )
 
