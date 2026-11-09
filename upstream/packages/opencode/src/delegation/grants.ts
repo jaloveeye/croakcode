@@ -1,10 +1,11 @@
 import path from "path"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { Context, Effect, Layer, Schema } from "effect"
 import { AppFileSystem } from "@croakcode/core/filesystem"
 import type { Permission } from "../permission"
 import { Database } from "@/storage/db"
 import { DelegationGrantTable } from "./delegation.sql"
+import { Audit } from "./audit"
 import { Lattice } from "./lattice"
 import { Registry } from "./registry"
 import {
@@ -271,6 +272,13 @@ export const layer = Layer.effect(
           .returning()
           .get(),
       )
+      Audit.record({
+        eventType: "grant.issued",
+        grantId: row.id,
+        principalId: row.delegatee_principal_id,
+        runId: row.parent_run_id,
+        policyRevision: row.policy_revision,
+      })
       return toGrant(row)
     })
 
@@ -296,13 +304,18 @@ export const layer = Layer.effect(
     })
 
     const expire = Effect.fn("DelegationGrants.expire")(function* (id: GrantID) {
-      Database.use((db) =>
+      // Only an active grant expires; the event is recorded once.
+      const changed = Database.use((db) =>
         db
           .update(DelegationGrantTable)
           .set({ status: "expired" })
-          .where(eq(DelegationGrantTable.id, id))
-          .run(),
+          .where(and(eq(DelegationGrantTable.id, id), eq(DelegationGrantTable.status, "active")))
+          .returning()
+          .get(),
       )
+      if (changed) {
+        Audit.record({ eventType: "grant.expired", grantId: id, principalId: changed.delegatee_principal_id })
+      }
     })
 
     return Service.of({ issue, get, listByDelegatee, listChain, expire })

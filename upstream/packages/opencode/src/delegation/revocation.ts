@@ -3,6 +3,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import type { SessionID } from "../session/schema"
 import { Database } from "@/storage/db"
 import { AgentRunTable, DelegationGrantTable } from "./delegation.sql"
+import { Audit } from "./audit"
 import { Registry } from "./registry"
 import type { GrantID, PrincipalID, RunID } from "./schema"
 
@@ -95,6 +96,13 @@ function revokeAll(db: Tx, ids: readonly GrantID[], reason: string, extraRuns: r
   return { revokedGrants: changed, abortedRuns: running.map((row) => ({ runId: row.id, sessionId: row.session })) }
 }
 
+/** AU-05: every revoked grant and every closed run is recorded. */
+function audited(result: Result): Result {
+  for (const grantId of result.revokedGrants) Audit.record({ eventType: "grant.revoked", grantId })
+  for (const run of result.abortedRuns) Audit.record({ eventType: "run.aborted", runId: run.runId, sessionId: run.sessionId })
+  return result
+}
+
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -105,8 +113,7 @@ export const layer = Layer.effect(
         db.select({ id: DelegationGrantTable.id }).from(DelegationGrantTable).where(eq(DelegationGrantTable.id, id)).get(),
       )
       if (!exists) return yield* new GrantNotFoundError({ grantId: id })
-      // TODO(Phase 4 Task 8): record grant.revoked and run.aborted audit events.
-      return Database.transaction((db) => revokeAll(db, subtree(db, [id]), reason))
+      return audited(Database.transaction((db) => revokeAll(db, subtree(db, [id]), reason)))
     })
 
     const revokePrincipal = Effect.fn("DelegationRevocation.revokePrincipal")(function* (
@@ -114,7 +121,7 @@ export const layer = Layer.effect(
       reason: string,
     ) {
       yield* registry.revokePrincipal(id, reason)
-      return Database.transaction((db) => {
+      const result = Database.transaction((db) => {
         const related = db
           .select({ id: DelegationGrantTable.id })
           .from(DelegationGrantTable)
@@ -136,6 +143,7 @@ export const layer = Layer.effect(
           .map((row) => row.id)
         return revokeAll(db, subtree(db, related), reason, own)
       })
+      return audited(result)
     })
 
     const isRevoked = Effect.fn("DelegationRevocation.isRevoked")(function* (id: GrantID) {

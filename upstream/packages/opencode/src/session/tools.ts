@@ -19,6 +19,7 @@ import { PartID } from "./schema"
 import * as Log from "@croakcode/core/util/log"
 import { EffectBridge } from "@/effect/bridge"
 import { Guard } from "@/delegation/guard"
+import { Audit } from "@/delegation/audit"
 
 const log = Log.create({ service: "session.tools" })
 
@@ -64,18 +65,31 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           },
         }
       }),
-    ask: (req) =>
-      guard.checkPatterns(input.session.id, req.permission, req.patterns).pipe(
+    ask: (req) => {
+      const ruleset = Permission.merge(input.agent.permission, input.session.permission ?? [])
+      return guard.checkPatterns(input.session.id, req.permission, req.patterns).pipe(
         Effect.andThen(
-          permission.ask({
-            ...req,
-            sessionID: input.session.id,
-            tool: { messageID: input.processor.message.id, callID: options.toolCallId },
-            ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
-          }),
+          Effect.sync(() =>
+            Audit.engineAsked(
+              input.session.id,
+              req.permission,
+              req.patterns.some((pattern) => Permission.evaluate(req.permission, pattern, ruleset).action === "ask"),
+            ),
+          ),
+        ),
+        Effect.andThen(
+          permission
+            .ask({
+              ...req,
+              sessionID: input.session.id,
+              tool: { messageID: input.processor.message.id, callID: options.toolCallId },
+              ruleset,
+            })
+            .pipe(Effect.tapError((err) => Effect.sync(() => Audit.engineDenied(input.session.id, req.permission, err._tag)))),
         ),
         Effect.orDie,
-      ),
+      )
+    },
   })
 
   for (const item of yield* registry.tools({
