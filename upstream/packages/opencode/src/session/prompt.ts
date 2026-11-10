@@ -1713,7 +1713,9 @@ export const layer = Layer.effect(
           system: [...instructions, ...(skills ? [skills] : [])],
           context: env,
           messages: [...modelMsgs, { role: "user" as const, content: question }],
-          tools,
+          // Definitions only: toolChoice "none" is a request to the model, so
+          // the execute functions are removed and a tool call cannot run.
+          tools: Object.fromEntries(Object.entries(tools).map(([name, item]) => [name, { ...item, execute: undefined }])),
           toolChoice: "none",
           connection,
         })
