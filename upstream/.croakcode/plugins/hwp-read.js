@@ -399,7 +399,14 @@ export async function hwpMemo(input, ctx) {
   const result = await withRhwpSession(async (call) => {
     const { docId } = await call("hwp_open", { path: file })
     try {
-      const done = await call(plan.name, { docId, ...plan.args })
+      const done = await call(plan.name, { docId, ...plan.args }).catch((error) => {
+        // rhwp's message for text inside a table cell does not mention cells.
+        const inBody = input.action === "create" && (plan.args.target?.cellPath ?? []).length === 0
+        if (inBody && /필드 편집은 아직 지원하지 않습니다/.test(error.message)) {
+          error.message += '\n표 셀 안의 글자라면 memo.cellPath가 필요하다. hwp_cli ["search", <문서>, <글자>, "--json"] 결과의 cell 주소로 [[컨트롤, 셀, 내부 문단]]을 만든다.'
+        }
+        throw error
+      })
       if (!plan.write) return { memos: done }
       const saved = await call("hwp_doc_save", { docId, output: plan.output, verify: true })
       return { result: done, saved }

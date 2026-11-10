@@ -362,10 +362,25 @@ export function deferTools(tools: Record<string, AITool>): Record<string, AITool
     async execute(args: { name: string; input: Record<string, unknown> }, options) {
       const target = hidden[args.name]
       if (!target?.execute) throw new Error(`Unknown tool "${args.name}". Use tool_search to find it first.`)
-      return target.execute(args.input ?? {}, options)
+      const input = args.input ?? {}
+      // A model that skipped tool_search guesses parameter names. Answer with the
+      // definition so the next call is right, instead of the tool's own error.
+      const problem = wrongParameters(target, input)
+      if (problem) throw new Error(`${args.name}: ${problem}. Its definition:\n${definitionsOf([args.name], hidden)}`)
+      return target.execute(input, options)
     },
   })
   return visible
+}
+
+/** Missing required parameters, and unknown ones next to them; undefined when the input fits. */
+export function wrongParameters(target: AITool, input: Record<string, unknown>) {
+  const schema = asSchema(target.inputSchema).jsonSchema as { properties?: Record<string, unknown>; required?: string[] }
+  const missing = (schema.required ?? []).filter((name) => input[name] === undefined)
+  if (missing.length === 0) return undefined
+  const known = schema.properties ? new Set(Object.keys(schema.properties)) : undefined
+  const unknown = known ? Object.keys(input).filter((name) => !known.has(name)) : []
+  return [`missing ${missing.join(", ")}`, ...(unknown.length ? [`unknown ${unknown.join(", ")}`] : [])].join("; ")
 }
 
 function definitionsOf(matches: string[], hidden: Record<string, AITool>) {
