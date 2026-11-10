@@ -315,6 +315,10 @@ export const Info = Schema.Struct({
         description:
           "Experimental: send only the core tools (read, edit, write, bash, glob, grep) plus tool_search and tool_call; other tools are loaded on demand.",
       }),
+      confirm_risky_bash: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Ask before bash commands with substitutions, subshells, file redirects, find -exec/-delete or sed that edits or runs, even when bash is allowed.",
+      }),
       read_dedup: Schema.optional(Schema.Boolean).annotate({
         description:
           "Answer a repeated read of an unchanged file and range with a short notice while the earlier content is still in the conversation.",

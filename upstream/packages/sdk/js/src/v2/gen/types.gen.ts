@@ -1321,6 +1321,7 @@ export type Config = {
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
     deferred_tools?: boolean
+    confirm_risky_bash?: boolean
     read_dedup?: boolean
     read_before_write?: boolean
     stable_prompt_prefix?: boolean

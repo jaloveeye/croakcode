@@ -19,6 +19,10 @@ export const Parameters = Schema.Struct({
     })
     .pipe(Schema.optional, Schema.withDecodingDefault(Effect.succeed("markdown" as const))),
   timeout: Schema.optional(Schema.Number).annotate({ description: "Optional timeout in seconds (max 120)" }),
+  prompt: Schema.optional(Schema.String).annotate({
+    description:
+      "Optional question about the page. When given, only the answer extracted from the page is returned instead of the whole page, which keeps the conversation small. Omit it to get the page content.",
+  }),
 })
 
 export const WebFetchTool = Tool.define(
