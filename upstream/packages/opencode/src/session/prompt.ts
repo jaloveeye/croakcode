@@ -1453,6 +1453,7 @@ export const layer = Layer.effect(
               connectionMode: connection.mode,
               readBeforeWrite: (yield* config.get()).experimental?.read_before_write === true,
               readDedup: (yield* config.get()).experimental?.read_dedup === true,
+              deferredTools: (yield* config.get()).experimental?.deferred_tools === true,
               confirmRiskyBash: (yield* config.get()).experimental?.confirm_risky_bash === true,
               extract: (question, content) =>
                 extractFromPage({ question, content, agent, user: lastUser, model, sessionID, connection }).pipe(

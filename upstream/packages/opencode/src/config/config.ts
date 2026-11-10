@@ -311,6 +311,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      deferred_tools: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Experimental: send only the core tools (read, edit, write, bash, glob, grep) plus tool_search and tool_call; other tools are loaded on demand.",
+      }),
       confirm_risky_bash: Schema.optional(Schema.Boolean).annotate({
         description:
           "Ask before bash commands with substitutions, subshells, file redirects, find -exec/-delete or sed that edits or runs, even when bash is allowed.",
