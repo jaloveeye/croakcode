@@ -396,11 +396,19 @@ export function deferTools(tools: Record<string, AITool>): Record<string, AITool
       const target = hidden[args.name]
       if (!target?.execute) throw new Error(`Unknown tool "${args.name}". Use tool_search to find it first.`)
       const input = args.input ?? {}
-      // A model that skipped tool_search guesses parameter names. Answer with the
-      // definition so the next call is right, instead of the tool's own error.
-      const problem = wrongParameters(target, input)
-      if (problem) throw new Error(`${args.name}: ${problem}. Its definition:\n${definitionsOf([args.name], hidden)}`)
-      return target.execute(input, options)
+      try {
+        // The tool's own wrapper runs first: permission, execution permit, audit.
+        return await target.execute(input, options)
+      } catch (error) {
+        // A model that skipped tool_search guesses parameter names. Add the
+        // definition so the next call is right. Checked after the call, not
+        // before, so the failed call still has its permit (the gate checks
+        // every tool result it sees).
+        const problem = wrongParameters(target, input)
+        if (!problem) throw error
+        const said = error instanceof Error ? error.message : String(error)
+        throw new Error(`${args.name}: ${problem} (${said}). Its definition:\n${definitionsOf([args.name], hidden)}`)
+      }
     },
   })
   return visible
