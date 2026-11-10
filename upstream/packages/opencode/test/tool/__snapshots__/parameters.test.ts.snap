@@ -432,6 +432,10 @@ exports[`tool parameters JSON Schema (wire shape) webfetch 1`] = `
         },
       ],
     },
+    "prompt": {
+      "description": "Optional question about the page. When given, only the answer extracted from the page is returned instead of the whole page, which keeps the conversation small. Omit it to get the page content.",
+      "type": "string",
+    },
     "timeout": {
       "description": "Optional timeout in seconds (max 120)",
       "type": "number",
