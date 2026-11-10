@@ -1443,6 +1443,7 @@ export const layer = Layer.effect(
               messages: msgs,
               promptOps,
               connectionMode: connection.mode,
+              readBeforeWrite: (yield* config.get()).experimental?.read_before_write === true,
             }).pipe(
               Effect.provideService(Plugin.Service, plugin),
               Effect.provideService(Permission.Service, permission),

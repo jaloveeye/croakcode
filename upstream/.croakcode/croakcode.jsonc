@@ -17,7 +17,9 @@
   // The LiteLLM server caches prompt prefixes. Keeping the date and directories
   // out of the system prompt lets a new session's first request hit that cache
   // even on a new day (about 1.5 s instead of 7 s or more for a cold prefill).
-  "experimental": { "stable_prompt_prefix": true },
+  // read_before_write: edit and write change an existing file only after this
+  // session read it and it has not changed since (Phase 5 Task 5).
+  "experimental": { "stable_prompt_prefix": true, "read_before_write": true },
   // A tool result above these limits is saved to a file and the model gets the
   // first part plus the file path. The default 50KB (about 13,000 tokens) made
   // the request after a web fetch take 20+ s on a cold prefill.

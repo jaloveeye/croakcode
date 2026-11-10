@@ -1,3 +1,4 @@
+import path from "path"
 import { Agent } from "@/agent/agent"
 import { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
@@ -20,8 +21,23 @@ import * as Log from "@croakcode/core/util/log"
 import { EffectBridge } from "@/effect/bridge"
 import { Guard } from "@/delegation/guard"
 import { Audit } from "@/delegation/audit"
+import { InstanceState } from "@/effect/instance-state"
+import { ReadState } from "@/tool/read-state"
 
 const log = Log.create({ service: "session.tools" })
+
+// Phase 5 Task 5: tools whose filePath argument changes a file, and tools
+// after which the session has seen the file as it is.
+const CHANGES_FILE = new Set(["edit", "write"])
+const STAMPS_FILE = new Set(["read", "edit", "write"])
+
+/** The absolute path a file tool works on, resolved like the tools resolve it. */
+const fileTarget = Effect.fnUntraced(function* (args: Record<string, unknown>) {
+  const filePath = args.filePath
+  if (typeof filePath !== "string" || !filePath) return undefined
+  if (path.isAbsolute(filePath)) return filePath
+  return path.join((yield* InstanceState.context).directory, filePath)
+})
 
 export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   agent: Agent.Info
@@ -33,6 +49,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   promptOps: TaskPromptOps
   /** The turn's connection mode; execution permits apply in gate mode only. */
   connectionMode?: "gate" | "direct"
+  /** Phase 5 Task 5 (experimental.read_before_write): edit and write need a fresh read. */
+  readBeforeWrite?: boolean
 }) {
   using _ = log.time("resolveTools")
   const tools: Record<string, AITool> = {}
@@ -116,9 +134,16 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             yield* guard
               .authorizeExecution({ sessionID: ctx.sessionID, tool: item.id, args, mode: input.connectionMode ?? "direct" })
               .pipe(Effect.orDie)
+            const target = yield* fileTarget(args)
+            if (input.readBeforeWrite && target && CHANGES_FILE.has(item.id)) {
+              const verdict = ReadState.check(ctx.sessionID, target, input.messages)
+              if (verdict !== "ok") throw new Error(ReadState.refusal(verdict, target))
+            }
             const result = yield* item.execute(args, ctx)
+            const stamp = target && STAMPS_FILE.has(item.id) ? ReadState.remember(ctx.sessionID, target) : undefined
             const output = {
               ...result,
+              ...(stamp ? { metadata: { ...result.metadata, [ReadState.METADATA_KEY]: stamp } } : {}),
               attachments: result.attachments?.map((attachment) => ({
                 ...attachment,
                 id: PartID.ascending(),
