@@ -62,7 +62,7 @@ scripts/install-croakcode.sh --gate https://<게이트 주소>:8443
 | `~/.config/croak/croakcode.env` | 게이트 주소와 CA 인증서 경로입니다. 권한은 600입니다 |
 | `~/.local/bin/croakcode` | 현재 폴더를 프로젝트로 열어 TUI를 시작합니다 |
 
-설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 `croakcode -s <세션 ID>`로 이어서 씁니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
+설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 이렇게 이어서 씁니다. `croakcode resume --last`는 이 폴더의 가장 최근 세션을 엽니다. `croakcode resume --list`는 이 폴더의 세션 목록을 보여 줍니다. `croakcode resume`만 쓰면 고르는 창이 뜨고, `croakcode -s <세션 ID>`는 그 세션을 엽니다. 폴더를 앞에 주면(`croakcode resume ~/문서 --list`) 그 폴더를 기준으로 합니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
 
 - 작업 폴더에서 브랜치를 바꿔도 실행 중인 croakcode는 바뀌지 않습니다.
 - 갱신하려면 PR이 `master`에 병합된 뒤 스크립트를 다시 실행합니다. 원격 `master`를 받아 복사본을 맞추고 의존성을 설치합니다. 저장한 게이트 주소는 그대로 씁니다.
