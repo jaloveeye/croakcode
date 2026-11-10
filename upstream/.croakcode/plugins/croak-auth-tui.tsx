@@ -57,7 +57,12 @@ const tui = async (api: any) => {
 
   // The server plugin may refresh or clear the file, so poll it as well.
   const [session, setSession] = createSignal(currentSession())
-  const reload = () => setSession(currentSession())
+  // Whether this TUI ever saw a login; the server deletes session.json on a 401.
+  let loggedInOnce = Boolean(S.load())
+  const reload = () => {
+    if (S.load()) loggedInOnce = true
+    setSession(currentSession())
+  }
   const timer = setInterval(reload, 5000)
   api.lifecycle?.onDispose?.(() => clearInterval(timer))
 
@@ -245,7 +250,8 @@ const tui = async (api: any) => {
   api.event?.on?.("session.error", (event: any) => {
     const text = JSON.stringify(event?.properties?.error ?? "")
     if (/\b401\b|Authentication Error|invalid.*key|expired/i.test(text)) {
-      toast("warning", "다시 로그인하세요", "로그인이 끝났습니다. /login으로 다시 로그인하세요.")
+      if (loggedInOnce || S.load()) toast("warning", "다시 로그인하세요", "로그인이 끝났습니다. /login으로 다시 로그인하세요.")
+      else toast("warning", "로그인하세요", "아직 로그인하지 않았습니다. /login으로 로그인하세요.")
     }
   })
 }
