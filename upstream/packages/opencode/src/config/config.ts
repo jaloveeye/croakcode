@@ -311,6 +311,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      read_dedup: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Answer a repeated read of an unchanged file and range with a short notice while the earlier content is still in the conversation.",
+      }),
       read_before_write: Schema.optional(Schema.Boolean).annotate({
         description:
           "Refuse edit and write on an existing file unless this session has read it and it has not changed since.",

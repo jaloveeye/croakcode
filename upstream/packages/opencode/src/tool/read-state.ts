@@ -62,6 +62,47 @@ export function check(sessionID: string, filepath: string, messages: readonly Me
   return seen.mtimeMs === now.mtimeMs && seen.size === now.size ? "ok" : "changed"
 }
 
+/** Files smaller than this are read again: the notice is about 250 characters. */
+export const MIN_DEDUP_BYTES = 2048
+
+/**
+ * Phase 5 Task 6: an earlier read of the same file and range whose output the
+ * model still sees, with the file unchanged since. Returns that read's start
+ * time, or undefined when the file must be read again: the range differs, the
+ * file changed, or the earlier output is gone (compacted away or pruned).
+ */
+export function unchangedRead(
+  messages: readonly MessageV2.WithParts[],
+  filepath: string,
+  args: { readonly offset?: unknown; readonly limit?: unknown },
+  minBytes = MIN_DEDUP_BYTES,
+): number | undefined {
+  const now = current(filepath)
+  // A small file costs about as much as the notice; just read it again.
+  if (!now || now.size < minBytes) return undefined
+  for (const message of [...messages].reverse()) {
+    for (const part of [...message.parts].reverse()) {
+      if (part.type !== "tool" || part.tool !== "read" || part.state.status !== "completed") continue
+      if (part.state.time.compacted) continue
+      const metadata = part.state.metadata as Record<string, unknown> | undefined
+      // A notice carries no content; only a read that returned the file counts.
+      if (metadata?.unchanged === true) continue
+      const stamp = metadata?.[METADATA_KEY] as Stamp | undefined
+      if (stamp?.path !== now.path) continue
+      const input = part.state.input as { offset?: unknown; limit?: unknown }
+      if (input.offset !== args.offset || input.limit !== args.limit) return undefined
+      return stamp.mtimeMs === now.mtimeMs && stamp.size === now.size ? part.state.time.start : undefined
+    }
+  }
+  return undefined
+}
+
+/** What read returns instead of the content when unchangedRead() found one. */
+export function unchangedNotice(filepath: string, readAt: number) {
+  const at = new Date(readAt).toISOString().slice(11, 19)
+  return `${filepath} has not changed since you read it at ${at} UTC (same range). Its content is above in this conversation; use that instead of reading again.`
+}
+
 /** The error shown to the model when check() refuses. */
 export function refusal(verdict: Exclude<Verdict, "ok">, filepath: string) {
   return verdict === "unread"

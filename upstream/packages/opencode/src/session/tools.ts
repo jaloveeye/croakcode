@@ -51,6 +51,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   connectionMode?: "gate" | "direct"
   /** Phase 5 Task 5 (experimental.read_before_write): edit and write need a fresh read. */
   readBeforeWrite?: boolean
+  /** Phase 5 Task 6 (experimental.read_dedup): an unchanged re-read returns a short notice. */
+  readDedup?: boolean
 }) {
   using _ = log.time("resolveTools")
   const tools: Record<string, AITool> = {}
@@ -139,7 +141,12 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
               const verdict = ReadState.check(ctx.sessionID, target, input.messages)
               if (verdict !== "ok") throw new Error(ReadState.refusal(verdict, target))
             }
-            const result = yield* item.execute(args, ctx)
+            const readAt =
+              input.readDedup && target && item.id === "read" ? ReadState.unchangedRead(input.messages, target, args) : undefined
+            const result =
+              readAt !== undefined && target
+                ? { title: path.basename(target), output: ReadState.unchangedNotice(target, readAt), metadata: { unchanged: true } }
+                : yield* item.execute(args, ctx)
             const stamp = target && STAMPS_FILE.has(item.id) ? ReadState.remember(ctx.sessionID, target) : undefined
             const output = {
               ...result,
