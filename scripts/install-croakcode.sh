@@ -11,14 +11,17 @@
 #      provider, the croak plugins (login, gate identity, tool policy, HWP,
 #      usage), commands and agents, from the same pinned worktree.
 #   2. ~/.config/croak/croakcode.env (mode 600)
-#      The gate address and its CA certificate. Operational values stay out
-#      of the repository.
+#      The gate address and its CA certificate, and the execution-permit
+#      settings when --permit-key is given. Operational values stay out of
+#      the repository.
 #   3. ~/.local/bin/croakcode
 #      Starts the TUI in the current folder with those settings.
 #
 # Usage:
 #   scripts/install-croakcode.sh --gate https://<gate-host>:8443 [--ca <ca.crt>]
 #   scripts/install-croakcode.sh             # update to origin/master, keeping the saved gate
+#   scripts/install-croakcode.sh --permit-key <base64>  # verify execution permits (key from make-permit-key.sh)
+#   scripts/install-croakcode.sh --no-permits           # stop verifying execution permits
 #   scripts/install-croakcode.sh --dev       # run this checkout as it is (for development)
 #   scripts/install-croakcode.sh --uninstall # remove the link, the launcher and the worktree
 set -euo pipefail
@@ -37,13 +40,17 @@ gate=""
 ca="$ENV_DIR/ca/ca.crt"
 uninstall=0
 dev=0
+permits=""   # "", on or off
+permit_key=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gate) gate="${2:?--gate needs a URL}"; shift 2 ;;
     --ca) ca="${2:?--ca needs a path}"; shift 2 ;;
     --uninstall) uninstall=1; shift ;;
     --dev) dev=1; shift ;;
-    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    --permit-key) permit_key="${2:?--permit-key needs the gate public key}"; permits=on; shift 2 ;;
+    --no-permits) permits=off; shift ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
 done
@@ -101,23 +108,43 @@ echo "linked $LINK -> $CONFIG_SRC"
 # 2. Gate settings, kept outside the repository.
 mkdir -p "$ENV_DIR"
 chmod 700 "$ENV_DIR"
+# A value saved by an earlier run, or empty.
+saved() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 || true; }
 if [[ -n "$gate" ]]; then
   [[ "$gate" =~ ^https://[^/[:space:]]+$ ]] || die "--gate must look like https://<host>:<port> with no path"
   [[ -f "$ca" ]] || echo "warning: CA certificate $ca not found; HTTPS to the gate will fail until it exists" >&2
-  umask 077
-  cat > "$ENV_FILE" <<EOF
-# croakcode gate settings (written by scripts/install-croakcode.sh)
-CROAK_AUTH_URL=$gate
-LITELLM_BASE_URL=$gate/v1
-NODE_EXTRA_CA_CERTS=$ca
-EOF
-  chmod 600 "$ENV_FILE"
-  echo "wrote $ENV_FILE"
 elif [[ -f "$ENV_FILE" ]]; then
-  echo "kept $ENV_FILE"
+  gate="$(saved CROAK_AUTH_URL)"
+  ca="$(saved NODE_EXTRA_CA_CERTS)"
+  [[ -n "$gate" ]] || die "$ENV_FILE has no CROAK_AUTH_URL; pass --gate https://<gate-host>:8443"
 else
   die "no gate settings yet; pass --gate https://<gate-host>:8443"
 fi
+# Execution permits: on with --permit-key, off with --no-permits, else as saved.
+case "$permits" in
+  on)
+    # An Ed25519 public key: 32 bytes in base64.
+    [[ "$permit_key" =~ ^[A-Za-z0-9+/]{43}=$ ]] || die "--permit-key must be the 44-character base64 key that make-permit-key.sh prints"
+    ;;
+  off) permit_key="" ;;
+  *) permit_key="$(saved CROAKCODE_GATE_PERMIT_PUBLIC_KEY)" ;;
+esac
+umask 077
+{
+  echo "# croakcode gate settings (written by scripts/install-croakcode.sh)"
+  echo "CROAK_AUTH_URL=$gate"
+  echo "LITELLM_BASE_URL=$gate/v1"
+  echo "NODE_EXTRA_CA_CERTS=$ca"
+  if [[ -n "$permit_key" ]]; then
+    echo "# Execution permits: every tool call is permitted by the gate first."
+    echo "CROAKCODE_EXECUTION_PERMIT=required"
+    echo "CROAKCODE_GATE_PERMIT_URL=$gate"
+    echo "CROAKCODE_GATE_PERMIT_PUBLIC_KEY=$permit_key"
+  fi
+} > "$ENV_FILE.new"
+mv "$ENV_FILE.new" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+echo "wrote $ENV_FILE (execution permits: $([[ -n "$permit_key" ]] && echo on || echo off))"
 
 # 3. Launcher.
 mkdir -p "$BIN_DIR"
