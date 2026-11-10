@@ -125,11 +125,15 @@ cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
 # croakcode launcher (installed by $REPO/scripts/install-croakcode.sh)
 # Opens the TUI for the current folder, or for the folder given first.
-# Resume a session with: croakcode -s <session id>
+# Sessions: croakcode resume [folder] [--last | --list | -s <session id>]
+#           croakcode -s <session id>
 set -euo pipefail
 set -a
 . "$ENV_FILE"
 set +a
+# "resume" is a subcommand; the rest follows the same rules.
+sub=()
+if [[ "\${1:-}" == resume ]]; then sub=(resume); shift; fi
 # A first argument that is not an option is the project folder; options such
 # as "-s <session>" go to croakcode as they are.
 start="\$PWD"
@@ -137,7 +141,7 @@ if [[ \$# -gt 0 && "\$1" != -* ]]; then start="\$1"; shift; fi
 # A WSL terminal starts in the Windows system folder; never use that as the project.
 case "\$start" in /mnt/c/WINDOWS*|/mnt/c/Windows*) start="\$HOME" ;; esac
 project="\$(cd "\$start" && pwd)"
-exec bun run --cwd "$SRC/upstream/packages/opencode" --conditions=browser src/index.ts "\$project" "\$@"
+exec bun run --cwd "$SRC/upstream/packages/opencode" --conditions=browser src/index.ts "\${sub[@]}" "\$project" "\$@"
 EOF
 chmod 755 "$LAUNCHER"
 echo "installed $LAUNCHER"

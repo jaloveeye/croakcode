@@ -64,6 +64,8 @@ Options:
       --cors                          additional domains to allow for CORS     [array] [default: []]
   -l, --last                          resume the most recently updated session             [boolean]
   -s, --session                       session id to resume                                  [string]
+      --list                          print this folder's sessions and exit                [boolean]
+  -n, --max-count                     with --list, how many sessions to print (default 20)  [number]
       --fork                          fork the session when resuming (use with --last or --session)
                                                                                            [boolean]
   -m, --model                         model to use in the format of provider/model          [string]
