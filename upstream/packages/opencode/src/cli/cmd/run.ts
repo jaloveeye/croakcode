@@ -734,6 +734,20 @@ export const RunCommand = effectCmd({
               UI.error(err)
             }
 
+            // A retry would otherwise be silent: an unreachable gate looked like a hang.
+            if (
+              event.type === "session.status" &&
+              event.properties.sessionID === sessionID &&
+              event.properties.status.type === "retry"
+            ) {
+              const status = event.properties.status
+              if (emit("retry", { attempt: status.attempt, message: status.message, next: status.next })) continue
+              UI.println(
+                UI.Style.TEXT_WARNING_BOLD + "!",
+                UI.Style.TEXT_NORMAL + `${status.message} (retry ${status.attempt}, next at ${new Date(status.next).toLocaleTimeString()})`,
+              )
+            }
+
             if (
               event.type === "session.status" &&
               event.properties.sessionID === sessionID &&
