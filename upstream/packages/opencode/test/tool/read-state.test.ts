@@ -98,6 +98,15 @@ describe("ReadState.unchangedRead", () => {
     expect(ReadState.unchangedRead(earlier, target, {}, 0)).toBeUndefined()
   })
 
+  test("a read of another range in between does not hide the earlier full read", () => {
+    const target = file("i.txt", "i")
+    const history = messages(readPart(target, {}), readPart(target, { offset: 20, limit: 5 }))
+    expect(ReadState.unchangedRead(history, target, {}, 0)).toBe(1_700_000_000_000)
+    expect(ReadState.unchangedRead(history, target, { offset: 40 }, 0)).toBeUndefined()
+    writeFileSync(target, "i changed")
+    expect(ReadState.unchangedRead(history, target, {}, 0)).toBeUndefined()
+  })
+
   test("a small file is always read again", () => {
     const target = file("small.txt", "tiny")
     expect(ReadState.unchangedRead(messages(readPart(target, {})), target, {})).toBeUndefined()

@@ -124,6 +124,9 @@ async function toolError(part: ToolPart) {
   }
 }
 
+/** How long a non-interactive run waits for the event stream after the prompt returns. */
+const STREAM_DRAIN_MS = 5_000
+
 export const RunCommand = effectCmd({
   command: "run [message..]",
   describe: "run croakcode with a message",
@@ -636,6 +639,9 @@ export const RunCommand = effectCmd({
         // created, and replies issued from inside the loop must use that client.
         async function loop(client: OpencodeClient, events: Awaited<ReturnType<typeof sdk.event.subscribe>>) {
           const toggles = new Map<string, boolean>()
+          // Messages of this turn, and the parts already shown (see the idle drain below).
+          const turn = new Set<string>()
+          const shown = new Set<string>()
           let error: string | undefined
 
           for await (const event of events.stream) {
@@ -655,6 +661,7 @@ export const RunCommand = effectCmd({
             if (event.type === "message.part.updated") {
               const part = event.properties.part
               if (part.sessionID !== sessionID) continue
+              turn.add(part.messageID)
 
               if (part.type === "tool" && (part.state.status === "completed" || part.state.status === "error")) {
                 if (emit("tool_use", { part })) continue
@@ -682,10 +689,12 @@ export const RunCommand = effectCmd({
               }
 
               if (part.type === "step-finish") {
+                shown.add(part.id)
                 if (emit("step_finish", { part })) continue
               }
 
               if (part.type === "text" && part.time?.end) {
+                shown.add(part.id)
                 if (emit("text", { part })) continue
                 const text = part.text.trim()
                 if (!text) continue
@@ -725,11 +734,39 @@ export const RunCommand = effectCmd({
               UI.error(err)
             }
 
+            // A retry would otherwise be silent: an unreachable gate looked like a hang.
+            if (
+              event.type === "session.status" &&
+              event.properties.sessionID === sessionID &&
+              event.properties.status.type === "retry"
+            ) {
+              const status = event.properties.status
+              if (emit("retry", { attempt: status.attempt, message: status.message, next: status.next })) continue
+              UI.println(
+                UI.Style.TEXT_WARNING_BOLD + "!",
+                UI.Style.TEXT_NORMAL + `${status.message} (retry ${status.attempt}, next at ${new Date(status.next).toLocaleTimeString()})`,
+              )
+            }
+
             if (
               event.type === "session.status" &&
               event.properties.sessionID === sessionID &&
               event.properties.status.type === "idle"
             ) {
+              // The last part events can arrive after idle (seen in a folder that
+              // is not a git repository, where no snapshot delays the end). Show
+              // what this turn stored but the stream did not deliver.
+              const stored = await client.session
+                .messages({ sessionID })
+                .then((result) => result.data ?? [])
+                .catch(() => [])
+              for (const part of stored.flatMap((message) => (turn.has(message.info.id) ? message.parts : []))) {
+                if (shown.has(part.id)) continue
+                if (part.type === "step-finish") emit("step_finish", { part })
+                if (part.type !== "text" || !part.time?.end || emit("text", { part })) continue
+                const text = part.text.trim()
+                if (text) process.stdout.write(text + EOL)
+              }
               break
             }
 
@@ -767,7 +804,7 @@ export const RunCommand = effectCmd({
 
         if (!args.interactive) {
           const events = await client.event.subscribe()
-          loop(client, events).catch((e) => {
+          const streamed = loop(client, events).catch((e) => {
             console.error(e)
             process.exit(1)
           })
@@ -785,6 +822,7 @@ export const RunCommand = effectCmd({
               if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
               process.exitCode = 1
             }
+            await Promise.race([streamed, Bun.sleep(STREAM_DRAIN_MS)])
             return
           }
 
@@ -800,6 +838,9 @@ export const RunCommand = effectCmd({
             if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
             process.exitCode = 1
           }
+          // The prompt call returns when the answer is stored; its last events
+          // may still be on the way. Let the stream reach idle before exiting.
+          await Promise.race([streamed, Bun.sleep(STREAM_DRAIN_MS)])
           return
         }
 

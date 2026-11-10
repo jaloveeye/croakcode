@@ -46,6 +46,30 @@ describe("deferred tools (Phase 5 Task 8)", () => {
     await expect(visible.tool_call.execute!({ name: "nope", input: {} }, options)).rejects.toThrow("tool_search")
   })
 
+  test("a failed tool_call with a guessed parameter name gets the definition", async () => {
+    const strict = {
+      ...tools,
+      hwp_read: {
+        description: "Read an HWP document",
+        inputSchema: jsonSchema({ type: "object", properties: { path: { type: "string" } }, required: ["path"] }),
+        async execute(args: { path?: string }) {
+          calls.push(`hwp_read:${args.path ?? ""}`)
+          if (!args.path) throw new Error("path가 비어 있다.")
+          return "read"
+        },
+      } as unknown as Tool,
+    }
+    const visible = deferTools(strict)
+    const wrong = visible.tool_call.execute!({ name: "hwp_read", input: { filePath: "a.hwp" } }, options)
+    await expect(wrong).rejects.toThrow("missing path; unknown filePath (path가 비어 있다.)")
+    await expect(visible.tool_call.execute!({ name: "hwp_read", input: { filePath: "a.hwp" } }, options)).rejects.toThrow(
+      '<tool name="hwp_read">',
+    )
+    // The tool itself ran (and got its permit) before the definition was added.
+    expect(calls).toContain("hwp_read:")
+    expect(await visible.tool_call.execute!({ name: "hwp_read", input: { path: "a.hwp" } }, options)).toBe("read")
+  })
+
   test("nothing changes when every tool is a core tool", () => {
     const core = { read: tools.read, bash: tools.bash }
     expect(deferTools(core)).toBe(core)

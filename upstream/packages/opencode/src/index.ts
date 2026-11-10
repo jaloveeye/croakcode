@@ -117,8 +117,11 @@ const cli = yargs(args)
       run_id: processMetadata.runID,
     })
 
-    const marker = path.join(Global.Path.data, "croakcode.db")
-    if (!(await Filesystem.exists(marker))) {
+    // The database this process opens; a source checkout uses a channel name
+    // (croakcode-local.db), so a fixed croakcode.db never existed and the
+    // one-time migration ran on every start.
+    const marker = Database.getPath()
+    if (marker === ":memory:" || !(await Filesystem.exists(marker))) {
       const tty = process.stderr.isTTY
       process.stderr.write("Performing one time database migration, may take a few minutes..." + EOL)
       const width = 36

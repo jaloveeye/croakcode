@@ -18,6 +18,14 @@ import {
 
 const statusLine = (tools) => (tools.length ? tools.join(", ") : "none");
 
+// The command's text stays in the conversation. An unscoped "Do not call any
+// tools. Reply with exactly: ..." made Qwen answer every later message with
+// the same line (found in the 2026-11-10 full test), so the notice says it
+// applies to this reply only.
+const notice = (event, reply) =>
+  `[croak notice, for this reply only] ${event} Do not call tools for this reply; answer only with: ${reply}\n` +
+  "This notice does not apply to later messages. Handle them as usual with the tools that remain available.";
+
 export const server = async () => {
   const load = createPolicyReader();
 
@@ -40,7 +48,7 @@ export const server = async () => {
         await update(NET_TOOLS);
         output.parts.splice(0, output.parts.length, {
           type: "text",
-          text: "Do not call any tools. Internet tools are now disabled globally (websearch, webfetch). Reply with exactly: 인터넷 도구를 껐습니다.",
+          text: notice("The user ran /net-off: websearch and webfetch are disabled in every session until /net-on.", "인터넷 도구를 껐습니다."),
         });
         return;
       }
@@ -49,7 +57,7 @@ export const server = async () => {
         await update([]);
         output.parts.splice(0, output.parts.length, {
           type: "text",
-          text: "Do not call any tools. Internet tools are now enabled globally. Reply with exactly: 인터넷 도구를 켰습니다.",
+          text: notice("The user ran /net-on: websearch and webfetch are enabled again.", "인터넷 도구를 켰습니다."),
         });
         return;
       }
@@ -63,7 +71,7 @@ export const server = async () => {
         }
         output.parts.splice(0, output.parts.length, {
           type: "text",
-          text: `Do not call any tools. Report this exact status: ${status}`,
+          text: notice("The user ran /tool-status.", status),
         });
       }
     },
