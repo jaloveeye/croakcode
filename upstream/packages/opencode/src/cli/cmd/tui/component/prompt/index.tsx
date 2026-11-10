@@ -1022,6 +1022,12 @@ export function Prompt(props: PromptProps) {
    * and the message goes in at once. A running tool is not cut: the message
    * then goes in when the tool finishes, as before.
    */
+  // The key shown in the busy hint; the binding is configurable.
+  const submitNowKey = createMemo(() => {
+    const key = tuiConfig.keybinds.get("prompt.submit_now")?.[0]?.key
+    return typeof key === "string" ? key : "ctrl+s"
+  })
+
   async function submitNow() {
     const sessionID = props.sessionID
     if (!sessionID || status().type === "idle") return submit()
@@ -1791,6 +1797,13 @@ export function Prompt(props: PromptProps) {
                   esc{" "}
                   <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
                     {store.interrupt > 0 ? "again to interrupt" : "interrupt"}
+                  </span>
+                </text>
+                <text fg={theme.text}>
+                  {"  "}
+                  {submitNowKey()}{" "}
+                  <span style={{ fg: theme.textMuted }}>
+                    {store.prompt.input.trim() ? "지금 답변을 멈추고 바로 보내기" : "답변 중에도 입력 후 바로 보내기"}
                   </span>
                 </text>
               </box>
