@@ -45,6 +45,28 @@ bun install
 > 일부 네이티브 모듈(`tree-sitter-powershell` 등)의 postinstall 빌드가 실패해도
 > 테스트는 실행됩니다.
 
+### 다른 프로젝트에서 쓰기
+
+설치 스크립트를 한 번 실행합니다. 게이트 주소는 운영 정보라서 저장소에 두지 않고 인자로 넘깁니다.
+
+```bash
+scripts/install-croakcode.sh --gate https://<게이트 주소>:8443
+```
+
+스크립트는 세 가지를 설치합니다.
+
+| 설치되는 것 | 역할 |
+|---|---|
+| `~/.croakcode` | `upstream/.croakcode`를 가리키는 링크입니다. 모든 프로젝트에서 `litellm-head` 공급자, croak 플러그인, 명령, 에이전트를 읽습니다 |
+| `~/.config/croak/croakcode.env` | 게이트 주소와 CA 인증서 경로입니다. 권한은 600입니다 |
+| `~/.local/bin/croakcode` | 현재 폴더를 프로젝트로 열어 TUI를 시작합니다 |
+
+설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 `croakcode -s <세션 ID>`로 이어서 씁니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
+
+- 저장소를 `git pull`로 갱신하면 링크라서 플러그인도 함께 갱신됩니다.
+- 다시 실행하면 저장한 게이트 주소를 그대로 씁니다.
+- `--uninstall`은 링크와 실행 파일을 지웁니다. 게이트 설정 파일은 남깁니다.
+
 ### 환경 변수
 
 | 변수 | 필수 | 설명 |
