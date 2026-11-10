@@ -613,6 +613,47 @@ it.instance(
 )
 
 it.instance(
+  "ask - force asks even when the ruleset allows (Phase 5 Task 7)",
+  () =>
+    Effect.gen(function* () {
+      const fiber = yield* ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["sed -i s/a/b/ file"],
+        metadata: { risky: ["sed edits files in place"] },
+        always: [],
+        ruleset: [{ permission: "bash", pattern: "*", action: "allow" }],
+        force: true,
+      }).pipe(Effect.forkScoped)
+
+      expect(yield* waitForPending(1)).toHaveLength(1)
+      yield* rejectAll()
+      yield* Fiber.await(fiber)
+    }),
+  { git: true },
+)
+
+it.instance(
+  "ask - force does not override a deny",
+  () =>
+    Effect.gen(function* () {
+      const err = yield* fail(
+        ask({
+          sessionID: SessionID.make("session_test"),
+          permission: "bash",
+          patterns: ["rm -rf /"],
+          metadata: {},
+          always: [],
+          ruleset: [{ permission: "bash", pattern: "*", action: "deny" }],
+          force: true,
+        }),
+      )
+      expect(err).toBeInstanceOf(Permission.DeniedError)
+    }),
+  { git: true },
+)
+
+it.instance(
   "ask - adds request to pending list",
   () =>
     Effect.gen(function* () {

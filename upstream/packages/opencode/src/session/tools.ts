@@ -86,6 +86,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   readBeforeWrite?: boolean
   /** Phase 5 Task 6 (experimental.read_dedup): an unchanged re-read returns a short notice. */
   readDedup?: boolean
+  /** Phase 5 Task 7 (experimental.confirm_risky_bash): risky bash forms are always confirmed. */
+  confirmRiskyBash?: boolean
   /** Phase 5 Task 4: answers webfetch's prompt from the page with a separate model call. */
   extract?: (question: string, content: string) => Effect.Effect<string | undefined>
 }) {
@@ -105,7 +107,12 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     abort: options.abortSignal!,
     messageID: input.processor.message.id,
     callID: options.toolCallId,
-    extra: { model: input.model, bypassAgentCheck: input.bypassAgentCheck, promptOps: input.promptOps },
+    extra: {
+      model: input.model,
+      bypassAgentCheck: input.bypassAgentCheck,
+      promptOps: input.promptOps,
+      confirmRiskyBash: input.confirmRiskyBash === true,
+    },
     agent: input.agent.name,
     messages: input.messages,
     metadata: (val) =>

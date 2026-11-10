@@ -110,6 +110,9 @@ export const AskInput = Schema.Struct({
   ...Request.fields,
   id: Schema.optional(PermissionID),
   ruleset: Ruleset,
+  // Phase 5 Task 7: ask even when the ruleset or a stored approval allows
+  // every pattern. A deny rule still wins.
+  force: Schema.optional(Schema.Boolean),
 }).annotate({ identifier: "PermissionAskInput" })
 export type AskInput = Schema.Schema.Type<typeof AskInput>
 
@@ -170,8 +173,8 @@ export const layer = Layer.effect(
 
     const ask = Effect.fn("Permission.ask")(function* (input: AskInput) {
       const { approved, pending } = yield* InstanceState.get(state)
-      const { ruleset, ...request } = input
-      let needsAsk = false
+      const { ruleset, force, ...request } = input
+      let needsAsk = force === true
 
       for (const pattern of request.patterns) {
         // SEC-01: the current ruleset (agent + session permissions) is the

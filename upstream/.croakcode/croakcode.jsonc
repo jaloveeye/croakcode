@@ -21,7 +21,13 @@
   // session read it and it has not changed since (Phase 5 Task 5).
   // read_dedup: re-reading an unchanged file (2KB or more) returns a short
   // notice while the earlier content is still in the conversation (Task 6).
-  "experimental": { "stable_prompt_prefix": true, "read_before_write": true, "read_dedup": true },
+  "experimental": {
+    "stable_prompt_prefix": true,
+    "read_before_write": true,
+    "read_dedup": true,
+    // Ask before risky bash forms even when bash is allowed (Task 7).
+    "confirm_risky_bash": true
+  },
   // A tool result above these limits is saved to a file and the model gets the
   // first part plus the file path. The default 50KB (about 13,000 tokens) made
   // the request after a web fetch take 20+ s on a cold prefill.

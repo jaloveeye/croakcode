@@ -75,6 +75,8 @@ type Scan = {
   dirs: Set<string>
   patterns: Set<string>
   always: Set<string>
+  /** Phase 5 Task 7: reasons the command needs the user's confirmation even when allowed. */
+  risky: string[]
 }
 
 type Chunk = {
@@ -121,6 +123,64 @@ function parts(node: Node) {
 
 function source(node: Node) {
   return (node.parent?.type === "redirected_statement" ? node.parent.text : node.text).trim()
+}
+
+/**
+ * Phase 5 Task 7: shapes of a bash command whose effect an allow rule for its
+ * first word does not cover. They are confirmed with the user even when the
+ * command is allowed. Returns the reasons, empty for an ordinary command.
+ */
+export function riskyForms(root: Node): string[] {
+  const reasons = new Set<string>()
+  if (root.hasError) reasons.add("the command could not be parsed completely")
+  if (root.descendantsOfType(["command_substitution", "process_substitution"]).length > 0)
+    reasons.add("it runs a command inside another command ($(...), backticks or <(...))")
+  if (root.descendantsOfType("subshell").length > 0) reasons.add("it starts a subshell")
+  for (const redirect of root.descendantsOfType("file_redirect")) {
+    if (redirect && writesFile(redirect.text)) reasons.add("it writes output to a file")
+  }
+  for (const node of commands(root)) {
+    const tokens = parts(node).map((item) => unquote(item.text))
+    const name = path.basename(tokens[0] ?? "")
+    if (name === "find" && tokens.some((token) => FIND_ACTIONS.has(token)))
+      reasons.add("find runs a command or deletes files (-exec, -ok, -delete)")
+    if (name === "sed" && sedChangesFiles(tokens.slice(1))) reasons.add("sed edits files in place or runs or writes from its script")
+  }
+  return [...reasons]
+}
+
+const FIND_ACTIONS = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete"])
+
+/** "> file", ">> file", "&> file"; not "2>&1" or "> /dev/null". */
+function writesFile(text: string) {
+  const match = text.trim().match(/^(\d*|&)(>>?|>\|)\s*(.*)$/s)
+  if (!match) return false
+  const target = match[3].trim()
+  return target.length > 0 && !target.startsWith("&") && target !== "/dev/null"
+}
+
+function sedChangesFiles(args: string[]) {
+  const scripts: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (arg === "-i" || arg.startsWith("-i") || arg.startsWith("--in-place")) return true
+    if (arg === "-e" || arg === "--expression") {
+      if (args[i + 1] !== undefined) scripts.push(args[++i])
+      continue
+    }
+    if (arg.startsWith("--expression=")) scripts.push(arg.slice("--expression=".length))
+    else if (!arg.startsWith("-") && scripts.length === 0) scripts.push(arg)
+  }
+  return scripts.some(sedScriptRisky)
+}
+
+/** sed's e (run), w and W (write) commands, and the e or w flag of s///. */
+function sedScriptRisky(script: string) {
+  if (/(^|[;\n{}])\s*(\d+|\$|\/[^/]*\/)?\s*(,\s*(\d+|\$|\/[^/]*\/))?\s*!?\s*[ewW](\s|$|;)/.test(script)) return true
+  for (const match of script.matchAll(/s(.)(?:\\.|(?!\1).)*\1(?:\\.|(?!\1).)*\1([a-zA-Z0-9]*)/g)) {
+    if (/[ew]/.test(match[2])) return true
+  }
+  return false
 }
 
 function commands(node: Node) {
@@ -277,12 +337,13 @@ const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan)
     })
   }
 
-  if (scan.patterns.size === 0) return
+  if (scan.patterns.size === 0 && scan.risky.length === 0) return
   yield* ctx.ask({
     permission: ShellID.ToolID,
-    patterns: Array.from(scan.patterns),
+    patterns: scan.patterns.size > 0 ? Array.from(scan.patterns) : ["*"],
     always: Array.from(scan.always),
-    metadata: {},
+    metadata: scan.risky.length > 0 ? { risky: scan.risky } : {},
+    ...(scan.risky.length > 0 ? { force: true } : {}),
   })
 })
 
@@ -377,11 +438,14 @@ export const ShellTool = Tool.define(
       ps: boolean,
       shell: string,
       instance: InstanceContext,
+      /** Phase 5 Task 7 (experimental.confirm_risky_bash). */
+      confirmRisky = false,
     ) {
       const scan: Scan = {
         dirs: new Set<string>(),
         patterns: new Set<string>(),
         always: new Set<string>(),
+        risky: ps || !confirmRisky ? [] : riskyForms(root),
       }
       const shellKind = ShellID.toKind(Shell.name(shell))
 
@@ -642,7 +706,7 @@ export const ShellTool = Tool.define(
                   const tree = yield* Effect.acquireRelease(parse(params.command, ps), (tree) =>
                     Effect.sync(() => tree.delete()),
                   )
-                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx)
+                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx, ctx.extra?.confirmRiskyBash === true)
                   if (!containsPath(cwd, instanceCtx)) scan.dirs.add(cwd)
                   yield* ask(ctx, scan)
                 }),
@@ -664,3 +728,9 @@ export const ShellTool = Tool.define(
       })
   }),
 )
+
+/** Test helper: the risky-form reasons for a bash command string. */
+export async function riskyCommand(command: string) {
+  const tree = (await parser()).bash.parse(command)
+  return tree ? riskyForms(tree.rootNode) : ["the command could not be parsed completely"]
+}
