@@ -18,6 +18,10 @@
   // out of the system prompt lets a new session's first request hit that cache
   // even on a new day (about 1.5 s instead of 7 s or more for a cold prefill).
   "experimental": { "stable_prompt_prefix": true },
+  // A tool result above these limits is saved to a file and the model gets the
+  // first part plus the file path. The default 50KB (about 13,000 tokens) made
+  // the request after a web fetch take 20+ s on a cold prefill.
+  "tool_output": { "max_lines": 400, "max_bytes": 16384 },
   // Short default agent (agent/dev-main.md) in place of build's ~9,000-character
   // system prompt: about 1,500 fewer tokens on every first request.
   "default_agent": "dev-main",
