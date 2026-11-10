@@ -1320,6 +1320,7 @@ export type Config = {
     primary_tools?: Array<string>
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
+    confirm_risky_bash?: boolean
     read_dedup?: boolean
     read_before_write?: boolean
     stable_prompt_prefix?: boolean

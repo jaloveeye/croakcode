@@ -438,12 +438,14 @@ export const ShellTool = Tool.define(
       ps: boolean,
       shell: string,
       instance: InstanceContext,
+      /** Phase 5 Task 7 (experimental.confirm_risky_bash). */
+      confirmRisky = false,
     ) {
       const scan: Scan = {
         dirs: new Set<string>(),
         patterns: new Set<string>(),
         always: new Set<string>(),
-        risky: ps ? [] : riskyForms(root),
+        risky: ps || !confirmRisky ? [] : riskyForms(root),
       }
       const shellKind = ShellID.toKind(Shell.name(shell))
 
@@ -704,7 +706,7 @@ export const ShellTool = Tool.define(
                   const tree = yield* Effect.acquireRelease(parse(params.command, ps), (tree) =>
                     Effect.sync(() => tree.delete()),
                   )
-                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx)
+                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx, ctx.extra?.confirmRiskyBash === true)
                   if (!containsPath(cwd, instanceCtx)) scan.dirs.add(cwd)
                   yield* ask(ctx, scan)
                 }),

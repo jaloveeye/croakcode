@@ -311,6 +311,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      confirm_risky_bash: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Ask before bash commands with substitutions, subshells, file redirects, find -exec/-delete or sed that edits or runs, even when bash is allowed.",
+      }),
       read_dedup: Schema.optional(Schema.Boolean).annotate({
         description:
           "Answer a repeated read of an unchanged file and range with a short notice while the earlier content is still in the conversation.",
