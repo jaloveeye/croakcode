@@ -110,11 +110,18 @@ test("production runtime stamps provenance on persisted parts (source check, no 
     /filterMessagesForModeParts\(msgs, connection\.mode\)/,
     "the direct filter must use the same snapshot as the stamp",
   )
+  // The side question (Phase 5 Task 13) takes its own single snapshot: it
+  // filters history and sends the request with it, and persists nothing, so
+  // there is no part to stamp.
   assert.equal(
     (prompt.match(/connectionFor\(yield\* config\.get\(\)\)/g) ?? []).length,
-    2,
-    "only the loop step snapshot and the title request may read the connection mode",
+    3,
+    "only the loop step snapshot, the title request and the side question may read the connection mode",
   )
+  const sideStart = prompt.indexOf('Effect.fn("SessionPrompt.side")')
+  const side = prompt.slice(sideStart, prompt.indexOf('Effect.fn("SessionPrompt.command")', sideStart))
+  assert.match(side, /filterMessagesForModeParts\(msgs, connection\.mode\)/, "the side question must filter with its snapshot")
+  assert.match(side, /\n\s+connection,\n/, "the side question must send with the same snapshot")
 
   // Compaction filters its input and stamps its summary from one snapshot.
   const compaction = read("upstream/packages/opencode/src/session/compaction.ts")

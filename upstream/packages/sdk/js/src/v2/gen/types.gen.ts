@@ -1292,6 +1292,9 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
+  connection?: {
+    mode?: "gate" | "direct"
+  }
   tools?: {
     [key: string]: boolean
   }
@@ -1732,6 +1735,11 @@ export type QuestionNotFoundError = {
 export type PermissionNotFoundError = {
   _tag: "PermissionNotFoundError"
   requestID: string
+  message: string
+}
+
+export type ForbiddenError = {
+  _tag: "ForbiddenError"
   message: string
 }
 
@@ -5897,6 +5905,99 @@ export type PermissionReplyResponses = {
 
 export type PermissionReplyResponse = PermissionReplyResponses[keyof PermissionReplyResponses]
 
+export type DelegationRevokeGrantData = {
+  body?: {
+    reason?: string
+  }
+  path: {
+    grantID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/delegation/grant/{grantID}/revoke"
+}
+
+export type DelegationRevokeGrantErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * ForbiddenError
+   */
+  403: ForbiddenError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type DelegationRevokeGrantError = DelegationRevokeGrantErrors[keyof DelegationRevokeGrantErrors]
+
+export type DelegationRevokeGrantResponses = {
+  /**
+   * Grants revoked and runs stopped
+   */
+  200: {
+    revokedGrants: Array<string>
+    abortedRuns: Array<{
+      runId: string
+      sessionId: string
+    }>
+  }
+}
+
+export type DelegationRevokeGrantResponse = DelegationRevokeGrantResponses[keyof DelegationRevokeGrantResponses]
+
+export type DelegationRevokePrincipalData = {
+  body?: {
+    reason?: string
+  }
+  path: {
+    principalID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/delegation/principal/{principalID}/revoke"
+}
+
+export type DelegationRevokePrincipalErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * ForbiddenError
+   */
+  403: ForbiddenError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type DelegationRevokePrincipalError = DelegationRevokePrincipalErrors[keyof DelegationRevokePrincipalErrors]
+
+export type DelegationRevokePrincipalResponses = {
+  /**
+   * Principal revoked, its grants revoked and runs stopped
+   */
+  200: {
+    revokedGrants: Array<string>
+    abortedRuns: Array<{
+      runId: string
+      sessionId: string
+    }>
+  }
+}
+
+export type DelegationRevokePrincipalResponse =
+  DelegationRevokePrincipalResponses[keyof DelegationRevokePrincipalResponses]
+
 export type ProviderListData = {
   body?: never
   path?: never
@@ -6730,6 +6831,48 @@ export type SessionSummarizeResponses = {
 }
 
 export type SessionSummarizeResponse = SessionSummarizeResponses[keyof SessionSummarizeResponses]
+
+export type SessionSideData = {
+  body?: {
+    question: string
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/side"
+}
+
+export type SessionSideErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+  /**
+   * InternalServerError
+   */
+  500: EffectHttpApiErrorInternalServerError
+}
+
+export type SessionSideError = SessionSideErrors[keyof SessionSideErrors]
+
+export type SessionSideResponses = {
+  /**
+   * Answer to the side question
+   */
+  200: {
+    text: string
+  }
+}
+
+export type SessionSideResponse = SessionSideResponses[keyof SessionSideResponses]
 
 export type SessionPromptAsyncData = {
   body?: {
