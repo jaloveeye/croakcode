@@ -63,6 +63,7 @@ import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { PermissionModeProvider, usePermissionMode } from "./context/permission"
 import { TuiConfigProvider, useTuiConfig } from "./context/tui-config"
 import { TuiConfig } from "@/cli/cmd/tui/config/tui"
+import { UI } from "@/cli/ui.ts"
 import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { createTuiApi } from "@/cli/cmd/tui/plugin/api"
 import type { RouteMap } from "@/cli/cmd/tui/plugin/api"
@@ -340,7 +341,8 @@ function createTuiLifecycle(input: {
       const formatted = FormatError(reason) ?? FormatUnknownError(reason)
       if (formatted) process.stderr.write(formatted + "\n")
     }
-    const text = message()
+    // A session sets its own exit message; otherwise still sign off as croakcode.
+    const text = message() ?? (reason ? undefined : UI.logo("  "))
     if (text) process.stdout.write(text + "\n")
     completeExit()
   })
@@ -466,24 +468,24 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     if (!terminalTitleEnabled() || Flag.CROAKCODE_DISABLE_TERMINAL_TITLE) return
 
     if (route.data.type === "home") {
-      renderer.setTerminalTitle("OpenCode")
+      renderer.setTerminalTitle("croakcode")
       return
     }
 
     if (route.data.type === "session") {
       const session = sync.session.get(route.data.sessionID)
       if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("OpenCode")
+        renderer.setTerminalTitle("croakcode")
         return
       }
 
       const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
-      renderer.setTerminalTitle(`OC | ${title}`)
+      renderer.setTerminalTitle(`croakcode | ${title}`)
       return
     }
 
     if (route.data.type === "plugin") {
-      renderer.setTerminalTitle(`OC | ${route.data.id}`)
+      renderer.setTerminalTitle(`croakcode | ${route.data.id}`)
     }
   })
 
@@ -1081,7 +1083,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     await DialogAlert.show(
       dialog,
       "Update Complete",
-      `Successfully updated to OpenCode v${result.data.version}. Please restart the application.`,
+      `Successfully updated to croakcode v${result.data.version}. Please restart the application.`,
     )
 
     void exit()

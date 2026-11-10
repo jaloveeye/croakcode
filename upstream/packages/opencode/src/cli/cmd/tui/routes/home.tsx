@@ -1,6 +1,7 @@
 import { Prompt, type PromptRef } from "@tui/component/prompt"
 import { createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { Logo } from "../component/logo"
+import { frog } from "@/cli/logo"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
 import { useArgs } from "../context/args"
@@ -11,6 +12,7 @@ import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { useEditorContext } from "@tui/context/editor"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTuiConfig } from "../context/tui-config"
+import { useTheme } from "../context/theme"
 
 let once = false
 const placeholder = {
@@ -72,8 +74,19 @@ export function Home() {
         <box height={4} minHeight={0} flexShrink={1} />
         <box flexShrink={0}>
           <TuiPluginRuntime.Slot name="home_logo" mode="replace">
-            <Logo />
+            <box flexDirection="row" gap={2} alignItems="flex-end">
+              <box flexDirection="column" flexShrink={0}>
+                {frog.map((row) => (
+                  <text fg={useTheme().theme.success}>{row}</text>
+                ))}
+              </box>
+              <Logo />
+            </box>
           </TuiPluginRuntime.Slot>
+        </box>
+        {/* croakcode is a customized opencode (MIT); say so under the wordmark. */}
+        <box flexShrink={0} paddingTop={1}>
+          <text fg={useTheme().theme.textMuted}>based on opencode</text>
         </box>
         <box height={1} minHeight={0} flexShrink={1} />
         <box width="100%" maxWidth={promptMaxWidth()} zIndex={1000} paddingTop={1} flexShrink={0}>

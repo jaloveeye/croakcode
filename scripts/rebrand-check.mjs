@@ -52,6 +52,12 @@ const FORBIDDEN = [
   [/sst-dev\.opencode/, "upstream VSCode extension id"],
   // plugin config file base name
   [/patchName\(kind: Kind\): "opencode"/, "plugin config kind opencode"],
+  // TUI display: terminal title, wordmark, exit hint, prompts, issue link
+  [/setTerminalTitle\("OpenCode"\)|`OC \| /, "terminal title OpenCode"],
+  [/█▀▀█ █▀▀█ █▀▀█ █▀▀▄/, "opencode wordmark glyphs"],
+  [/opencode -s \$\{/, "opencode resume hint"],
+  [/(until|Tell|updated to) OpenCode|OpenCode includes free models|"OpenCode Default"/, "OpenCode in TUI string"],
+  [/github\.com\/anomalyco\/opencode\/issues/, "upstream issue tracker URL"],
 ];
 
 const bad = [];
