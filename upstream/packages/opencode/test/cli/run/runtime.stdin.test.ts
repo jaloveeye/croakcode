@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Readable } from "node:stream"
-import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "@/cli/cmd/run/runtime.stdin"
+import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin, shouldReadPipedStdin } from "@/cli/cmd/run/runtime.stdin"
 
 function stream(isTTY: boolean) {
   return Object.assign(new Readable({ read() {} }), { isTTY }) as NodeJS.ReadStream
@@ -67,5 +67,19 @@ describe("run interactive stdin", () => {
         "linux",
       ),
     ).toThrow(INTERACTIVE_INPUT_ERROR)
+  })
+})
+
+describe("run piped stdin", () => {
+  const kind = (fifo: boolean, file: boolean) => ({ isFIFO: () => fifo, isFile: () => file })
+
+  test("reads a pipe or a redirected file", () => {
+    expect(shouldReadPipedStdin(kind(true, false))).toBe(true)
+    expect(shouldReadPipedStdin(kind(false, true))).toBe(true)
+  })
+
+  test("does not wait on a socket, a device or an unreadable descriptor", () => {
+    expect(shouldReadPipedStdin(kind(false, false))).toBe(false)
+    expect(shouldReadPipedStdin(undefined)).toBe(false)
   })
 })

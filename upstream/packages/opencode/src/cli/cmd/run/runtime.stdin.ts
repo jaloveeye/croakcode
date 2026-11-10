@@ -35,3 +35,22 @@ export function resolveInteractiveStdin(
     throw new Error(INTERACTIVE_INPUT_ERROR, { cause: error })
   }
 }
+
+/**
+ * Whether `cc run` should read piped input from stdin. Only a pipe
+ * (`echo ... | cc run`) or a redirected file (`cc run < file`) ends on its
+ * own. A socket, a character device or an inherited descriptor from a
+ * background job or a CI runner may never reach end of file, and waiting for
+ * it hung `cc run` before it sent anything.
+ */
+export function shouldReadPipedStdin(stat: Pick<fs.Stats, "isFIFO" | "isFile"> | undefined): boolean {
+  return stat !== undefined && (stat.isFIFO() || stat.isFile())
+}
+
+export function stdinStat(fd = 0): fs.Stats | undefined {
+  try {
+    return fs.fstatSync(fd)
+  } catch {
+    return undefined
+  }
+}
