@@ -1437,6 +1437,29 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   })
 
   const childShortcut = useCommandShortcut("session.child.first")
+  const toast = useToast()
+
+  // Phase 5 Task 10: copy the whole answer to this question, every assistant
+  // message that answered it, as the markdown the model wrote. Tool output
+  // and reasoning are left out.
+  const copyAnswer = () => {
+    const text = messages()
+      .filter((x) => x.role === "assistant" && x.parentID === props.message.parentID)
+      .flatMap((x) => sync.data.part[x.id] ?? [])
+      .filter((part) => part.type === "text" && !part.synthetic && !part.ignored)
+      .map((part) => (part.type === "text" ? part.text.trim() : ""))
+      .filter((value) => value.length > 0)
+      .join("\n\n")
+    if (!text) {
+      toast.show({ message: "복사할 답변 글이 없습니다", variant: "warning" })
+      return
+    }
+    Clipboard.copy(text)
+      .then(() =>
+        toast.show({ message: `답변을 복사했습니다 (${text.length.toLocaleString()}자)`, variant: "success" }),
+      )
+      .catch(() => toast.show({ message: "클립보드에 복사하지 못했습니다", variant: "error" }))
+  }
 
   return (
     <>
@@ -1480,26 +1503,33 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
           <box paddingLeft={3}>
-            <text marginTop={1}>
-              <span
-                style={{
-                  fg:
-                    props.message.error?.name === "MessageAbortedError"
-                      ? theme.textMuted
-                      : local.agent.color(props.message.agent),
-                }}
-              >
-                ▣{" "}
-              </span>{" "}
-              <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
-              <span style={{ fg: theme.textMuted }}> · {model()}</span>
-              <Show when={duration()}>
-                <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
+            <box flexDirection="row" marginTop={1}>
+              <text>
+                <span
+                  style={{
+                    fg:
+                      props.message.error?.name === "MessageAbortedError"
+                        ? theme.textMuted
+                        : local.agent.color(props.message.agent),
+                  }}
+                >
+                  ▣{" "}
+                </span>{" "}
+                <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
+                <span style={{ fg: theme.textMuted }}> · {model()}</span>
+                <Show when={duration()}>
+                  <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
+                </Show>
+                <Show when={props.message.error?.name === "MessageAbortedError"}>
+                  <span style={{ fg: theme.textMuted }}> · interrupted</span>
+                </Show>
+              </text>
+              <Show when={final()}>
+                <text fg={theme.textMuted} onMouseUp={copyAnswer}>
+                  {"   ⧉ 복사"}
+                </text>
               </Show>
-              <Show when={props.message.error?.name === "MessageAbortedError"}>
-                <span style={{ fg: theme.textMuted }}> · interrupted</span>
-              </Show>
-            </text>
+            </box>
             <TuiPluginRuntime.Slot
               name="session_message_footer"
               session_id={props.message.sessionID}
