@@ -203,7 +203,7 @@ export function Session() {
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
   const [showAssistantMetadata, _setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
-  const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
+  const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", true)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [_animationsEnabled, _setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
@@ -1120,16 +1120,21 @@ export function Session() {
               <scrollbox
                 ref={bindScroll}
                 onMouseScroll={() => autoFollow.activity()}
-                renderAfter={() => autoFollow.ensure()}
+                renderAfter={() => {
+                  autoFollow.ensure()
+                  syncScrollbarThumb(scroll)
+                }}
                 viewportOptions={{
                   paddingRight: showScrollbar() ? 1 : 0,
                 }}
                 verticalScrollbarOptions={{
                   paddingLeft: 1,
                   visible: showScrollbar(),
+                  // The thumb uses the muted text color: in dark themes the border
+                  // color matches the track and the thumb could not be seen.
                   trackOptions: {
                     backgroundColor: theme.backgroundElement,
-                    foregroundColor: theme.border,
+                    foregroundColor: theme.textMuted,
                   },
                 }}
                 stickyScroll={true}
@@ -2395,4 +2400,17 @@ function filetype(input?: string) {
   const language = LANGUAGE_EXTENSIONS[ext]
   if (["typescriptreact", "javascriptreact", "javascript"].includes(language)) return "typescript"
   return language
+}
+
+/**
+ * opentui 0.2.16 clamps the scrollbar's viewport size to the scroll range at
+ * the moment it is set. A new session starts with almost no content, so the
+ * size is stored as 1 and never updated as messages arrive: the thumb shrinks
+ * to half a cell. Re-applying the real viewport height after each render keeps
+ * the thumb proportional (the setter clamps against the current range).
+ */
+function syncScrollbarThumb(scroll: ScrollBoxRenderable | undefined) {
+  if (!scroll) return
+  const slider = scroll.verticalScrollBar.slider
+  if (slider.viewPortSize !== scroll.viewport.height) slider.viewPortSize = scroll.viewport.height
 }
