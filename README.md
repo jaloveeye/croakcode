@@ -53,19 +53,21 @@ bun install
 scripts/install-croakcode.sh --gate https://<게이트 주소>:8443
 ```
 
-스크립트는 세 가지를 설치합니다.
+스크립트는 네 가지를 설치합니다.
 
 | 설치되는 것 | 역할 |
 |---|---|
-| `~/.croakcode` | `upstream/.croakcode`를 가리키는 링크입니다. 모든 프로젝트에서 `litellm-head` 공급자, croak 플러그인, 명령, 에이전트를 읽습니다 |
+| `~/.local/share/croakcode/app` | `origin/master`에 고정한 git worktree입니다. croakcode는 이 복사본을 실행합니다 |
+| `~/.croakcode` | 위 복사본의 `upstream/.croakcode`를 가리키는 링크입니다. 모든 프로젝트에서 `litellm-head` 공급자, croak 플러그인, 명령, 에이전트를 읽습니다 |
 | `~/.config/croak/croakcode.env` | 게이트 주소와 CA 인증서 경로입니다. 권한은 600입니다 |
 | `~/.local/bin/croakcode` | 현재 폴더를 프로젝트로 열어 TUI를 시작합니다 |
 
 설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 `croakcode -s <세션 ID>`로 이어서 씁니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
 
-- 저장소를 `git pull`로 갱신하면 링크라서 플러그인도 함께 갱신됩니다.
-- 다시 실행하면 저장한 게이트 주소를 그대로 씁니다.
-- `--uninstall`은 링크와 실행 파일을 지웁니다. 게이트 설정 파일은 남깁니다.
+- 작업 폴더에서 브랜치를 바꿔도 실행 중인 croakcode는 바뀌지 않습니다.
+- 갱신하려면 PR이 `master`에 병합된 뒤 스크립트를 다시 실행합니다. 원격 `master`를 받아 복사본을 맞추고 의존성을 설치합니다. 저장한 게이트 주소는 그대로 씁니다.
+- 개발 중에는 `--dev`로 설치하면 작업 폴더를 그대로 실행합니다.
+- `--uninstall`은 링크, 실행 파일, 복사본을 지웁니다. 게이트 설정 파일은 남깁니다.
 
 ### 환경 변수
 
