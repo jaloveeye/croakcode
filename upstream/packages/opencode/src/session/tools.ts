@@ -53,6 +53,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   readBeforeWrite?: boolean
   /** Phase 5 Task 6 (experimental.read_dedup): an unchanged re-read returns a short notice. */
   readDedup?: boolean
+  /** Phase 5 Task 8 (experimental.deferred_tools): only core tools are sent; the rest load on demand. */
+  deferredTools?: boolean
 }) {
   using _ = log.time("resolveTools")
   const tools: Record<string, AITool> = {}
@@ -264,7 +266,71 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     tools[key] = item
   }
 
-  return tools
+  return input.deferredTools ? deferTools(tools) : tools
 })
+
+// Phase 5 Task 8 (experimental): the request carries the core tools plus
+// tool_search and tool_call. tool_search returns the definitions of the other
+// tools; tool_call runs one of them through its own wrapper, so permissions,
+// execution permits, audit and read state apply under the real tool name.
+const CORE_TOOLS = new Set(["read", "edit", "write", "bash", "glob", "grep", "invalid", "StructuredOutput"])
+
+export function deferTools(tools: Record<string, AITool>): Record<string, AITool> {
+  const hidden = Object.fromEntries(Object.entries(tools).filter(([name]) => !CORE_TOOLS.has(name)))
+  const names = Object.keys(hidden).toSorted()
+  if (names.length === 0) return tools
+  const visible = Object.fromEntries(Object.entries(tools).filter(([name]) => CORE_TOOLS.has(name)))
+  const summary = (name: string) => (hidden[name].description ?? "").split("\n")[0].slice(0, 120)
+  visible.tool_search = tool({
+    description: [
+      "Load the definition of a tool that is not listed. Search by tool name or by words from what you need.",
+      "Then call it with tool_call. Tools available this way:",
+      ...names.map((name) => `- ${name}: ${summary(name)}`),
+    ].join("\n"),
+    inputSchema: jsonSchema({
+      type: "object",
+      properties: { query: { type: "string", description: "A tool name, or words describing the task" } },
+      required: ["query"],
+      additionalProperties: false,
+    }),
+    async execute(args: { query: string }) {
+      const words = args.query.toLowerCase().split(/\s+/).filter(Boolean)
+      const matches = names.filter((name) => {
+        const text = `${name} ${hidden[name].description ?? ""}`.toLowerCase()
+        return name === args.query || words.some((word) => text.includes(word))
+      })
+      if (matches.length === 0) return `No tool matches "${args.query}". Available: ${names.join(", ")}`
+      const definitions = definitionsOf(matches.slice(0, 5), hidden)
+      return `${definitions}\n\nCall a tool with tool_call: {"name": "<tool name>", "input": { ...its parameters }}.`
+    },
+  })
+  visible.tool_call = tool({
+    description: "Call a tool whose definition tool_search returned. name is the tool name; input follows that tool's parameters.",
+    inputSchema: jsonSchema({
+      type: "object",
+      properties: {
+        name: { type: "string", description: "The tool name from tool_search" },
+        input: { type: "object", description: "The tool's parameters" },
+      },
+      required: ["name", "input"],
+      additionalProperties: false,
+    }),
+    async execute(args: { name: string; input: Record<string, unknown> }, options) {
+      const target = hidden[args.name]
+      if (!target?.execute) throw new Error(`Unknown tool "${args.name}". Use tool_search to find it first.`)
+      return target.execute(args.input ?? {}, options)
+    },
+  })
+  return visible
+}
+
+function definitionsOf(matches: string[], hidden: Record<string, AITool>) {
+  return matches
+    .map((name) => {
+      const schema = asSchema(hidden[name].inputSchema).jsonSchema
+      return `<tool name="${name}">\n${hidden[name].description ?? ""}\nParameters (JSON Schema): ${JSON.stringify(schema)}\n</tool>`
+    })
+    .join("\n\n")
+}
 
 export * as SessionTools from "./tools"

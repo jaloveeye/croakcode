@@ -55,3 +55,25 @@
 ## 6. 측정 방법
 
 가짜 OpenAI 호환 서버를 띄우고 `LITELLM_BASE_URL`을 그쪽으로 돌려 croakcode가 보내는 요청 본문을 받았다. 받은 본문을 게이트에 직접 보내 첫 토큰 시간과 `usage.prompt_tokens_details.cached_tokens`를 쟀다. 캐시 없는 경우는 시스템 프롬프트 맨 앞에 임의 문자열을 붙여 만들었다.
+
+## 7. 도구 정의 지연 불러오기 (Phase 5 Task 8, 실험)
+
+`experimental.deferred_tools`를 켜면 첫 요청에 기본 도구 여섯 개만 넣는다. 기본 도구는 read, edit, write, bash, glob, grep이다. 여기에 `tool_search`와 `tool_call`을 더한다. 나머지 도구는 `tool_search`로 정의를 받고 `tool_call`로 부른다.
+
+| 항목 | 끔 | 켬 |
+|---|---|---|
+| 첫 요청 크기 (저장소 밖 폴더) | 26,715자 | 17,885자 |
+| 도구 정의 크기 | 23,366자 | 14,536자 |
+
+운영 게이트의 Qwen 27B로 작업 다섯 개를 끄고 켜서 돌렸다. 다섯 개 모두 두 경우에 성공했다.
+
+| 작업 | 끔 | 켬 |
+|---|---|---|
+| todowrite로 할 일 세 개 | 성공 6초 | 성공 10초 (tool_call) |
+| webfetch로 example.com 제목 | 성공 6초 | 성공 5초 (tool_call) |
+| task로 하위 에이전트에 .txt 개수 세기 | 성공 21초 | 성공 18초 (tool_call, 답 3) |
+| glob으로 파일 수 세기 (기본 도구) | 성공 10초 | 성공 11초 |
+| read로 첫 단어 읽기 (기본 도구) | 성공 7초 | 성공 5초 |
+
+Qwen은 `tool_search`를 부르지 않고, 그 설명에 실린 목록을 보고 `tool_call`을 바로 불렀다. 표본이 다섯 개라 기본값은 바꾸지 않았다.
+

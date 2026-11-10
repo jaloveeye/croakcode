@@ -311,6 +311,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      deferred_tools: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Experimental: send only the core tools (read, edit, write, bash, glob, grep) plus tool_search and tool_call; other tools are loaded on demand.",
+      }),
       read_dedup: Schema.optional(Schema.Boolean).annotate({
         description:
           "Answer a repeated read of an unchanged file and range with a short notice while the earlier content is still in the conversation.",
