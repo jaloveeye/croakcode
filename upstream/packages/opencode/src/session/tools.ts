@@ -47,6 +47,39 @@ const EXTRACT_MAX_CHARS = 48_000
  * answer a separate model call extracted from it. The full page is read from
  * the truncation file when the output was cut. Any failure keeps the page.
  */
+const EXCERPT_CHARS = 4_000
+const STOP_WORDS = new Set(["the", "and", "for", "with", "what", "how", "this", "that", "from", "are", "is", "of", "in", "to"])
+
+/**
+ * The part of a long page sent with the question. A page within the limit goes
+ * whole. A longer one is cut into blocks; the first block (title, context) and
+ * the blocks that contain the most words of the question fill the limit, in
+ * page order. Found in the full test: the first 48,000 characters of RFC 9110
+ * are its table of contents, so the head alone could not answer about 304.
+ */
+export function excerptsFor(page: string, question: string, max = EXTRACT_MAX_CHARS, size = EXCERPT_CHARS) {
+  if (page.length <= max) return page
+  const words = [...new Set(question.toLowerCase().split(/[^\p{L}\p{N}]+/u))].filter(
+    (word) => word.length >= 2 && !STOP_WORDS.has(word),
+  )
+  const blocks: string[] = []
+  for (let at = 0; at < page.length; at += size) blocks.push(page.slice(at, at + size))
+  const score = (block: string) => {
+    const text = block.toLowerCase()
+    return words.reduce((sum, word) => {
+      const count = text.split(word).length - 1
+      return count === 0 ? sum : sum + 10 + Math.min(count, 10)
+    }, 0)
+  }
+  const ranked = blocks
+    .map((block, index) => ({ index, score: index === 0 ? Infinity : score(block) }))
+    .filter((item) => item.score > 0)
+    .toSorted((a, b) => b.score - a.score || a.index - b.index)
+  if (ranked.length <= 1) return page.slice(0, max)
+  const chosen = ranked.slice(0, Math.max(1, Math.floor(max / size))).map((item) => item.index).toSorted((a, b) => a - b)
+  return chosen.map((index) => blocks[index]).join("\n\n[...]\n\n")
+}
+
 const extractAnswer = Effect.fnUntraced(function* (
   tool: string,
   args: Record<string, unknown>,
@@ -59,7 +92,7 @@ const extractAnswer = Effect.fnUntraced(function* (
   const page = outputPath
     ? yield* Effect.promise(() => Bun.file(outputPath).text()).pipe(Effect.catch(() => Effect.succeed(result.output)))
     : result.output
-  const answer = yield* extract(question, page.slice(0, EXTRACT_MAX_CHARS)).pipe(Effect.catch(() => Effect.succeed(undefined)))
+  const answer = yield* extract(question, excerptsFor(page, question)).pipe(Effect.catch(() => Effect.succeed(undefined)))
   if (!answer) return undefined
   return {
     ...result,
