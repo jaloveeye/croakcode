@@ -26,7 +26,7 @@
     "read_before_write": true,
     "read_dedup": true,
     // Ask before risky bash forms even when bash is allowed (Task 7).
-    "confirm_risky_bash": true,
+    "confirm_risky_bash": true
   },
   // A tool result above these limits is saved to a file and the model gets the
   // first part plus the file path. The default 50KB (about 13,000 tokens) made
