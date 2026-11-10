@@ -68,8 +68,10 @@ export const MIN_DEDUP_BYTES = 2048
 /**
  * Phase 5 Task 6: an earlier read of the same file and range whose output the
  * model still sees, with the file unchanged since. Returns that read's start
- * time, or undefined when the file must be read again: the range differs, the
- * file changed, or the earlier output is gone (compacted away or pruned).
+ * time, or undefined when the file must be read again: no read of that range,
+ * the file changed, or the earlier output is gone (compacted away or pruned).
+ * Reads of other ranges in between are skipped: they do not hide the earlier
+ * output, and any change to the file shows in the stamp.
  */
 export function unchangedRead(
   messages: readonly MessageV2.WithParts[],
@@ -90,7 +92,7 @@ export function unchangedRead(
       const stamp = metadata?.[METADATA_KEY] as Stamp | undefined
       if (stamp?.path !== now.path) continue
       const input = part.state.input as { offset?: unknown; limit?: unknown }
-      if (input.offset !== args.offset || input.limit !== args.limit) return undefined
+      if (input.offset !== args.offset || input.limit !== args.limit) continue
       return stamp.mtimeMs === now.mtimeMs && stamp.size === now.size ? part.state.time.start : undefined
     }
   }
