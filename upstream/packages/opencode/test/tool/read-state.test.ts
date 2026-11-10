@@ -70,3 +70,44 @@ describe("ReadState", () => {
     expect(ReadState.refusal("changed", "/x/a.ts")).toContain("has changed since you last read it")
   })
 })
+
+describe("ReadState.unchangedRead", () => {
+  const readPart = (target: string, input: Record<string, unknown>, extra: Record<string, unknown> = {}, compacted?: number) => ({
+    type: "tool",
+    tool: "read",
+    state: {
+      status: "completed",
+      input: { filePath: target, ...input },
+      metadata: { [ReadState.METADATA_KEY]: ReadState.current(target), ...extra },
+      time: { start: 1_700_000_000_000, end: 1_700_000_000_100, ...(compacted ? { compacted } : {}) },
+    },
+  })
+  const messages = (...parts: unknown[]) => [{ info: { role: "assistant" }, parts }] as unknown as MessageV2.WithParts[]
+
+  test("a visible earlier read of the same range of an unchanged file counts", () => {
+    const target = file("f.txt", "f")
+    expect(ReadState.unchangedRead(messages(readPart(target, {})), target, {}, 0)).toBe(1_700_000_000_000)
+  })
+
+  test("a different range, a change or a pruned output means reading again", () => {
+    const target = file("g.txt", "g")
+    expect(ReadState.unchangedRead(messages(readPart(target, { offset: 10 })), target, {}, 0)).toBeUndefined()
+    expect(ReadState.unchangedRead(messages(readPart(target, {}, {}, Date.now())), target, {}, 0)).toBeUndefined()
+    const earlier = messages(readPart(target, {}))
+    writeFileSync(target, "g changed")
+    expect(ReadState.unchangedRead(earlier, target, {}, 0)).toBeUndefined()
+  })
+
+  test("a small file is always read again", () => {
+    const target = file("small.txt", "tiny")
+    expect(ReadState.unchangedRead(messages(readPart(target, {})), target, {})).toBeUndefined()
+  })
+
+  test("a notice is skipped; the read that returned the content decides", () => {
+    const target = file("h.txt", "h")
+    const notice = readPart(target, {}, { unchanged: true })
+    expect(ReadState.unchangedRead(messages(notice), target, {}, 0)).toBeUndefined()
+    expect(ReadState.unchangedRead(messages(readPart(target, {}, {}, Date.now()), notice), target, {}, 0)).toBeUndefined()
+    expect(ReadState.unchangedRead(messages(readPart(target, {}), notice), target, {}, 0)).toBe(1_700_000_000_000)
+  })
+})

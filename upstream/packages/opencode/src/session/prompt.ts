@@ -1444,6 +1444,7 @@ export const layer = Layer.effect(
               promptOps,
               connectionMode: connection.mode,
               readBeforeWrite: (yield* config.get()).experimental?.read_before_write === true,
+              readDedup: (yield* config.get()).experimental?.read_dedup === true,
             }).pipe(
               Effect.provideService(Plugin.Service, plugin),
               Effect.provideService(Permission.Service, permission),
