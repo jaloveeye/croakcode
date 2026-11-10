@@ -50,6 +50,7 @@ import { Agent } from "../agent/agent"
 import { Git } from "@/git"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
+import { Wildcard } from "@/util/wildcard"
 import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -333,10 +334,7 @@ export const layer: Layer.Layer<
       // preserving the §3.4 invariant. Listing uses agent.permission only while
       // execution merges session.permission (conservative over-exposure; the
       // session-level deny still blocks at execution time).
-      const permitted = filtered.filter((tool) => {
-        const action = Permission.evaluate(tool.id, "*", input.agent.permission).action
-        return action === "allow" || action === "ask"
-      })
+      const permitted = filtered.filter((tool) => exposed(tool.id, input.agent.permission))
 
       return yield* Effect.forEach(
         permitted,
@@ -484,3 +482,18 @@ function isJsonSchemaObject(value: unknown): value is Record<string, unknown> {
 }
 
 export * as ToolRegistry from "./registry"
+
+/**
+ * Whether the model may see a tool. The "*" decision is not enough for tools
+ * whose rules are per pattern: with skill {"*": "deny", "pdf": "allow"} the
+ * "*" decision is deny, yet the pdf skill is allowed and listed. A tool is
+ * exposed when "*" is allowed or asked, or when a later rule allows or asks
+ * for a specific pattern. Every call is still checked against its real
+ * pattern before it runs.
+ */
+export function exposed(id: string, ruleset: Permission.Ruleset) {
+  const action = Permission.evaluate(id, "*", ruleset).action
+  if (action === "allow" || action === "ask") return true
+  const rules = ruleset.filter((rule) => Wildcard.match(id, rule.permission))
+  return rules.slice(rules.findLastIndex((rule) => rule.pattern === "*") + 1).some((rule) => rule.action !== "deny")
+}
