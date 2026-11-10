@@ -777,6 +777,86 @@ describe("session.llm.stream", () => {
     },
   )
 
+  // experimental.stable_prompt_prefix: the environment block (date,
+  // directories) is the part of the system prompt that changes between days
+  // and projects. Chat templates such as Qwen's put tool definitions after the
+  // system prompt, so it is sent as the first user message instead.
+  const contextRequest = (stable: boolean | undefined) =>
+    Effect.gen(function* () {
+      const fixture = loadFixture(vivgridFixture.providerID, vivgridFixture.modelID)
+      const request = waitRequest(
+        "/chat/completions",
+        new Response(createChatStream("Hello"), { status: 200, headers: { "Content-Type": "text/event-stream" } }),
+      )
+      const resolved = yield* Provider.use.getModel(
+        ProviderID.make(vivgridFixture.providerID),
+        ModelID.make(fixture.model.id),
+      )
+      const sessionID = SessionID.make(`session-test-context-${String(stable)}`)
+      const agent = {
+        name: "test",
+        mode: "primary",
+        options: {},
+        prompt: "AGENT PROMPT",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      } satisfies Agent.Info
+      const user = {
+        id: MessageID.make(`msg_user-context-${String(stable)}`),
+        sessionID,
+        role: "user",
+        time: { created: Date.now() },
+        agent: agent.name,
+        model: { providerID: ProviderID.make(vivgridFixture.providerID), modelID: resolved.id },
+      } satisfies MessageV2.User
+      yield* drain({
+        user,
+        sessionID,
+        model: resolved,
+        agent,
+        system: ["INSTRUCTIONS"],
+        context: ["<env>Today's date: DAY</env>"],
+        messages: [{ role: "user", content: "Hello" }],
+        tools: {},
+      })
+      const capture = yield* Effect.promise(() => request)
+      return capture.body.messages as { role: string; content: unknown }[]
+    })
+  const contextConfig = (stable: boolean | undefined) => () => ({
+    enabled_providers: [vivgridFixture.providerID],
+    provider: {
+      [vivgridFixture.providerID]: {
+        options: { apiKey: "test-key", baseURL: `${state.server!.url.origin}/v1` },
+      },
+    },
+    ...(stable === undefined ? {} : { experimental: { stable_prompt_prefix: stable } }),
+  })
+
+  it.instance(
+    "keeps the environment block in the system prompt by default",
+    () =>
+      Effect.gen(function* () {
+        const messages = yield* contextRequest(undefined)
+        expect(messages.map((m) => m.role)).toEqual(["system", "user"])
+        expect(messages[0].content).toBe("AGENT PROMPT\n<env>Today's date: DAY</env>\nINSTRUCTIONS")
+        expect(messages[1].content).toBe("Hello")
+      }),
+    { config: contextConfig(undefined) },
+  )
+
+  it.instance(
+    "stable_prompt_prefix sends the environment block as the first user message",
+    () =>
+      Effect.gen(function* () {
+        const messages = yield* contextRequest(true)
+        expect(messages.map((m) => m.role)).toEqual(["system", "user", "user"])
+        // The system prompt holds only what is the same every day.
+        expect(messages[0].content).toBe("AGENT PROMPT\nINSTRUCTIONS")
+        expect(messages[1].content).toBe("<env>Today's date: DAY</env>")
+        expect(messages[2].content).toBe("Hello")
+      }),
+    { config: contextConfig(true) },
+  )
+
   const alibabaQwenFixture = { providerID: "alibaba", modelID: "qwen-plus" }
   it.instance(
     "service stream cancellation cancels provider response body promptly",

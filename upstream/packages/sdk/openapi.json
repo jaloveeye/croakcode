@@ -14343,6 +14343,9 @@
               "mcp_timeout": {
                 "type": "integer",
                 "exclusiveMinimum": 0
+              },
+              "stable_prompt_prefix": {
+                "type": "boolean"
               }
             },
             "additionalProperties": false

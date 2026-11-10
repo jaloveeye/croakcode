@@ -39,6 +39,10 @@ export type StreamInput = {
   agent: Agent.Info
   permission?: Permission.Ruleset
   system: string[]
+  // Per-session context that changes with the day or the directory (the
+  // environment block). Joined into the system prompt, or sent as the first
+  // user message when experimental.stable_prompt_prefix is on.
+  context?: string[]
   messages: ModelMessage[]
   small?: boolean
   tools: Record<string, Tool>
@@ -117,6 +121,7 @@ const live: Layer.Layer<
         flags,
         isWorkflow,
         connection,
+        stablePrefix: cfg.experimental?.stable_prompt_prefix === true,
       })
 
       // Wire up toolExecutor for DWS workflow models so that tool calls
