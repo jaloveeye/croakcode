@@ -68,6 +68,15 @@ test("classifyCli treats any output option as a write", () => {
   assert.equal(classifyCli(["edit", "replace-text", "a.hwp", "--find", "x", "--replace", "y", "--dry-run", "-o", "b.hwp"]), "write")
 })
 
+test("hwpCli refuses an input on a key or secret path for any command", async () => {
+  const asked = []
+  const ctx = { directory: "/home/u/work", ask: async (req) => void asked.push(req) }
+  for (const args of [["info", "/home/u/.ssh/id_rsa"], ["digest", "../.env"], ["export-text", "server.pem"]]) {
+    await assert.rejects(() => hwpCli({ args }, ctx), /비밀 파일 경로/, args.join(" "))
+  }
+  assert.equal(asked.length, 0)
+})
+
 test("hwpCli refuses an output on a key or secret path before asking", async () => {
   const asked = []
   const ctx = { directory: "/home/u/work", ask: async (req) => void asked.push(req) }

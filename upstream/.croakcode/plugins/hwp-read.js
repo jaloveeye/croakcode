@@ -230,6 +230,13 @@ export async function hwpCli(input, ctx) {
   const args = convertArgs(list)
   const kind = classifyCli(args)
   if (kind === "blocked") throw new Error(`rhwp ${args[0]}은 이 도구에서 실행하지 않는다.`)
+  // Any argument that names a key, certificate or secret file is refused,
+  // whatever the command: hwp_cli must not read those files either.
+  for (const arg of args.slice(1)) {
+    if (arg.startsWith("-")) continue
+    const secret = deniedPath(arg) ?? deniedPath(resolveDocPath(arg, ctx.directory))
+    if (secret) throw new Error(`인자 '${arg}'은(는) 키, 인증서, 비밀 파일 경로라 쓸 수 없다 (규칙 ${secret}).`)
+  }
   if (kind === "write") {
     // An output may not land on a key or secret file, as with hwp_memo.
     const outputs = outputPaths(args).map((o) => resolveDocPath(o, ctx.directory))
