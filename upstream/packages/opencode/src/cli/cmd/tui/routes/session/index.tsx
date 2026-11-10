@@ -1483,14 +1483,17 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   // Phase 5 Task 10: copy the whole answer to this question, every assistant
   // message that answered it, as the markdown the model wrote. Tool output
   // and reasoning are left out.
-  const copyAnswer = () => {
-    const text = messages()
+  const answerText = createMemo(() =>
+    messages()
       .filter((x) => x.role === "assistant" && x.parentID === props.message.parentID)
       .flatMap((x) => sync.data.part[x.id] ?? [])
       .filter((part) => part.type === "text" && !part.synthetic && !part.ignored)
       .map((part) => (part.type === "text" ? part.text.trim() : ""))
       .filter((value) => value.length > 0)
-      .join("\n\n")
+      .join("\n\n"),
+  )
+  const copyAnswer = () => {
+    const text = answerText()
     if (!text) {
       toast.show({ message: "복사할 답변 글이 없습니다", variant: "warning" })
       return
@@ -1565,7 +1568,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
                   <span style={{ fg: theme.textMuted }}> · interrupted</span>
                 </Show>
               </text>
-              <Show when={final()}>
+              {/* An interrupted answer keeps the text written so far; it can be copied too. */}
+              <Show when={(final() || props.message.error?.name === "MessageAbortedError") && answerText()}>
                 <text fg={theme.textMuted} onMouseUp={copyAnswer}>
                   {"   ⧉ 복사"}
                 </text>
