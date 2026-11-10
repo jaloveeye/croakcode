@@ -995,6 +995,21 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
+  function askSide(sessionID: string, question: string) {
+    toast.show({ message: "곁질문을 보냈습니다. 답이 오면 창으로 보여 드립니다", variant: "info" })
+    sdk.client.session
+      .side({ sessionID, question })
+      .then((result) => {
+        const text = result.data?.text?.trim()
+        if (!text) {
+          toast.show({ message: "곁질문에 대한 답을 받지 못했습니다", variant: "error" })
+          return
+        }
+        return DialogAlert.show(dialog, `곁질문: ${question.length > 40 ? question.slice(0, 37) + "..." : question}`, text)
+      })
+      .catch(() => toast.show({ message: "곁질문을 보내지 못했습니다", variant: "error" }))
+  }
+
   async function submit() {
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
@@ -1030,6 +1045,17 @@ export function Prompt(props: PromptProps) {
     const trimmed = store.prompt.input.trim()
     if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
       void exit()
+      return true
+    }
+    // Phase 5 Task 13: "/btw <question>" asks aside, leaving the main answer alone.
+    const side = trimmed.match(/^\/btw\s+([\s\S]+)$/)
+    if (side) {
+      if (!props.sessionID) {
+        toast.show({ message: "곁질문은 대화를 시작한 뒤에 쓸 수 있습니다", variant: "warning" })
+        return false
+      }
+      clearPrompt()
+      askSide(props.sessionID, side[1].trim())
       return true
     }
     const selectedModel = local.model.current()

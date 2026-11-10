@@ -24,6 +24,10 @@ import type {
   ConfigProvidersResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
+  DelegationRevokeGrantErrors,
+  DelegationRevokeGrantResponses,
+  DelegationRevokePrincipalErrors,
+  DelegationRevokePrincipalResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -194,6 +198,8 @@ import type {
   SessionShareResponses,
   SessionShellErrors,
   SessionShellResponses,
+  SessionSideErrors,
+  SessionSideResponses,
   SessionStatusErrors,
   SessionStatusResponses,
   SessionSummarizeErrors,
@@ -2879,6 +2885,94 @@ export class Permission extends HeyApiClient {
   }
 }
 
+export class Delegation extends HeyApiClient {
+  /**
+   * Revoke a delegation grant
+   *
+   * Revoke a grant and every grant below it, and stop the runs started under them.
+   */
+  public revokeGrant<ThrowOnError extends boolean = false>(
+    parameters: {
+      grantID: string
+      directory?: string
+      workspace?: string
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "grantID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      DelegationRevokeGrantResponses,
+      DelegationRevokeGrantErrors,
+      ThrowOnError
+    >({
+      url: "/delegation/grant/{grantID}/revoke",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Revoke an agent principal
+   *
+   * Revoke a principal, every grant it issued or holds, and stop its runs.
+   */
+  public revokePrincipal<ThrowOnError extends boolean = false>(
+    parameters: {
+      principalID: string
+      directory?: string
+      workspace?: string
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "principalID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      DelegationRevokePrincipalResponses,
+      DelegationRevokePrincipalErrors,
+      ThrowOnError
+    >({
+      url: "/delegation/principal/{principalID}/revoke",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Oauth extends HeyApiClient {
   /**
    * Start OAuth authorization
@@ -3750,6 +3844,45 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).post<SessionSummarizeResponses, SessionSummarizeErrors, ThrowOnError>({
       url: "/session/{sessionID}/summarize",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Ask a side question
+   *
+   * Answer a question from the conversation so far without saving it or interrupting the running answer. Tools are not called.
+   */
+  public side<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      question?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "question" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionSideResponses, SessionSideErrors, ThrowOnError>({
+      url: "/session/{sessionID}/side",
       ...options,
       ...params,
       headers: {
@@ -5124,6 +5257,11 @@ export class OpencodeClient extends HeyApiClient {
   private _permission?: Permission
   get permission(): Permission {
     return (this._permission ??= new Permission({ client: this.client }))
+  }
+
+  private _delegation?: Delegation
+  get delegation(): Delegation {
+    return (this._delegation ??= new Delegation({ client: this.client }))
   }
 
   private _provider?: Provider

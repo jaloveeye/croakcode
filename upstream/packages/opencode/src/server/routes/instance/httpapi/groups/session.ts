@@ -58,6 +58,11 @@ export const InitPayload = Schema.Struct({
   providerID: ProviderID,
   messageID: MessageID,
 })
+export const SidePayload = Schema.Struct({
+  question: Schema.String.check(Schema.isMinLength(1)),
+})
+export const SideResult = Schema.Struct({ text: Schema.String })
+
 export const SummarizePayload = Schema.Struct({
   providerID: ProviderID,
   modelID: ModelID,
@@ -94,6 +99,7 @@ export const SessionPaths = {
   share: `${root}/:sessionID/share`,
   init: `${root}/:sessionID/init`,
   summarize: `${root}/:sessionID/summarize`,
+  side: `${root}/:sessionID/side`,
   prompt: `${root}/:sessionID/message`,
   promptAsync: `${root}/:sessionID/prompt_async`,
   command: `${root}/:sessionID/command`,
@@ -313,6 +319,20 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.summarize",
             summary: "Summarize session",
             description: "Generate a concise summary of the session using AI compaction to preserve key information.",
+          }),
+        ),
+        HttpApiEndpoint.post("side", SessionPaths.side, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: SidePayload,
+          success: described(SideResult, "Answer to the side question"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError, HttpApiError.InternalServerError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.side",
+            summary: "Ask a side question",
+            description:
+              "Answer a question from the conversation so far without saving it or interrupting the running answer. Tools are not called.",
           }),
         ),
         HttpApiEndpoint.post("prompt", SessionPaths.prompt, {

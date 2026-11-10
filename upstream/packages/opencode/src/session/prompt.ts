@@ -100,7 +100,10 @@ export interface Interface {
   readonly shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError>
   readonly command: (input: CommandInput) => Effect.Effect<MessageV2.WithParts, Image.Error>
   readonly resolvePromptParts: (template: string) => Effect.Effect<PromptInput["parts"]>
+  readonly side: (input: SideInput) => Effect.Effect<{ text: string }, unknown>
 }
+
+export type SideInput = { readonly sessionID: SessionID; readonly question: string }
 
 export class Service extends Context.Service<Service, Interface>()("@croakcode/SessionPrompt") {}
 
@@ -1615,6 +1618,93 @@ export const layer = Layer.effect(
       return yield* state.startShell(input.sessionID, lastAssistant(input.sessionID), shellImpl(input, ready), ready)
     })
 
+    /**
+     * Phase 5 Task 13: a side question. The request is built like the next
+     * step of the conversation (same system prompt, context, history and tool
+     * definitions, so the server's prefix cache applies) with the question
+     * appended. Tools are not called and nothing is saved: the main answer, if
+     * one is running, is not touched.
+     */
+    const side = Effect.fn("SessionPrompt.side")(function* (input: SideInput) {
+      const session = yield* sessions.get(input.sessionID)
+      const msgs = yield* MessageV2.filterCompactedEffect(input.sessionID)
+      const { user: lastUser } = MessageV2.latest(msgs)
+      if (!lastUser) return { text: "" }
+      const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, input.sessionID)
+      const agent = yield* agents.get(lastUser.agent)
+      if (!agent) return { text: "" }
+      const connection = connectionFor(yield* config.get())
+      const forModel = filterMessagesForModeParts(msgs, connection.mode)
+      const stub: MessageV2.Assistant = {
+        id: MessageID.ascending(),
+        parentID: lastUser.id,
+        role: "assistant",
+        mode: agent.name,
+        agent: agent.name,
+        path: { cwd: "", root: "" },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        modelID: model.id,
+        providerID: model.providerID,
+        time: { created: Date.now() },
+        sessionID: input.sessionID,
+      }
+      // Tool definitions only: with toolChoice "none" nothing is executed, so
+      // the processor callbacks are never reached.
+      const tools = yield* SessionTools.resolve({
+        agent,
+        session,
+        model,
+        processor: {
+          message: stub,
+          updateToolCall: () => Effect.die(new Error("side questions do not run tools")),
+          completeToolCall: () => Effect.die(new Error("side questions do not run tools")),
+        },
+        bypassAgentCheck: false,
+        messages: forModel,
+        promptOps: yield* ops(),
+        connectionMode: connection.mode,
+      }).pipe(
+        Effect.provideService(Plugin.Service, plugin),
+        Effect.provideService(Permission.Service, permission),
+        Effect.provideService(ToolRegistry.Service, registry),
+        Effect.provideService(MCP.Service, mcp),
+        Effect.provideService(Truncate.Service, truncate),
+        Effect.provideService(Guard.Service, guard),
+      )
+      const [skills, env, instructions, modelMsgs] = yield* Effect.all([
+        sys.skills(agent),
+        sys.environment(model),
+        instruction.system().pipe(Effect.orDie),
+        MessageV2.toModelMessagesEffect(forModel, model),
+      ])
+      const question = [
+        "<side-question>",
+        "The user asks this aside while the main work continues. Answer it briefly from the conversation so far.",
+        "Do not call tools. This exchange is not saved to the conversation.",
+        "</side-question>",
+        "",
+        input.question,
+      ].join("\n")
+      const text = yield* llm
+        .stream({
+          user: lastUser,
+          sessionID: input.sessionID,
+          parentSessionID: session.parentID,
+          model,
+          agent,
+          permission: session.permission,
+          system: [...instructions, ...(skills ? [skills] : [])],
+          context: env,
+          messages: [...modelMsgs, { role: "user" as const, content: question }],
+          tools,
+          toolChoice: "none",
+          connection,
+        })
+        .pipe(Stream.runFold(() => "", (acc: string, event) => (event.type === "text-delta" ? acc + event.text : acc)))
+      return { text: text.trim() }
+    })
+
     const command = Effect.fn("SessionPrompt.command")(function* (input: CommandInput) {
       yield* elog.info("command", { sessionID: input.sessionID, command: input.command, agent: input.agent })
       const cmd = yield* commands.get(input.command)
@@ -1739,6 +1829,7 @@ export const layer = Layer.effect(
       shell,
       command,
       resolvePromptParts,
+      side,
     })
   }),
 )

@@ -32,6 +32,7 @@ import {
   RevertPayload,
   ShellPayload,
   SummarizePayload,
+  SidePayload,
   UpdatePayload,
 } from "../groups/session"
 import { PermissionNotFoundError } from "../errors"
@@ -261,6 +262,16 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* requireSession(ctx.params.sessionID)
     })
 
+    const side = Effect.fn("SessionHttpApi.side")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: typeof SidePayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* promptSvc
+        .side({ sessionID: ctx.params.sessionID, question: ctx.payload.question })
+        .pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
+    })
+
     const summarize = Effect.fn("SessionHttpApi.summarize")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof SummarizePayload.Type
@@ -421,6 +432,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("share", share)
       .handle("unshare", unshare)
       .handle("summarize", summarize)
+      .handle("side", side)
       .handle("prompt", prompt)
       .handle("promptAsync", promptAsync)
       .handle("command", command)
