@@ -439,6 +439,17 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
+        title: "Interrupt the answer and send now",
+        name: "prompt.submit_now",
+        category: "Prompt",
+        hidden: true,
+        run: async (ctx: CommandContext<Renderable, KeyEvent>) => {
+          ctx.event.preventDefault()
+          ctx.event.stopPropagation()
+          await submitNow()
+        },
+      },
+      {
         title: "Paste",
         name: "prompt.paste",
         category: "Prompt",
@@ -875,6 +886,14 @@ export function Prompt(props: PromptProps) {
   useBindings(() => {
     return {
       target: inputTarget,
+      enabled: inputTarget() !== undefined && !props.disabled && store.prompt.input.trim() !== "",
+      bindings: tuiConfig.keybinds.get("prompt.submit_now"),
+    }
+  })
+
+  useBindings(() => {
+    return {
+      target: inputTarget,
       enabled: inputTarget() !== undefined && !props.disabled && store.prompt.input !== "",
       bindings: tuiConfig.keybinds.get("prompt.clear"),
     }
@@ -995,6 +1014,34 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
+  /**
+   * Phase 5 Task 9: send now, interrupting the answer being written. A message
+   * sent while the model is busy normally waits for the next step boundary;
+   * during a long answer with no tool call that is the end of the answer. Here
+   * the answer is stopped first (its text so far stays in the conversation)
+   * and the message goes in at once. A running tool is not cut: the message
+   * then goes in when the tool finishes, as before.
+   */
+  async function submitNow() {
+    const sessionID = props.sessionID
+    if (!sessionID || status().type === "idle") return submit()
+    if (toolRunning(sessionID)) {
+      toast.show({ message: "실행 중인 도구가 끝나면 바로 들어갑니다", variant: "info" })
+      return submit()
+    }
+    await sdk.client.session.abort({ sessionID }).catch(() => undefined)
+    for (let waited = 0; status().type !== "idle" && waited < 3000; waited += 50) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    return submit()
+  }
+
+  function toolRunning(sessionID: string) {
+    const last = (sync.data.message[sessionID] ?? []).findLast((message) => message.role === "assistant")
+    if (!last) return false
+    return (sync.data.part[last.id] ?? []).some((part) => part.type === "tool" && part.state.status === "running")
+  }
+
   async function submit() {
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
