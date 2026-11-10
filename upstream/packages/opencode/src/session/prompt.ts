@@ -52,6 +52,7 @@ import { Flag } from "@croakcode/core/flag/flag"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Guard } from "@/delegation/guard"
 import { Audit } from "@/delegation/audit"
+import { Anomaly } from "./anomaly"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionEvent } from "@croakcode/core/session-event"
 import { ModelV2 } from "@croakcode/core/model"
@@ -1285,6 +1286,8 @@ export const layer = Layer.effect(
         const ctx = yield* InstanceState.context
         const slog = elog.with({ sessionID })
         let structured: unknown
+        // Phase 5 Task 3: an empty answer is retried once per turn.
+        let emptyRetried = false
         let step = 0
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
 
@@ -1517,6 +1520,18 @@ export const layer = Layer.effect(
               handle.message.finish = handle.message.finish ?? "stop"
               yield* sessions.updateMessage(handle.message)
               return "break" as const
+            }
+
+            if (
+              !emptyRetried &&
+              result === "continue" &&
+              format.type !== "json_schema" &&
+              Anomaly.isEmptyAnswer(handle.message.finish, !!handle.message.error, MessageV2.parts(handle.message.id))
+            ) {
+              emptyRetried = true
+              yield* slog.warn("empty answer, asking once more", { messageID: handle.message.id })
+              yield* sessions.removeMessage({ sessionID, messageID: handle.message.id })
+              return "continue" as const
             }
 
             const finished = handle.message.finish && !["tool-calls", "unknown"].includes(handle.message.finish)

@@ -5,6 +5,7 @@ import type { Permission } from "../permission"
 import type { SessionID, MessageID } from "../session/schema"
 import * as Truncate from "./truncate"
 import { Agent } from "@/agent/agent"
+import { Anomaly } from "@/session/anomaly"
 
 interface Metadata {
   [key: string]: any
@@ -116,7 +117,8 @@ function wrap<Parameters extends Schema.Decoder<unknown>, Result extends Metadat
           ...(ctx.callID ? { "tool.call_id": ctx.callID } : {}),
         }
         return Effect.gen(function* () {
-          const decoded = yield* decode(args).pipe(
+          // Phase 5 Task 3: some models send the arguments object as a JSON string.
+          const decoded = yield* decode(Anomaly.unwrapStringifiedArgs(args)).pipe(
             Effect.mapError(
               (error) =>
                 new InvalidArgumentsError({
