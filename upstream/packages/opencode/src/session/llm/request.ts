@@ -22,6 +22,7 @@ type PrepareInput = {
   readonly agent: Agent.Info
   readonly permission?: Permission.Ruleset
   readonly system: string[]
+  readonly context?: string[]
   readonly messages: ModelMessage[]
   readonly small?: boolean
   readonly tools: Record<string, Tool>
@@ -33,6 +34,8 @@ type PrepareInput = {
   // Effective connection mode (spec §5.3). Undefined means unresolvable;
   // plugins that need gate (e.g. croak-auth) must treat that as fail-closed.
   readonly connection?: { readonly mode: "gate" | "direct" }
+  // experimental.stable_prompt_prefix: keep `context` out of the system prompt.
+  readonly stablePrefix?: boolean
 }
 
 export type Prepared = {
@@ -55,9 +58,16 @@ const mergeOptions = (target: Record<string, any>, source: Record<string, any> |
 
 export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: PrepareInput) {
   const isOpenaiOauth = input.provider.id === "openai" && input.auth?.type === "oauth"
+  // Chat templates such as Qwen's place tool definitions after the system
+  // prompt, so anything in the system prompt that changes (the date, the
+  // directory) also invalidates the server's cache of every tool definition.
+  // With stablePrefix the context goes into the first user message instead.
+  const context = (input.context ?? []).filter((x) => x)
+  const separateContext = input.stablePrefix === true && !isOpenaiOauth && !input.isWorkflow && context.length > 0
   const system = [
     [
       ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
+      ...(separateContext ? [] : context),
       ...input.system,
       ...(input.user.system ? [input.user.system] : []),
     ]
@@ -101,6 +111,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
               content: x,
             }),
           ),
+          ...(separateContext ? [{ role: "user", content: context.join("\n") } satisfies ModelMessage] : []),
           ...input.messages,
         ]
 

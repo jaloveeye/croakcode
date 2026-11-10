@@ -311,6 +311,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      stable_prompt_prefix: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Send the environment block (model, directories, date) as the first user message instead of in the system prompt. The system prompt and tool definitions then stay the same across days, so a server with prefix caching answers a new session's first request from its cache.",
+      }),
     }),
   ),
 }).annotate({ identifier: "Config" })

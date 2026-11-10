@@ -1492,7 +1492,9 @@ export const layer = Layer.effect(
               instruction.system().pipe(Effect.orDie),
               MessageV2.toModelMessagesEffect(msgsForModel, model),
             ])
-            const system = [...env, ...instructions, ...(skills ? [skills] : [])]
+            // The environment block goes separately so the request builder can
+            // keep it out of the system prompt (experimental.stable_prompt_prefix).
+            const system = [...instructions, ...(skills ? [skills] : [])]
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
@@ -1502,6 +1504,7 @@ export const layer = Layer.effect(
               sessionID,
               parentSessionID: session.parentID,
               system,
+              context: env,
               messages: [...modelMsgs, ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : [])],
               tools,
               model,
