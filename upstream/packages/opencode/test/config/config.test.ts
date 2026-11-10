@@ -1778,6 +1778,20 @@ describe("CROAKCODE_DISABLE_PROJECT_CONFIG", () => {
     ),
   )
 
+  it.instance("loads a .croakcode folder reached through a symlink only once", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const project = path.join(test.directory, ".croakcode")
+      yield* AppFileSystem.use.writeWithDirs(path.join(project, "croakcode.json"), "{}")
+      const link = path.join(test.directory, "linked-croakcode")
+      yield* Effect.promise(() => fs.symlink(project, link))
+      const directories = yield* withProcessEnv("CROAKCODE_CONFIG_DIR", link, Config.use.directories())
+      const real = yield* Effect.promise(() => fs.realpath(project))
+      const resolved = yield* Effect.promise(() => Promise.all(directories.map((d) => fs.realpath(d).catch(() => d))))
+      expect(resolved.filter((d) => d === real)).toHaveLength(1)
+    }),
+  )
+
   it.instance("still loads global config when flag is set", () =>
     withProcessEnv(
       "CROAKCODE_DISABLE_PROJECT_CONFIG",

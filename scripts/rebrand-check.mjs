@@ -58,6 +58,7 @@ const FORBIDDEN = [
   [/opencode -s \$\{/, "opencode resume hint"],
   [/(until|Tell|updated to) OpenCode|OpenCode includes free models|"OpenCode Default"/, "OpenCode in TUI string"],
   [/github\.com\/anomalyco\/opencode\/issues/, "upstream issue tracker URL"],
+  [/<b>Open<\/b>/, "Open+Code split wordmark in sidebar"],
 ];
 
 const bad = [];
