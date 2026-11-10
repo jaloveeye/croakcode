@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { jsonSchema, tool, type ToolExecutionOptions } from "ai"
+import { jsonSchema, type Tool, type ToolExecutionOptions } from "ai"
 import { deferTools } from "../../src/session/tools"
 
 const calls: string[] = []
 const make = (name: string, description: string) =>
-  tool({
+  ({
     description,
     inputSchema: jsonSchema({ type: "object", properties: { value: { type: "string" } } }),
     async execute(args: { value?: string }) {
       calls.push(`${name}:${args.value ?? ""}`)
       return { title: name, output: `ran ${name}`, metadata: {} }
     },
-  })
+  }) as unknown as Tool
 const options = { toolCallId: "call_1", messages: [] } as unknown as ToolExecutionOptions
 
 const tools = {
