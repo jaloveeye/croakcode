@@ -1570,7 +1570,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
               </text>
               {/* An interrupted answer keeps the text written so far; it can be copied too. */}
               <Show when={(final() || props.message.error?.name === "MessageAbortedError") && answerText()}>
-                <text fg={theme.textMuted} onMouseUp={copyAnswer}>
+                {/* The accent colour: in muted grey the button was hard to see (user checklist U3). */}
+                <text fg={theme.primary} onMouseUp={copyAnswer}>
                   {"   ⧉ 복사"}
                 </text>
               </Show>
