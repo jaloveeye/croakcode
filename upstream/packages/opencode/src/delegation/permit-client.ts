@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Schema } from "effect"
 import { accessToken } from "../../../../.croakcode/plugins/lib/croak-auth-session.js"
+import { clientVersion } from "@/client-version"
 
 // Phase 4 Task 9 — asks Gate for an execution permit for one tool call.
 // Request: POST {CROAKCODE_GATE_PERMIT_URL}/v1/execution-permits with the
@@ -42,7 +43,7 @@ export const layer = Layer.succeed(
           if (!token) throw new Error("not logged in to croak")
           const response = await fetch(`${url}/v1/execution-permits`, {
             method: "POST",
-            headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+            headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-croak-client-version": clientVersion() },
             body: JSON.stringify(body),
             signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
           })

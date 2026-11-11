@@ -7,6 +7,7 @@ import path from "node:path";
 process.env.CROAK_CONFIG_DIR = mkdtempSync(path.join(tmpdir(), "croak-authsrv-"));
 process.env.CROAK_PROVIDERS = "litellm-head,other";
 process.env.CROAK_AUTH_URL = "https://gate.example";
+process.env.CROAKCODE_CLIENT_VERSION = "1.2.3";
 
 const S = await import("../upstream/.croakcode/plugins/lib/croak-auth-session.js");
 const serverModule = await import("../upstream/.croakcode/plugins/croak-auth-server.js");
@@ -39,6 +40,7 @@ test("logged in + configured provider + gate-origin baseURL + gate mode => Autho
     out,
   );
   assert.equal(out.headers.Authorization, "Bearer a");
+  assert.equal(out.headers["x-croak-client-version"], "1.2.3");
 });
 
 // === 보호 헤더 계약 (3중 조건) — 하나라도 어긋나면 토큰을 내보내지 않는다 ===
@@ -48,6 +50,7 @@ test("unconfigured provider => no Authorization even with token", async () => {
   const out = { headers: {} };
   await hooks["chat.headers"]({ model: { providerID: "other-provider" }, provider: { id: "other-provider", options: { baseURL: "https://gate.example" } }, connection: { mode: "gate" } }, out);
   assert.equal(out.headers.Authorization, undefined);
+  assert.equal(out.headers["x-croak-client-version"], undefined);
 });
 
 test("provider baseURL origin != gate URL origin => no Authorization (token never leaks)", async () => {
