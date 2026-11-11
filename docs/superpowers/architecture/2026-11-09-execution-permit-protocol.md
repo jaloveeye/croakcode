@@ -12,7 +12,7 @@
 
 ## 2. 켜는 조건
 
-기본으로는 로그인이 정한다. 로그인과 토큰 갱신 응답에 `execution_permits: {required, public_key}`가 온다. `required`는 그 계정 등급의 `require_permits`이고, `public_key`는 Gate의 공개키다. croakcode는 이 값을 로그인 정보(`session.json`)에 저장하고, 도구를 실행할 때마다 읽는다. 허가를 발급하는 주소는 로그인한 Gate 주소다. 사용자 PC에는 설정할 것이 없다.
+기본으로는 로그인이 정한다. 로그인과 토큰 갱신 응답에 `execution_permits: {required, public_key}`가 온다. `required`는 그 계정 등급의 `require_permits`이고, `public_key`는 Gate의 공개키다. croakcode는 이 값을 로그인 정보(`session.json`)에 저장하고, 도구를 실행할 때마다 읽는다. 공개키가 있으면 등급과 상관없이 늘 허가를 받는다. 결과를 대조할지는 Gate의 `require_permits`가 정한다. 그래서 등급에 `require_permits`를 켠 직후에도, 예전 값을 가진 PC가 허가 없이 도구를 실행하는 틈이 없다. 공개키가 없고 `required`가 참이면 모든 도구를 거부한다. 허가를 발급하는 주소는 로그인한 Gate 주소다. 사용자 PC에는 설정할 것이 없다.
 
 아래 환경 변수는 로그인 값보다 먼저 적용된다. 시험과 수동 설정에 쓴다. `CROAKCODE_EXECUTION_PERMIT`가 `required`이면 아래 두 값으로 켜고, 다른 값(예: `off`)이면 끈다.
 
