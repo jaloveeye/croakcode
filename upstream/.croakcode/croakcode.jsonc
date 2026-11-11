@@ -1,5 +1,4 @@
 {
-  "$schema": "https://croakcode.ai/config.json",
   "provider": {
     "litellm-head": {
       // OpenAI-compatible endpoint (LiteLLM proxy). baseURL must be set per environment.

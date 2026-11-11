@@ -308,13 +308,13 @@ it.instance("falls back to generic username when system user info is unavailable
   }),
 )
 
-it.effect("creates global jsonc config with schema when no global configs exist", () =>
+// croakcode: upstream seeded a global config holding a croakcode.ai $schema; nothing is written now.
+it.effect("does not create a global config file when none exists", () =>
   withGlobalConfig({}, ({ dir }) =>
     Effect.gen(function* () {
       yield* Config.use.get().pipe(provideInstanceEffect(dir))
 
-      const content = yield* AppFileSystem.use.readFileString(path.join(dir, "croakcode.jsonc"))
-      expect(content).toContain('"$schema": "https://croakcode.ai/config.json"')
+      expect(yield* AppFileSystem.use.existsSafe(path.join(dir, "croakcode.jsonc"))).toBe(false)
     }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
   ),
 )
@@ -505,25 +505,20 @@ it.instance("handles environment variable substitution", () =>
   ),
 )
 
-it.instance("preserves env variables when adding $schema to config", () =>
+// croakcode: a config file is read, never rewritten (upstream added a croakcode.ai $schema to it).
+it.instance("leaves a config file it reads unchanged", () =>
   withProcessEnv(
     "PRESERVE_VAR",
     "secret_value",
     Effect.gen(function* () {
       const test = yield* TestInstance
-      // Config without $schema - should trigger auto-add
-      yield* AppFileSystem.use.writeWithDirs(
-        path.join(test.directory, "croakcode.json"),
-        JSON.stringify({ username: "{env:PRESERVE_VAR}" }),
-      )
+      const original = JSON.stringify({ username: "{env:PRESERVE_VAR}" })
+      yield* AppFileSystem.use.writeWithDirs(path.join(test.directory, "croakcode.json"), original)
       const config = yield* Config.use.get()
       expect(config.username).toBe("secret_value")
 
-      // Read the file to verify the env variable was preserved
       const content = yield* AppFileSystem.use.readFileString(path.join(test.directory, "croakcode.json"))
-      expect(content).toContain("{env:PRESERVE_VAR}")
-      expect(content).not.toContain("secret_value")
-      expect(content).toContain("$schema")
+      expect(content).toBe(original)
     }),
   ),
 )
