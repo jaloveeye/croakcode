@@ -143,7 +143,18 @@ const allTargets: {
   },
 ]
 
-const targets = singleFlag
+// croakcode: the product and binary name (upstream: the package name "opencode").
+const PRODUCT = "croakcode"
+// croakcode: CROAKCODE_BUILD_TARGETS="linux-x64,darwin-arm64,..." builds only those.
+const wanted = process.env.CROAKCODE_BUILD_TARGETS?.split(",").map((x) => x.trim()).filter(Boolean)
+const targetKey = (item: (typeof allTargets)[number]) =>
+  [item.os === "win32" ? "windows" : item.os, item.arch, item.avx2 === false ? "baseline" : undefined, item.abi]
+    .filter(Boolean)
+    .join("-")
+
+const targets = wanted
+  ? allTargets.filter((item) => wanted.includes(targetKey(item)))
+  : singleFlag
   ? allTargets.filter((item) => {
       if (item.os !== process.platform || item.arch !== process.arch) {
         return false
@@ -173,7 +184,7 @@ if (!skipInstall) {
 }
 for (const item of targets) {
   const name = [
-    pkg.name,
+    PRODUCT,
     // changing to win32 flags npm for some reason
     item.os === "win32" ? "windows" : item.os,
     item.arch,
@@ -208,9 +219,9 @@ for (const item of targets) {
       autoloadDotenv: false,
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: name.replace(pkg.name, "bun") as any,
-      outfile: `dist/${name}/bin/opencode`,
-      execArgv: [`--user-agent=opencode/${Script.version}`, "--use-system-ca", "--"],
+      target: name.replace(PRODUCT, "bun") as any,
+      outfile: `dist/${name}/bin/${PRODUCT}`,
+      execArgv: [`--user-agent=${PRODUCT}/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
     },
     files: embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {},
@@ -228,7 +239,7 @@ for (const item of targets) {
 
   // Smoke test: only run if binary is for current platform
   if (item.os === process.platform && item.arch === process.arch && !item.abi) {
-    const binaryPath = `dist/${name}/bin/opencode`
+    const binaryPath = `dist/${name}/bin/${PRODUCT}`
     console.log(`Running smoke test: ${binaryPath} --version`)
     try {
       const versionOutput = await $`${binaryPath} --version`.text()
