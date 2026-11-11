@@ -44,8 +44,9 @@ export const server = async ({ client }) => {
         loops.delete(info.sessionID);
         if (users.size > 200) users.delete(users.keys().next().value);
       }
+      // Any model behind the gate: which one serves an alias is the gate's registry.
       if (event.type !== "message.updated" || info?.role !== "assistant" ||
-          info.modelID !== "qwen3.8-27b-nvfp4" || info.finish !== "length" || warned.has(info.id)) return;
+          info.providerID !== "litellm-head" || info.finish !== "length" || warned.has(info.id)) return;
       warned.add(info.id);
       if (warned.size > 100) warned.delete(warned.values().next().value);
       await client.tui.showToast({ body: {
@@ -54,12 +55,6 @@ export const server = async ({ client }) => {
         variant: "warning",
         duration: 15000,
       }});
-    },
-    "chat.params": async (input, output) => {
-      if (input.model.providerID !== "litellm-head" || input.model.id !== "qwen3.8-27b-nvfp4") return;
-      const direct = output.options?.chat_template_kwargs?.enable_thinking === false;
-      output.temperature = direct ? 0.7 : 1.0;
-      output.topP = direct ? 0.8 : 0.95;
     },
     "experimental.session.compacting": async (_input, output) => {
       output.prompt =

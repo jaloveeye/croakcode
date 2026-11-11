@@ -35,6 +35,8 @@ export type StreamInput = {
   user: MessageV2.User
   sessionID: string
   parentSessionID?: string
+  /** The delegation run this request belongs to; sent as x-croak-run. */
+  runID?: string
   model: Provider.Model
   agent: Agent.Info
   permission?: Permission.Ruleset

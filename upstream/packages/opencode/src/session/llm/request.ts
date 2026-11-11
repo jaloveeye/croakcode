@@ -18,6 +18,7 @@ type PrepareInput = {
   readonly user: MessageV2.User
   readonly sessionID: string
   readonly parentSessionID?: string
+  readonly runID?: string
   readonly model: Provider.Model
   readonly agent: Agent.Info
   readonly permission?: Permission.Ruleset
@@ -178,6 +179,8 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     headers: {
       "x-session-affinity": input.sessionID,
       ...(input.parentSessionID ? { "x-parent-session-id": input.parentSessionID } : {}),
+      // The croak gate records which run a request belongs to (its usage log joins this audit).
+      ...(input.runID ? { "x-croak-run": input.runID } : {}),
       "User-Agent": USER_AGENT,
       ...input.model.headers,
       ...headers,
