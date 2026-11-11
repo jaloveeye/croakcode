@@ -109,6 +109,7 @@ function tlsOptions() {
 
 async function call(method, route, { body, token } = {}) {
   const headers = { accept: "application/json" }
+  if (process.env.CROAKCODE_CLIENT_VERSION) headers["x-croak-client-version"] = process.env.CROAKCODE_CLIENT_VERSION
   if (body !== undefined) headers["content-type"] = "application/json"
   if (token) headers.authorization = `Bearer ${token}`
   const base = requireAuthUrl()

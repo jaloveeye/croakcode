@@ -162,11 +162,13 @@ describe("permit client against a local fake Gate", () => {
       JSON.stringify({ access_token: "login-token", access_expires_at: far, refresh_token: "r", session_expires_at: far }),
     )
     process.env.CROAK_CONFIG_DIR = dir
-    let request: { path: string; auth: string | null; body: unknown } | undefined
+    const oldVersion = process.env.CROAKCODE_DEV_CLIENT_VERSION
+    process.env.CROAKCODE_DEV_CLIENT_VERSION = "1.2.3"
+    let request: { path: string; auth: string | null; version: string | null; body: unknown } | undefined
     const server = Bun.serve({
       port: 0,
       async fetch(req) {
-        request = { path: new URL(req.url).pathname, auth: req.headers.get("authorization"), body: await req.json() }
+        request = { path: new URL(req.url).pathname, auth: req.headers.get("authorization"), version: req.headers.get("x-croak-client-version"), body: await req.json() }
         return Response.json({ token: "a.b" })
       },
     })
@@ -178,9 +180,11 @@ describe("permit client against a local fake Gate", () => {
         }).pipe(Effect.provide(PermitClient.defaultLayer)),
       )
       expect(token).toBe("a.b")
-      expect(request).toEqual({ path: "/v1/execution-permits", auth: "Bearer login-token", body })
+      expect(request).toEqual({ path: "/v1/execution-permits", auth: "Bearer login-token", version: "1.2.3", body })
     } finally {
       server.stop(true)
+      if (oldVersion === undefined) delete process.env.CROAKCODE_DEV_CLIENT_VERSION
+      else process.env.CROAKCODE_DEV_CLIENT_VERSION = oldVersion
     }
   })
 

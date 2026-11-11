@@ -12,6 +12,7 @@ import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
 import { InstallationVersion } from "@croakcode/core/installation/version"
+import { clientVersion } from "./client-version"
 import { NamedError } from "@croakcode/core/util/error"
 import { FormatError } from "./cli/error"
 import { ServeCommand } from "./cli/cmd/serve"
@@ -42,6 +43,9 @@ import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@croakcode/core/util/croakcode-process"
 import { isRecord } from "@/util/record"
 import { beforeStart } from "./cli/croak-update"
+
+// Config plugins run in both the main and TUI worker processes.
+process.env.CROAKCODE_CLIENT_VERSION = clientVersion()
 
 const processMetadata = ensureProcessMetadata("main")
 

@@ -9,6 +9,7 @@ import test from "node:test"
 
 const dir = mkdtempSync(path.join(tmpdir(), "croak-auth-"))
 process.env.CROAK_CONFIG_DIR = dir
+process.env.CROAKCODE_CLIENT_VERSION = "1.2.3"
 
 // Fake croak-auth: counts calls and answers like the real one.
 const calls = []
@@ -19,7 +20,7 @@ const server = createServer((req, res) => {
   req.on("data", (c) => (body += c))
   req.on("end", async () => {
     const data = body ? JSON.parse(body) : {}
-    calls.push({ url: req.url, data, auth: req.headers.authorization })
+    calls.push({ url: req.url, data, auth: req.headers.authorization, version: req.headers["x-croak-client-version"] })
     const reply = (status, obj) => {
       res.writeHead(status, { "content-type": "application/json" })
       res.end(JSON.stringify(obj))
@@ -75,6 +76,7 @@ test("a wrong code is rejected and nothing is stored", async () => {
 test("exchange stores the session with mode 600", async () => {
   const session = await S.exchange(" ABCD-EFGH-JKMN \n", S.pkce().verifier)
   assert.equal(session.access_token, "access-1")
+  assert.equal(calls.at(-1).version, "1.2.3")
   assert.equal(statSync(S.sessionFile()).mode & 0o777, 0o600)
   assert.equal(await S.accessToken(), "access-1")
 })
@@ -93,6 +95,7 @@ test("refreshes shortly before expiry, once for concurrent callers", async () =>
   refreshDelay = 0
   const after = calls.filter((c) => c.data.grant_type === "refresh_token").length
   assert.equal(after - before, 1)
+  assert.equal(calls.at(-1).version, "1.2.3")
   assert.equal(new Set(tokens).size, 1)
   assert.notEqual(tokens[0], "access-1")
   assert.equal(S.load().refresh_token, tokens[0].replace("access", "refresh"))
@@ -130,6 +133,7 @@ test("whoami sends the access token", async () => {
   const me = await S.whoami()
   assert.equal(me.username, "tester")
   assert.equal(calls.at(-1).auth, `Bearer ${S.load().access_token}`)
+  assert.equal(calls.at(-1).version, "1.2.3")
 })
 
 test("logout tells the server and removes the file", async () => {

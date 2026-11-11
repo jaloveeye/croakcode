@@ -44,6 +44,7 @@ export function shouldAttachToken(input) {
 export const server = async () => ({
   "chat.headers": async (input, output) => {
     if (!shouldAttachToken(input)) return;
+    if (process.env.CROAKCODE_CLIENT_VERSION) output.headers["x-croak-client-version"] = process.env.CROAKCODE_CLIENT_VERSION;
     const token = await accessToken();
     // Same spelling as the SDK's own header, so ours replaces it.
     if (token) output.headers.Authorization = `Bearer ${token}`;
