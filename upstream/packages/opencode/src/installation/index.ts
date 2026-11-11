@@ -19,11 +19,11 @@ const log = Log.create({ service: "installation" })
  * croakcode does not update through upstream's channels. They point at
  * croakcode.ai/install (piped to bash), the npm package opencode-ai, brew,
  * scoop, choco and github.com/croakcode/croakcode, none of which belong to
- * this project. Every caller refuses with this message; updates come from the
- * croak gate (Phase 6 Task 5).
+ * this project. This upstream service stays blocked; the CLI updates from the
+ * croak gate instead.
  */
 export const UPGRADE_DISABLED =
-  "croakcode updates come from the croak gate. Run the installer from the gate again; croakcode upgrade will do it once Phase 6 is done."
+  "Upstream updates are disabled. Run croakcode upgrade to update from the croak gate."
 
 /** Always true in croakcode; a function so the upstream code after the check still type-checks. */
 export const upstreamUpgradeBlocked = (): boolean => true

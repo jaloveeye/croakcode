@@ -51,6 +51,9 @@ function Version(props: { api: TuiPluginApi }) {
   return (
     <box flexShrink={0}>
       <text fg={theme().textMuted}>{props.api.app.version}</text>
+      <Show when={process.env.CROAKCODE_UPDATE_LATEST}>
+        <text fg={theme().warning}>새 버전 {process.env.CROAKCODE_UPDATE_LATEST} · croakcode upgrade</text>
+      </Show>
     </box>
   )
 }
