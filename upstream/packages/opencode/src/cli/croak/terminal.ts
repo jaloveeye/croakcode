@@ -13,6 +13,28 @@ export function legacyWindowsConsole(env: NodeJS.ProcessEnv, platform: string = 
   return !(env.WT_SESSION || env.TERM_PROGRAM || env.ConEmuANSI || env.WEZTERM_EXECUTABLE || env.TERM)
 }
 
+/**
+ * How to reopen the TUI in Windows Terminal from the legacy console, or
+ * undefined when that is not possible. The launcher (croakcode.cmd) sets
+ * CROAKCODE_LAUNCHER to itself; running it again in the new window sets the
+ * gate settings there too, which a running Windows Terminal would not pass on.
+ * The new window has WT_SESSION, so it does not reopen again.
+ */
+export function windowsTerminalRelaunch(
+  env: NodeJS.ProcessEnv,
+  args: string[],
+  cwd: string,
+  which: (name: string) => string | null | undefined,
+): { command: string; args: string[] } | undefined {
+  const launcher = env.CROAKCODE_LAUNCHER
+  const wt = which("wt.exe") ?? which("wt")
+  if (!launcher || !wt) return undefined
+  // /k keeps the tab after croakcode exits, so its exit screen (how to resume) stays.
+  return { command: wt, args: ["-d", cwd, "cmd.exe", "/k", launcher, ...args] }
+}
+
+export const RELAUNCHED_MESSAGE = "Windows Terminal 새 창에서 croakcode를 열었습니다."
+
 export const LEGACY_CONSOLE_MESSAGE = [
   "이 창(Windows 기본 콘솔)에서는 croakcode 화면을 그릴 수 없습니다.",
   "Windows Terminal에서 실행하세요. 시작 메뉴에서 '터미널'을 열고 croakcode를 입력하면 됩니다.",

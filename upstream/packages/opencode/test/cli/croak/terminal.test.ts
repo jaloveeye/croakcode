@@ -25,3 +25,20 @@ describe("login hint", () => {
     expect(isLoginError("Cannot connect to API")).toBe(false)
   })
 })
+
+describe("reopening in Windows Terminal", () => {
+  const { windowsTerminalRelaunch } = require("../../../src/cli/croak/terminal")
+  const which = (name: string) => (name === "wt.exe" ? "C:\\\\WT\\\\wt.exe" : null)
+
+  test("runs the launcher again in a new Windows Terminal window, in the same folder, with the same arguments", () => {
+    expect(windowsTerminalRelaunch({ CROAKCODE_LAUNCHER: "C:\\\\bin\\\\croakcode.cmd" }, ["-s", "ses_1"], "C:\\\\work", which)).toEqual({
+      command: "C:\\\\WT\\\\wt.exe",
+      args: ["-d", "C:\\\\work", "cmd.exe", "/k", "C:\\\\bin\\\\croakcode.cmd", "-s", "ses_1"],
+    })
+  })
+
+  test("not without Windows Terminal or without the launcher", () => {
+    expect(windowsTerminalRelaunch({ CROAKCODE_LAUNCHER: "x.cmd" }, [], "C:\\\\", () => null)).toBeUndefined()
+    expect(windowsTerminalRelaunch({}, [], "C:\\\\", which)).toBeUndefined()
+  })
+})

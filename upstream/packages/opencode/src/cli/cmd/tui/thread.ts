@@ -1,6 +1,6 @@
 import { cmd } from "@/cli/cmd/cmd"
 import { Rpc } from "@/util/rpc"
-import { LEGACY_CONSOLE_MESSAGE, legacyWindowsConsole } from "@/cli/croak/terminal"
+import { LEGACY_CONSOLE_MESSAGE, RELAUNCHED_MESSAGE, legacyWindowsConsole, windowsTerminalRelaunch } from "@/cli/croak/terminal"
 import { type rpc } from "./worker"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -126,6 +126,14 @@ export const TuiThreadCommand = cmd({
     // croakcode: the legacy Windows console only shows a black screen; say so
     // before input processing is switched off and ctrl+c stops working.
     if (legacyWindowsConsole(process.env)) {
+      // Reopen in Windows Terminal when it is installed; otherwise explain.
+      const relaunch = windowsTerminalRelaunch(process.env, process.argv.slice(2), process.cwd(), (name) => Bun.which(name))
+      if (relaunch) {
+        const { spawn } = await import("node:child_process")
+        spawn(relaunch.command, relaunch.args, { detached: true, stdio: "ignore", windowsHide: false }).unref()
+        UI.println(RELAUNCHED_MESSAGE)
+        return
+      }
       UI.error(LEGACY_CONSOLE_MESSAGE)
       process.exitCode = 1
       return
