@@ -6,10 +6,14 @@
 #   neither           first install: the CA is trusted as received and its fingerprint printed (like SSH)
 # The first case without a fingerprint cannot detect a fake gate on the network at that moment.
 param(
-    [Parameter(Mandatory = $true)][string]$Gate,
+    [string]$Gate = '',
     [string]$CaSha256 = ''
 )
 $ErrorActionPreference = 'Stop'
+# The gate puts its own address here when it publishes this script
+# (croakagent publish-downloads.py), so a download needs no -Gate.
+$DefaultGate = '__CROAK_GATE__'
+if (-not $Gate -and $DefaultGate -like 'https://*') { $Gate = $DefaultGate }
 if ($Gate -cnotmatch '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$') { throw 'Gate must be https://host[:port]' }
 $expected = ($CaSha256 -replace '[: ]', '').ToLowerInvariant()
 if ($expected -and $expected -cnotmatch '^[0-9a-f]{64}$') { throw 'CaSha256 must be a SHA-256 certificate fingerprint' }

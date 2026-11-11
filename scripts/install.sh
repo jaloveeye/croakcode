@@ -16,6 +16,10 @@ while [ "$#" -gt 0 ]; do
     *) fail "unknown argument: $1" ;;
   esac
 done
+# The gate puts its own address here when it publishes this script
+# (croakagent publish-downloads.py), so a download needs no --gate.
+default_gate='__CROAK_GATE__'
+if [ -z "$gate" ] && [[ "$default_gate" == https://* ]]; then gate="$default_gate"; fi
 [[ "$gate" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || fail 'pass --gate https://host[:port]'
 fingerprint="$(printf '%s' "$fingerprint" | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
 [ -z "$fingerprint" ] || [[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail '--ca-sha256 must be a SHA-256 certificate fingerprint'
