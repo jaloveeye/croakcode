@@ -71,6 +71,13 @@ try {
     $launcher = @'
 @echo off
 setlocal
+if exist "%USERPROFILE%\.local\share\croakcode\croakcode.pending.exe" (
+  move /y "%USERPROFILE%\.local\share\croakcode\croakcode.pending.exe" "%USERPROFILE%\.local\share\croakcode\croakcode.exe" >nul
+  if errorlevel 1 (
+    echo Close all running croakcode processes and try again.
+    exit /b 1
+  )
+)
 set /p CROAK_AUTH_URL=<"%USERPROFILE%\.config\croak\gate-url"
 set "LITELLM_BASE_URL=%CROAK_AUTH_URL%/v1"
 set "NODE_EXTRA_CA_CERTS=%USERPROFILE%\.config\croak\ca\ca.crt"

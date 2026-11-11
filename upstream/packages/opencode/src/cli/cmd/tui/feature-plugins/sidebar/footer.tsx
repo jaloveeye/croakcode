@@ -66,6 +66,10 @@ function View(props: { api: TuiPluginApi }) {
         </span>{" "}
         <span>{props.api.app.version}</span>
       </text>
+      <Show when={process.env.CROAKCODE_UPDATE_LATEST}>
+        <text fg={theme().warning}>새 버전 {process.env.CROAKCODE_UPDATE_LATEST}</text>
+        <text fg={theme().textMuted}>croakcode upgrade</text>
+      </Show>
     </box>
   )
 }

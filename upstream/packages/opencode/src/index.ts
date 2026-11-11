@@ -41,6 +41,7 @@ import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@croakcode/core/util/croakcode-process"
 import { isRecord } from "@/util/record"
+import { beforeStart } from "./cli/croak-update"
 
 const processMetadata = ensureProcessMetadata("main")
 
@@ -198,6 +199,7 @@ const cli = yargs(args)
   .strict()
 
 try {
+  if (!(await beforeStart(args))) process.exit(process.exitCode ?? 1)
   if (args.includes("-h") || args.includes("--help")) {
     await cli.parse(args, (err: Error | undefined, _argv: unknown, out: string) => {
       if (err) throw err
