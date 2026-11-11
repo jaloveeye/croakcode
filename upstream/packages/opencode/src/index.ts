@@ -65,7 +65,7 @@ const args = hideBin(process.argv)
 
 function show(out: string) {
   const text = out.trimStart()
-  if (!text.startsWith("cc ")) {
+  if (!text.startsWith("croakcode ")) {
     process.stderr.write(UI.logo() + EOL + EOL)
     process.stderr.write(text)
     return
@@ -75,7 +75,8 @@ function show(out: string) {
 
 const cli = yargs(args)
   .parserConfiguration({ "populate--": true })
-  .scriptName("cc")
+  // The installed command is croakcode (the rebrand first used "cc").
+  .scriptName("croakcode")
   .wrap(100)
   .help("help", "show help")
   .alias("help", "h")

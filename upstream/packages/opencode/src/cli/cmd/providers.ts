@@ -301,7 +301,7 @@ export const ProvidersLoginCommand = effectCmd({
   builder: (yargs) =>
     yargs
       .positional("url", {
-        describe: "cc auth provider",
+        describe: "croakcode auth provider",
         type: "string",
       })
       .option("provider", {

@@ -92,7 +92,7 @@ export function make(input: {
   const initialize = Effect.fn("ACPNext.initialize")(function* (params: InitializeRequest) {
     const started = performance.now()
     const authMethod: AuthMethod = {
-      description: "Run `cc auth login` in the terminal",
+      description: "Run `croakcode auth login` in the terminal",
       name: "Login with croakcode",
       id: AuthMethodID,
     }

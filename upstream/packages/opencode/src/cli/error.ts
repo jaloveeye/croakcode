@@ -64,7 +64,7 @@ export function FormatError(input: unknown): string | undefined {
     return [
       `Model not found: ${stringField(providerModelNotFound, "providerID")}/${stringField(providerModelNotFound, "modelID")}`,
       ...(suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
-      `Try: \`cc models\` to list available models`,
+      `Try: \`croakcode models\` to list available models`,
       `Or check your config (croakcode.json) provider/model names`,
     ].join("\n")
   }

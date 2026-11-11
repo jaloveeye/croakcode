@@ -263,7 +263,7 @@ function build(input: SplashWriterInput, kind: "entry" | "exit", ctx: Scrollback
       lines,
       body_left + label.length,
       top + 1,
-      `cc run -i -s ${meta.session_id}`,
+      `croakcode run -i -s ${meta.session_id}`,
       right,
       undefined,
       TextAttributes.BOLD,
