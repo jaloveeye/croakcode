@@ -64,7 +64,7 @@ scripts/install-croakcode.sh --gate https://<게이트 주소>:8443
 
 설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 이렇게 이어서 씁니다. `croakcode resume --last`는 이 폴더의 가장 최근 세션을 엽니다. `croakcode resume --list`는 이 폴더의 세션 목록을 보여 줍니다. `croakcode resume`만 쓰면 고르는 창이 뜨고, `croakcode -s <세션 ID>`는 그 세션을 엽니다. 폴더를 앞에 주면(`croakcode resume ~/문서 --list`) 그 폴더를 기준으로 합니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
 
-게이트의 실행 허가를 검증하려면 `scripts/install-croakcode.sh --permit-key <공개키>`로 다시 설치합니다. 공개키는 게이트 서버의 `make-permit-key.sh`가 출력한 값입니다. 게이트 주소는 이미 저장된 값을 씁니다. 그 뒤로 croakcode는 도구를 실행하기 전에 게이트의 허가를 받습니다. 끄려면 `--no-permits`로 다시 설치합니다. 게이트 정책의 `require_permits`는 모든 사용자 PC에 이 설정을 넣은 뒤에 켭니다.
+실행 허가는 따로 설정하지 않습니다. 로그인하면 게이트가 그 계정 등급이 허가를 요구하는지와 허가를 확인할 공개키를 알려 줍니다. croakcode는 그에 따라 도구를 실행하기 전에 게이트의 허가를 받습니다. 설치 스크립트의 `--permit-key <공개키>`와 `--no-permits`는 시험이나 수동 설정용입니다. 이 값은 로그인 값보다 먼저 적용됩니다.
 
 - 작업 폴더에서 브랜치를 바꿔도 실행 중인 croakcode는 바뀌지 않습니다.
 - 갱신하려면 PR이 `master`에 병합된 뒤 스크립트를 다시 실행합니다. 원격 `master`를 받아 복사본을 맞추고 의존성을 설치합니다. 저장한 게이트 주소는 그대로 씁니다.

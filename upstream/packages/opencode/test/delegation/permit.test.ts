@@ -82,15 +82,34 @@ describe("execution permit verification (Phase 4 Task 9)", () => {
   })
 
   test("PT-06: verification is off by default; on without a key or URL is reported", () => {
-    expect(Permit.loadConfig({})).toEqual({ enabled: false })
-    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "off" })).toEqual({ enabled: false })
-    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "required" })).toEqual({ enabled: true })
-    const on = Permit.loadConfig({
-      CROAKCODE_EXECUTION_PERMIT: "required",
-      CROAKCODE_GATE_PERMIT_PUBLIC_KEY: rawPublic(),
-      CROAKCODE_GATE_PERMIT_URL: "https://gate.example/",
-    })
+    expect(Permit.loadConfig({}, null)).toEqual({ enabled: false })
+    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "off" }, null)).toEqual({ enabled: false })
+    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "required" }, null)).toEqual({ enabled: true })
+    const on = Permit.loadConfig(
+      {
+        CROAKCODE_EXECUTION_PERMIT: "required",
+        CROAKCODE_GATE_PERMIT_PUBLIC_KEY: rawPublic(),
+        CROAKCODE_GATE_PERMIT_URL: "https://gate.example/",
+      },
+      null,
+    )
     expect(on.enabled && on.publicKey !== undefined && on.url).toBe("https://gate.example")
+  })
+
+  test("by default the login decides: the gate's answer turns verification on", () => {
+    const login = { required: true, public_key: rawPublic(), url: "https://gate.example/" }
+    const on = Permit.loadConfig({}, login)
+    expect(on.enabled && on.publicKey !== undefined && on.url).toBe("https://gate.example")
+    expect(Permit.loadConfig({}, { ...login, required: false })).toEqual({ enabled: false })
+    expect(Permit.loadConfig({}, undefined)).toEqual({ enabled: false })
+    // A tier that requires permits with no key from the gate denies every tool (PT-06).
+    expect(Permit.loadConfig({}, { required: true, public_key: null, url: "https://gate.example" })).toEqual({
+      enabled: true,
+      url: "https://gate.example",
+    })
+    // The environment overrides the login, both ways.
+    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "off" }, login)).toEqual({ enabled: false })
+    expect(Permit.loadConfig({ CROAKCODE_EXECUTION_PERMIT: "required" }, { required: false })).toEqual({ enabled: true })
   })
 
   test("public keys are accepted as PEM or raw base64 Ed25519 only", () => {

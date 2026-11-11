@@ -12,9 +12,13 @@
 
 ## 2. 켜는 조건
 
+기본으로는 로그인이 정한다. 로그인과 토큰 갱신 응답에 `execution_permits: {required, public_key}`가 온다. `required`는 그 계정 등급의 `require_permits`이고, `public_key`는 Gate의 공개키다. croakcode는 이 값을 로그인 정보(`session.json`)에 저장하고, 도구를 실행할 때마다 읽는다. 허가를 발급하는 주소는 로그인한 Gate 주소다. 사용자 PC에는 설정할 것이 없다.
+
+아래 환경 변수는 로그인 값보다 먼저 적용된다. 시험과 수동 설정에 쓴다. `CROAKCODE_EXECUTION_PERMIT`가 `required`이면 아래 두 값으로 켜고, 다른 값(예: `off`)이면 끈다.
+
 | 환경 변수 | 뜻 | 기본값 |
 |---|---|---|
-| `CROAKCODE_EXECUTION_PERMIT` | `required`이면 검증을 켠다 | 꺼짐 |
+| `CROAKCODE_EXECUTION_PERMIT` | `required`이면 켜고, 다른 값이면 끈다 | 없음(로그인 값을 따른다) |
 | `CROAKCODE_GATE_PERMIT_PUBLIC_KEY` | Gate의 Ed25519 공개키. PEM(SPKI)과 32바이트 원시 키의 base64를 받는다 | 없음 |
 | `CROAKCODE_GATE_PERMIT_URL` | 허가를 발급하는 Gate 주소 | 없음 |
 
@@ -94,4 +98,5 @@ croakcode는 다음 순서로 확인하고, 하나라도 맞지 않으면 그 �
 | 토큰 검증 규칙(PT-01부터 PT-06) | croakcode 단위 테스트와 가짜 Gate 테스트로 PASS |
 | 실제 루프의 gate 모드 실행 | 로컬 가짜 Gate로 PASS |
 | 실제 croak-gate 연동(PT-07) | croakagent `gateway/tests/e2e_permits.py` 17건 PASS. 로컬 Docker 스택 |
+| 로그인만으로 켜지는 허가(PT-09) | 2026-11-11 추가. 로그인 응답의 `execution_permits`로 croakcode가 스스로 허가 검증을 켠다. 환경 변수는 쓰지 않는다. E2E 22건 PASS |
 | 허가 필수 상태의 croakcode 한 턴(PT-08) | 2026-11-10 전체 시험에서 추가. `tool_call` 결과가 대조를 통과하고, 허가는 안쪽 도구 이름으로 발급된다. E2E 19건 PASS |
