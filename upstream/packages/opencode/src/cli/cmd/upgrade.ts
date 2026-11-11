@@ -21,6 +21,12 @@ export const UpgradeCommand = {
       })
   },
   handler: async (args: { target?: string; method?: string }) => {
+    // Upstream's channels are not ours (see Installation.UPGRADE_DISABLED).
+    if (Installation.upstreamUpgradeBlocked()) {
+      UI.error(Installation.UPGRADE_DISABLED)
+      process.exitCode = 1
+      return
+    }
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()

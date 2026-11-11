@@ -40,12 +40,12 @@ const apiLayer = HttpRouter.serve(
 const it = testEffect(apiLayer)
 
 describe("global HttpApi", () => {
-  it.live("upgrades to latest when the request body is omitted", () =>
+  it.live("refuses to upgrade through upstream's channels", () =>
     Effect.gen(function* () {
       const response = yield* HttpClient.post(GlobalPaths.upgrade)
 
-      expect(response.status).toBe(200)
-      expect(yield* response.json).toEqual({ success: true, version: "9.9.9" })
+      expect(response.status).toBe(400)
+      expect(yield* response.json).toEqual({ success: false, error: Installation.UPGRADE_DISABLED })
     }),
   )
 

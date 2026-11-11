@@ -96,6 +96,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const upgrade = Effect.fn("GlobalHttpApi.upgrade")(function* (ctx: { payload: typeof GlobalUpgradeInput.Type }) {
+      // Upstream's channels are not ours; refuse before touching them.
+      if (Installation.upstreamUpgradeBlocked()) return { status: 400, body: { success: false as const, error: Installation.UPGRADE_DISABLED } }
       const method = yield* installation.method()
       if (method === "unknown") {
         return {
