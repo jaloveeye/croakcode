@@ -114,6 +114,8 @@ set /p CROAK_AUTH_URL=<"%USERPROFILE%\.config\croak\gate-url"
 set "LITELLM_BASE_URL=%CROAK_AUTH_URL%/v1"
 set "NODE_EXTRA_CA_CERTS=%USERPROFILE%\.config\croak\ca\ca.crt"
 set "CROAK_CA_FILE=%NODE_EXTRA_CA_CERTS%"
+rem croakcode reopens itself in Windows Terminal from the legacy console through this file.
+set "CROAKCODE_LAUNCHER=%~f0"
 "%USERPROFILE%\.local\share\croakcode\croakcode.exe" %*
 exit /b %errorlevel%
 '@
@@ -124,5 +126,6 @@ exit /b %errorlevel%
         [Environment]::SetEnvironmentVariable('Path', (($userPath.TrimEnd(';') + ';' + $bin).TrimStart(';')), 'User')
     }
     Write-Host "croakcode $version 설치를 마쳤습니다. 새 터미널에서 croakcode를 실행하고 /login을 입력하세요."
+    Write-Host "Windows 기본 콘솔 창에서 실행하면 Windows Terminal 새 창으로 열립니다."
 }
 finally { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }

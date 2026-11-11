@@ -12,6 +12,7 @@
 // raw event streaming, `--continue` / `--session` for session resumption,
 // and `--fork` for forking before continuing.
 import type { Argv } from "yargs"
+import { LOGIN_HINT, isLoginError } from "@/cli/croak/terminal"
 import path from "path"
 import { pathToFileURL } from "url"
 import { Effect } from "effect"
@@ -85,7 +86,8 @@ function block(info: Inline, output?: string) {
 }
 
 function formatRunError(error: unknown) {
-  return FormatError(error) ?? FormatUnknownError(error)
+  const text = FormatError(error) ?? FormatUnknownError(error)
+  return isLoginError(text) ? `${text}\n${LOGIN_HINT}` : text
 }
 
 async function tool(part: ToolPart) {
@@ -731,7 +733,7 @@ export const RunCommand = effectCmd({
               }
               error = error ? error + EOL + err : err
               if (emit("error", { error: props.error })) continue
-              UI.error(err)
+              UI.error(isLoginError(err) ? `${err}${EOL}${LOGIN_HINT}` : err)
             }
 
             // A retry would otherwise be silent: an unreachable gate looked like a hang.
