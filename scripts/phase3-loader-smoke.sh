@@ -23,11 +23,11 @@ fi
 
 COUNT=$(grep -c "loading plugin" "$OUT" || true)
 echo "loader smoke: $COUNT plugin load line(s)"
-[ "$COUNT" -ge 7 ] || { echo "FAIL: expected >=7 auto-scanned plugins, got $COUNT"; sed -n '1,40p' "$OUT"; exit 1; }
+[ "$COUNT" -ge 8 ] || { echo "FAIL: expected >=8 auto-scanned plugins, got $COUNT"; sed -n '1,40p' "$OUT"; exit 1; }
 
 # Every ported server plugin must be among the loaded paths.
-for f in croak-auth-server tool-policy gate-identity secret-paths local-stability hwp-read usage-meter; do
+for f in croak-auth-server croak-models tool-policy gate-identity secret-paths local-stability hwp-read usage-meter; do
   grep -q "\.croakcode/plugins/$f\.js" "$OUT" || { echo "FAIL: $f.js was not loaded"; exit 1; }
 done
 
-echo "PASS: loader smoke (7 server plugins auto-scanned and loaded)"
+echo "PASS: loader smoke (8 server plugins auto-scanned and loaded)"
