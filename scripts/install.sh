@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Install a release after verifying the administrator-provided CA fingerprint.
+# Install a release from the croak gate.
+#
+# Trust in the gate's CA, in this order:
+#   --ca-sha256 given  the downloaded CA must have that fingerprint (strict; also how a new CA is adopted)
+#   CA already saved   downloads are verified with it, and the gate's CA must still be the same
+#   neither            first install: the CA is trusted as received and its fingerprint printed (like SSH)
+# The first case without a fingerprint cannot detect a fake gate on the network at that moment.
 set -euo pipefail
 fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
 gate=""; fingerprint=""
@@ -12,7 +18,7 @@ while [ "$#" -gt 0 ]; do
 done
 [[ "$gate" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || fail 'pass --gate https://host[:port]'
 fingerprint="$(printf '%s' "$fingerprint" | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
-[[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail 'pass the CA certificate SHA-256 fingerprint with --ca-sha256'
+[ -z "$fingerprint" ] || [[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]] || fail '--ca-sha256 must be a SHA-256 certificate fingerprint'
 for cmd in curl openssl tar awk uname; do command -v "$cmd" >/dev/null || fail "$cmd is required"; done
 case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail 'unsupported operating system' ;; esac
 case "$(uname -m)" in x86_64|amd64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; *) fail 'unsupported CPU' ;; esac
@@ -20,10 +26,24 @@ target="$os-$arch"
 umask 077
 work="$(mktemp -d "${TMPDIR:-/tmp}/croak-install.XXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
-# Only this initial CA download bypasses TLS; the pinned DER fingerprint is checked before use.
-curl -fsSL --proto '=https' --tlsv1.2 -k "$gate/download/ca.crt" -o "$work/ca.crt"
-actual="$(openssl x509 -in "$work/ca.crt" -outform DER | openssl dgst -sha256 | awk '{print tolower($NF)}')"
-[ "$actual" = "$fingerprint" ] || fail 'CA fingerprint does not match'
+ca_fp() { openssl x509 -in "$1" -outform DER | openssl dgst -sha256 | awk '{print tolower($NF)}'; }
+saved="$HOME/.config/croak/ca/ca.crt"
+if [ -z "$fingerprint" ] && [ -f "$saved" ]; then
+  # Verified with the CA this PC already trusts; a different CA at the gate stops here.
+  curl -fsSL --proto '=https' --tlsv1.2 --cacert "$saved" "$gate/download/ca.crt" -o "$work/ca.crt" \
+    || fail 'the gate could not be verified with the CA saved on this PC; if the gate CA changed, pass --ca-sha256'
+  [ "$(ca_fp "$work/ca.crt")" = "$(ca_fp "$saved")" ] || fail 'the gate CA differs from the one saved on this PC; pass --ca-sha256 to adopt a new one'
+else
+  # Only this CA download skips TLS verification.
+  curl -fsSL --proto '=https' --tlsv1.2 -k "$gate/download/ca.crt" -o "$work/ca.crt"
+  actual="$(ca_fp "$work/ca.crt")"
+  if [ -n "$fingerprint" ]; then
+    [ "$actual" = "$fingerprint" ] || fail 'CA fingerprint does not match'
+  else
+    printf '처음 받은 게이트 인증서를 믿고 저장합니다. 지문: %s\n' "$actual"
+    printf '관리자가 알려 준 지문이 있으면 비교하세요. 다음 설치와 업데이트부터는 이 인증서로만 확인합니다.\n'
+  fi
+fi
 get() { curl -fsSL --proto '=https' --tlsv1.2 --cacert "$work/ca.crt" "$gate/download/$1" -o "$2"; }
 get manifest.json "$work/manifest.json"
 # package-release.py writes this stable, indented JSON format. Reject unexpected fields.
