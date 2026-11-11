@@ -23,6 +23,23 @@
 
 지금 엔진은 생각 모드와 추론 예산을 요청마다 받는다. 표준 `reasoning_effort`는 받지 않는다. 엔진마다 값 이름이 다르므로 croakcode가 엔진 값을 직접 보내면 안 된다.
 
+### 1.1 추론 수준과 예산은 다르다
+
+추론 예산(`thinking_budget`)은 정해진 토큰에서 생각을 끊는 상한이다. 추론 수준은 모델이 학습한 생각의 깊이다. 예산으로 수준을 흉내 내면 생각이 중간에 잘린다. 그래서 수준은 모델 고유의 방식으로 정하고, 예산은 지나친 길이를 막는 안전 상한으로만 쓴다. 필요 없으면 쓰지 않는다.
+
+지금 모델의 채팅 템플릿은 두 인자를 받는다. `enable_thinking`은 생각 모드를 켜고 끈다. `reasoning_effort`는 `low`, `high`, `max`와 1~100 정수 가운데 하나를 받고, 생각 모드일 때 첫 메시지 앞에 수준 지시를 넣는다. 같은 문제(정답 55)를 수준마다 보냈다.
+
+| 수준 | 요청 값 | 시간 | 추론 토큰 | 답 |
+|---|---|---|---|---|
+| none | `enable_thinking: false` | 0.2초 | 0 | 61(틀림) |
+| low | `enable_thinking: true`, `reasoning_effort: "low"` | 28초 | 2,317 | 55 |
+| high | `enable_thinking: true`, `reasoning_effort: "high"` | 93초 | 6,721 | 55 |
+| max | `enable_thinking: true`, `reasoning_effort: "max"` | 52초 | 3,989 | 55 |
+
+- 수준은 깊이를 바꾸는 지시라서 토큰 수가 수준 순서를 따르지 않을 수 있다. 이 문제에서는 max가 high보다 짧았다.
+- 같은 수준을 두 번 보내면 결과가 같았다. 두 번은 독립 표본이 아니다.
+- 수준을 고를 때 시간 차이가 크다. high는 low의 세 배 넘게 걸렸다.
+
 ## 2. 구성
 
 ```
@@ -48,13 +65,14 @@ models:
     limits: { context: <토큰>, output: <토큰> }
     reasoning:
       default: none
-      levels:                   # 수준마다 요청에 더할 값
-        none: { chat_template_kwargs: { thinking: false } }
-        low:  { chat_template_kwargs: { thinking: true }, thinking_budget: 1024 }
-        high: { chat_template_kwargs: { thinking: true } }
+      levels:                   # 수준마다 요청에 더할 값. 모델 고유의 방식을 쓴다
+        none: { chat_template_kwargs: { enable_thinking: false } }
+        low:  { chat_template_kwargs: { enable_thinking: true, reasoning_effort: low } }
+        high: { chat_template_kwargs: { enable_thinking: true, reasoning_effort: high } }
+      max_reasoning_tokens: null  # 선택. 지나친 길이를 막는 안전 상한이다. 수준이 아니다
 ```
 
-수준별 값은 모델마다 직접 적는다. 같은 엔진이라도 모델의 채팅 템플릿에 따라 값 이름이 다르기 때문이다. 엔진별 예시는 3절에 둔다.
+수준별 값은 모델마다 직접 적는다. 같은 엔진이라도 모델의 채팅 템플릿에 따라 값 이름이 다르기 때문이다. 값은 모델의 채팅 템플릿과 모델 문서에서 찾는다. 모델이 고유한 수준을 지원하지 않으면 low와 high를 같은 "생각 켬"으로 두고, 등록부에 그 사실을 적는다. 예산으로 흉내 내지 않는다. 엔진별 예시는 3절에 둔다.
 
 ### 2.2 게이트
 
@@ -79,7 +97,7 @@ models:
 
 | 엔진 | none | low | high | 상태 |
 |---|---|---|---|---|
-| 지금 운영 엔진 | `chat_template_kwargs.thinking: false` | `thinking: true`, `thinking_budget: 1024` | `thinking: true` | 2026-11-11 운영에서 확인 |
+| 지금 운영 엔진과 모델 | `enable_thinking: false` | `enable_thinking: true`, `reasoning_effort: "low"` | `enable_thinking: true`, `reasoning_effort: "high"` | 2026-11-11 운영에서 확인(1.1절) |
 | TensorFold | 템플릿 인자로 끈다 | 모델과 버전에 따라 다르다 | 템플릿 인자로 켠다 | 엔진을 바꿀 때 확인 |
 | vLLM | `chat_template_kwargs.enable_thinking: false` | 모델과 버전에 따라 다르다 | `enable_thinking: true` | 엔진을 바꿀 때 확인 |
 | SGLang | `chat_template_kwargs.enable_thinking: false` | 모델과 버전에 따라 다르다 | `enable_thinking: true` | 엔진을 바꿀 때 확인 |
@@ -101,6 +119,6 @@ models:
 
 | 항목 | 추천 |
 |---|---|
-| low의 추론 예산 | 1,024토큰. 사용해 보며 조정한다 |
-| 기본 수준 | none. 지금과 같은 속도다 |
-| high의 상한 | 없음(모델의 최대 출력 안에서) |
+| 기본 수준 | none. 지금과 같은 속도다. 생각이 필요한 작업에서 사용자가 low나 high를 고른다 |
+| max 노출 | 세 수준만 둔다. 모델이 max를 지원하면 등록부에만 적어 둔다 |
+| 안전 상한 | 두지 않는다. 모델의 최대 출력 안에서만 제한한다. 운영하며 지나치게 긴 생각이 보이면 그때 정한다 |
