@@ -78,6 +78,8 @@ if exist "%USERPROFILE%\.local\share\croakcode\croakcode.pending.exe" (
     exit /b 1
   )
 )
+rem A terminal can start in the Windows system folder; never use it as the project.
+if /i "%CD%"=="%SystemRoot%\System32" cd /d "%USERPROFILE%"
 set /p CROAK_AUTH_URL=<"%USERPROFILE%\.config\croak\gate-url"
 set "LITELLM_BASE_URL=%CROAK_AUTH_URL%/v1"
 set "NODE_EXTRA_CA_CERTS=%USERPROFILE%\.config\croak\ca\ca.crt"

@@ -82,6 +82,8 @@ printf '%s\n' "$gate" > "$settings/gate-url"
 cat > "$bin/croakcode" <<'LAUNCHER'
 #!/usr/bin/env bash
 set -euo pipefail
+# A WSL terminal can start in the Windows system folder; never use it as the project.
+case "$PWD" in /mnt/c/WINDOWS*|/mnt/c/Windows*|/mnt/c/windows*) cd "$HOME" ;; esac
 IFS= read -r CROAK_AUTH_URL < "$HOME/.config/croak/gate-url"
 export CROAK_AUTH_URL
 export LITELLM_BASE_URL="$CROAK_AUTH_URL/v1"
