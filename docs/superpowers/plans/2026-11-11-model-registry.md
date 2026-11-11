@@ -80,7 +80,7 @@ models:
 | 엔진 | none | low | high | 상태 |
 |---|---|---|---|---|
 | 지금 운영 엔진 | `chat_template_kwargs.thinking: false` | `thinking: true`, `thinking_budget: 1024` | `thinking: true` | 2026-11-11 운영에서 확인 |
-| TensorFold(다른 배포) | 운영 엔진 값을 시작점으로 쓴다 | 같음 | 같음 | 엔진을 바꿀 때 확인 |
+| TensorFold | 템플릿 인자로 끈다 | 모델과 버전에 따라 다르다 | 템플릿 인자로 켠다 | 엔진을 바꿀 때 확인 |
 | vLLM | `chat_template_kwargs.enable_thinking: false` | 모델과 버전에 따라 다르다 | `enable_thinking: true` | 엔진을 바꿀 때 확인 |
 | SGLang | `chat_template_kwargs.enable_thinking: false` | 모델과 버전에 따라 다르다 | `enable_thinking: true` | 엔진을 바꿀 때 확인 |
 | llama.cpp | 템플릿 인자로 끈다 | 모델과 버전에 따라 다르다 | 템플릿 인자로 켠다 | 엔진을 바꿀 때 확인 |
