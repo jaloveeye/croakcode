@@ -200,9 +200,11 @@ export function loginPermits(): LoginPermits | undefined {
 /**
  * Whether to verify execution permits, and how.
  *
- * By default the gate decides: at login and at every token refresh it tells
- * croakcode whether the user's tier requires permits and which key signs
- * them (stored with the login). A user only logs in.
+ * By default the login decides: at login and at every token refresh the gate
+ * tells croakcode which key signs its permits and whether the user's tier
+ * requires them (stored with the login). With a key, croakcode always asks
+ * for permits; whether the gate checks the results is the gate's policy. A
+ * user only logs in.
  *
  * CROAKCODE_EXECUTION_PERMIT overrides that, for tests and manual setups:
  * "required" turns verification on with CROAKCODE_GATE_PERMIT_PUBLIC_KEY and
@@ -214,6 +216,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, login: LoginPer
   const mode = env.CROAKCODE_EXECUTION_PERMIT?.trim()
   if (mode === "required") return enabledConfig(env.CROAKCODE_GATE_PERMIT_PUBLIC_KEY, env.CROAKCODE_GATE_PERMIT_URL)
   if (mode) return { enabled: false }
+  // A gate that hands out its key is always asked, whatever the tier. When a
+  // tier starts requiring permits, a PC still holding the old answer would
+  // otherwise run tools unpermitted until its next token refresh, and the gate
+  // would refuse those sessions for good.
+  if (typeof login?.public_key === "string" && login.public_key) return enabledConfig(login.public_key, login.url)
   if (login?.required !== true) return { enabled: false }
   return enabledConfig(login.public_key, login.url)
 }

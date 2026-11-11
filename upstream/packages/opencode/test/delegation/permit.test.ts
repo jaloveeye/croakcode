@@ -96,11 +96,14 @@ describe("execution permit verification (Phase 4 Task 9)", () => {
     expect(on.enabled && on.publicKey !== undefined && on.url).toBe("https://gate.example")
   })
 
-  test("by default the login decides: the gate's answer turns verification on", () => {
+  test("by default the login decides: the gate's key turns verification on", () => {
     const login = { required: true, public_key: rawPublic(), url: "https://gate.example/" }
     const on = Permit.loadConfig({}, login)
     expect(on.enabled && on.publicKey !== undefined && on.url).toBe("https://gate.example")
-    expect(Permit.loadConfig({}, { ...login, required: false })).toEqual({ enabled: false })
+    // With the gate's key, permits are asked for even when the tier does not require them yet.
+    const notRequired = Permit.loadConfig({}, { ...login, required: false })
+    expect(notRequired.enabled && notRequired.publicKey !== undefined).toBe(true)
+    expect(Permit.loadConfig({}, { required: false, public_key: null, url: "https://gate.example" })).toEqual({ enabled: false })
     expect(Permit.loadConfig({}, undefined)).toEqual({ enabled: false })
     // A tier that requires permits with no key from the gate denies every tool (PT-06).
     expect(Permit.loadConfig({}, { required: true, public_key: null, url: "https://gate.example" })).toEqual({
