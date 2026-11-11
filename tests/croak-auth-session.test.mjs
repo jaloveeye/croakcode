@@ -30,6 +30,7 @@ const server = createServer((req, res) => {
       refresh_token: `refresh-${n}`,
       session_expires_at: new Date(Date.now() + 3 * 24 * 3600e3).toISOString(),
       user: { username: "tester", tier: "standard", roles: [] },
+      execution_permits: { required: true, public_key: "KEY", extra: "dropped" },
     })
     if (req.url === "/auth/token" && data.grant_type === "authorization_code") {
       const ok = data.code === "ABCD-EFGH-JKMN" && data.code_verifier.length >= 43
@@ -76,6 +77,12 @@ test("exchange stores the session with mode 600", async () => {
   assert.equal(session.access_token, "access-1")
   assert.equal(statSync(S.sessionFile()).mode & 0o777, 0o600)
   assert.equal(await S.accessToken(), "access-1")
+})
+
+test("the gate's execution-permit settings are stored with the login", async () => {
+  const session = await S.exchange("ABCD-EFGH-JKMN", S.pkce().verifier)
+  assert.deepEqual(session.execution_permits, { required: true, public_key: "KEY" })
+  assert.deepEqual(S.load().execution_permits, { required: true, public_key: "KEY" })
 })
 
 test("refreshes shortly before expiry, once for concurrent callers", async () => {

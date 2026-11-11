@@ -136,6 +136,16 @@ const fromTokens = (t) => ({
   session_expires_at: t.session_expires_at,
   user: t.user,
   auth_url: authUrl(),
+  // Whether this tier needs execution permits and the gate's key; croakcode
+  // core turns permit verification on from it (src/delegation/permit.ts).
+  ...(t.execution_permits && typeof t.execution_permits === "object"
+    ? {
+        execution_permits: {
+          required: t.execution_permits.required === true,
+          public_key: typeof t.execution_permits.public_key === "string" ? t.execution_permits.public_key : null,
+        },
+      }
+    : {}),
 })
 
 /** Exchanges the code shown in the browser for tokens and stores them. */

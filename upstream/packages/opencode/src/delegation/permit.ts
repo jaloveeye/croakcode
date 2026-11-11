@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, verify as verifySignature, type KeyObject } from "node:crypto"
+import { load as loadLogin } from "../../../../.croakcode/plugins/lib/croak-auth-session.js"
 
 // Phase 4 Task 9 — execution permit verification (client side).
 //
@@ -182,18 +183,45 @@ export type Config =
   | { readonly enabled: false }
   | { readonly enabled: true; readonly publicKey?: KeyObject; readonly url?: string }
 
+/** What the croak login stored about execution permits (from the gate's token answer). */
+export type LoginPermits = {
+  readonly required?: unknown
+  readonly public_key?: unknown
+  readonly url?: unknown
+}
+
+/** The permit settings of the current croak login, or undefined when logged out. */
+export function loginPermits(): LoginPermits | undefined {
+  const session = loadLogin() as { execution_permits?: LoginPermits; auth_url?: unknown } | null
+  if (!session?.execution_permits) return undefined
+  return { ...session.execution_permits, url: session.auth_url }
+}
+
 /**
- * CROAKCODE_EXECUTION_PERMIT=required turns verification on (default off,
- * until every client has Gate's public key). Gate's key comes from
- * CROAKCODE_GATE_PERMIT_PUBLIC_KEY and the issuing endpoint from
- * CROAKCODE_GATE_PERMIT_URL. Neither has a default: when verification is on
- * and either is missing, every tool is denied.
+ * Whether to verify execution permits, and how.
+ *
+ * By default the gate decides: at login and at every token refresh it tells
+ * croakcode whether the user's tier requires permits and which key signs
+ * them (stored with the login). A user only logs in.
+ *
+ * CROAKCODE_EXECUTION_PERMIT overrides that, for tests and manual setups:
+ * "required" turns verification on with CROAKCODE_GATE_PERMIT_PUBLIC_KEY and
+ * CROAKCODE_GATE_PERMIT_URL, "off" turns it off. When verification is on and
+ * the key or URL is missing, every tool is denied. The gate checks the
+ * results either way, so turning it off here only breaks the session.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  if (env.CROAKCODE_EXECUTION_PERMIT?.trim() !== "required") return { enabled: false }
-  const publicKey = parsePublicKey(env.CROAKCODE_GATE_PERMIT_PUBLIC_KEY)
-  const url = env.CROAKCODE_GATE_PERMIT_URL?.trim().replace(/\/+$/, "") || undefined
-  return { enabled: true, ...(publicKey ? { publicKey } : {}), ...(url ? { url } : {}) }
+export function loadConfig(env: NodeJS.ProcessEnv = process.env, login: LoginPermits | null | undefined = loginPermits()): Config {
+  const mode = env.CROAKCODE_EXECUTION_PERMIT?.trim()
+  if (mode === "required") return enabledConfig(env.CROAKCODE_GATE_PERMIT_PUBLIC_KEY, env.CROAKCODE_GATE_PERMIT_URL)
+  if (mode) return { enabled: false }
+  if (login?.required !== true) return { enabled: false }
+  return enabledConfig(login.public_key, login.url)
+}
+
+function enabledConfig(key: unknown, url: unknown): Config {
+  const publicKey = typeof key === "string" ? parsePublicKey(key) : undefined
+  const base = typeof url === "string" ? url.trim().replace(/\/+$/, "") || undefined : undefined
+  return { enabled: true, ...(publicKey ? { publicKey } : {}), ...(base ? { url: base } : {}) }
 }
 
 export * as Permit from "./permit"

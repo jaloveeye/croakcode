@@ -11,17 +11,18 @@
 #      provider, the croak plugins (login, gate identity, tool policy, HWP,
 #      usage), commands and agents, from the same pinned worktree.
 #   2. ~/.config/croak/croakcode.env (mode 600)
-#      The gate address and its CA certificate, and the execution-permit
-#      settings when --permit-key is given. Operational values stay out of
-#      the repository.
+#      The gate address and its CA certificate. Execution permits need no
+#      setting: the gate tells croakcode at login. --permit-key writes a
+#      manual setting that overrides the login (for tests). Operational
+#      values stay out of the repository.
 #   3. ~/.local/bin/croakcode
 #      Starts the TUI in the current folder with those settings.
 #
 # Usage:
 #   scripts/install-croakcode.sh --gate https://<gate-host>:8443 [--ca <ca.crt>]
 #   scripts/install-croakcode.sh             # update to origin/master, keeping the saved gate
-#   scripts/install-croakcode.sh --permit-key <base64>  # verify execution permits (key from make-permit-key.sh)
-#   scripts/install-croakcode.sh --no-permits           # stop verifying execution permits
+#   scripts/install-croakcode.sh --permit-key <base64>  # manual permit setting, overrides the login (tests)
+#   scripts/install-croakcode.sh --no-permits           # remove the manual setting; the login decides
 #   scripts/install-croakcode.sh --dev       # run this checkout as it is (for development)
 #   scripts/install-croakcode.sh --uninstall # remove the link, the launcher and the worktree
 set -euo pipefail
