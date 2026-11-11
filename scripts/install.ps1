@@ -123,6 +123,7 @@ exit /b %errorlevel%
     if (($userPath -split ';' | Where-Object { $_.TrimEnd('\') -ieq $bin.TrimEnd('\') }).Count -eq 0) {
         [Environment]::SetEnvironmentVariable('Path', (($userPath.TrimEnd(';') + ';' + $bin).TrimStart(';')), 'User')
     }
-    Write-Host "croakcode $version 설치를 마쳤습니다. 새 터미널에서 croakcode를 실행하고 /login을 입력하세요."
+    Write-Host "croakcode $version 설치를 마쳤습니다. Windows Terminal(시작 메뉴의 '터미널')을 새로 열고 croakcode를 실행한 뒤 /login을 입력하세요."
+    Write-Host "Windows 기본 콘솔 창에서는 croakcode 화면이 뜨지 않습니다."
 }
 finally { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }

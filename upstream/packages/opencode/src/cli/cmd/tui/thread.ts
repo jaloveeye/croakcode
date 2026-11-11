@@ -1,5 +1,6 @@
 import { cmd } from "@/cli/cmd/cmd"
 import { Rpc } from "@/util/rpc"
+import { LEGACY_CONSOLE_MESSAGE, legacyWindowsConsole } from "@/cli/croak/terminal"
 import { type rpc } from "./worker"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -122,6 +123,13 @@ export const TuiThreadCommand = cmd({
         hidden: true,
       }),
   handler: async (args) => {
+    // croakcode: the legacy Windows console only shows a black screen; say so
+    // before input processing is switched off and ctrl+c stops working.
+    if (legacyWindowsConsole(process.env)) {
+      UI.error(LEGACY_CONSOLE_MESSAGE)
+      process.exitCode = 1
+      return
+    }
     // Keep ENABLE_PROCESSED_INPUT cleared even if other code flips it.
     // (Important when running under `bun run` wrappers on Windows.)
     const unguard = win32InstallCtrlCGuard()
