@@ -454,11 +454,9 @@ export const layer = Layer.effect(
       if (!("path" in options)) return data
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
-      if (!data.$schema) {
-        data.$schema = "https://croakcode.ai/config.json"
-        const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://croakcode.ai/config.json",')
-        yield* fs.writeFileString(options.path, updated).pipe(Effect.catch(() => Effect.void))
-      }
+      // croakcode never rewrites a config file it reads. Upstream added
+      // "$schema": "https://croakcode.ai/config.json" here (a domain that is not
+      // this project's), into every config file, the user's projects included.
       return data
     })
 
@@ -471,16 +469,7 @@ export const layer = Layer.effect(
 
     const loadGlobal = Effect.fnUntraced(function* (env?: Record<string, string>) {
       let result: Info = {}
-      // Seed the default global config with the schema for editor completion, but avoid writing when the user
-      // explicitly routes config through env-provided paths or content.
-      if (!Flag.CROAKCODE_CONFIG && !Flag.CROAKCODE_CONFIG_DIR && !Flag.CROAKCODE_CONFIG_CONTENT) {
-        const file = globalConfigFile()
-        if (!existsSync(file)) {
-          yield* fs
-            .writeWithDirs(file, JSON.stringify({ $schema: "https://croakcode.ai/config.json" }, null, 2))
-            .pipe(Effect.catch(() => Effect.void))
-        }
-      }
+      // croakcode does not seed a global config file (upstream wrote one holding only a croakcode.ai $schema).
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "config.json"), env))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "croakcode.json"), env))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "croakcode.jsonc"), env))
@@ -492,7 +481,6 @@ export const layer = Layer.effect(
             .then(async (mod) => {
               const { provider, model, ...rest } = mod.default
               if (provider && model) result.model = `${provider}/${model}`
-              result["$schema"] = "https://croakcode.ai/config.json"
               result = mergeConfig(result, rest)
               await fsNode.writeFile(path.join(Global.Path.config, "config.json"), JSON.stringify(result, null, 2))
               await fsNode.unlink(legacy)
@@ -605,7 +593,6 @@ export const layer = Layer.effect(
                 })
               : {}
             const remoteConfig = mergeConfig(isRecord(wellknown.config) ? wellknown.config : {}, fetchedConfig)
-            if (!remoteConfig.$schema) remoteConfig.$schema = "https://croakcode.ai/config.json"
             const source = wellknownURL
             const next = yield* loadConfig(
               JSON.stringify(remoteConfig),
