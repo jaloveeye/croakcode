@@ -37,6 +37,7 @@ import { ConfigPlugin } from "@/config/plugin"
 import { AccountTest } from "../fake/account"
 import { AuthTest } from "../fake/auth"
 import { NpmTest } from "../fake/npm"
+import { Npm } from "@croakcode/core/npm"
 
 /** Infra layer that provides FileSystem, Path, ChildProcessSpawner for test fixtures */
 const infra = CrossSpawnSpawner.defaultLayer.pipe(
@@ -90,6 +91,7 @@ const configLayer = (
     auth?: Layer.Layer<Auth.Service>
     account?: Layer.Layer<Account.Service>
     client?: HttpClient.HttpClient
+    npm?: Layer.Layer<Npm.Service>
   } = {},
 ) =>
   Config.layer.pipe(
@@ -98,7 +100,7 @@ const configLayer = (
     Layer.provide(options.auth ?? AuthTest.empty),
     Layer.provide(options.account ?? AccountTest.empty),
     Layer.provideMerge(infra),
-    Layer.provide(NpmTest.noop),
+    Layer.provide(options.npm ?? NpmTest.noop),
     Layer.provide(Layer.succeed(HttpClient.HttpClient, options.client ?? unexpectedHttp)),
     Layer.provideMerge(AppFileSystem.defaultLayer),
   )
@@ -719,6 +721,37 @@ it.instance("migrates mode field to agent field", () =>
       options: {},
       permission: {},
     })
+  }),
+)
+
+// croakcode: upstream added its plugin SDK from npm to every config folder;
+// that name is not this project's package. Nothing is added now.
+const installs: { dir: string; add: string[] }[] = []
+const recordingNpm = Layer.mock(Npm.Service)({
+  install: (dir, input) => Effect.sync(() => void installs.push({ dir, add: (input?.add ?? []).map((pkg) => pkg.name) })),
+})
+const npmIt = testEffect(configLayer({ npm: recordingNpm }))
+
+npmIt.instance("config folders get no npm package added", () =>
+  Effect.gen(function* () {
+    const test = yield* TestInstance
+    installs.length = 0
+    yield* AppFileSystem.use.writeWithDirs(path.join(test.directory, ".croakcode", "agent", "a.md"), "---\n---\nA")
+    yield* Config.use.get()
+    expect(installs.filter((call) => call.dir.startsWith(test.directory))).toEqual([])
+    expect(installs.flatMap((call) => call.add)).not.toContain("@croakcode/plugin")
+  }),
+)
+
+npmIt.instance("a config folder with its own package.json gets only its declared dependencies", () =>
+  Effect.gen(function* () {
+    const test = yield* TestInstance
+    installs.length = 0
+    yield* AppFileSystem.use.writeWithDirs(path.join(test.directory, ".croakcode", "package.json"), "{}")
+    yield* Config.use.get()
+    expect(installs.filter((call) => call.dir.startsWith(test.directory))).toEqual([
+      { dir: path.join(test.directory, ".croakcode"), add: [] },
+    ])
   }),
 )
 

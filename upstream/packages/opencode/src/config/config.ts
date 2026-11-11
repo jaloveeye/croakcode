@@ -11,7 +11,6 @@ import { Flag } from "@croakcode/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { applyEdits, modify } from "jsonc-parser"
-import { InstallationLocal, InstallationVersion } from "@croakcode/core/installation/version"
 import { existsSync } from "fs"
 import { Account } from "@/account/account"
 import { isRecord } from "@/util/record"
@@ -661,15 +660,14 @@ export const layer = Layer.effect(
 
           yield* ensureGitignore(dir).pipe(Effect.orDie)
 
-          const dep = yield* npmSvc
-            .install(dir, {
-              add: [
-                {
-                  name: "@croakcode/plugin",
-                  version: InstallationLocal ? undefined : InstallationVersion,
-                },
-              ],
-            })
+          // croakcode adds no npm package to config folders. Upstream added its
+          // plugin SDK here (@opencode-ai/plugin, renamed @croakcode/plugin, which
+          // is not this project's package on npm): whoever published that name
+          // would be installed into every config folder. croakcode's plugins are
+          // local files. A folder with its own package.json still gets the
+          // dependencies it declares.
+          const declares = yield* fs.existsSafe(path.join(dir, "package.json"))
+          const dep = yield* (declares ? npmSvc.install(dir, { add: [] }) : Effect.void)
             .pipe(
               Effect.exit,
               Effect.tap((exit) =>
