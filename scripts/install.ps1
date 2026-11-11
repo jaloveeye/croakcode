@@ -1,4 +1,4 @@
-# Install a release from the croak gate.
+﻿# Install a release from the croak gate.
 #
 # Trust in the gate's CA, in this order:
 #   -CaSha256 given   the downloaded CA must have that fingerprint (strict; also how a new CA is adopted)
@@ -21,6 +21,10 @@ $architecture = $env:PROCESSOR_ARCHITECTURE
 if ($env:PROCESSOR_ARCHITEW6432) { $architecture = $env:PROCESSOR_ARCHITEW6432 }
 if (-not [Environment]::Is64BitOperatingSystem -or $architecture -ne 'AMD64') { throw 'Only Windows x64 is supported' }
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { throw 'curl.exe is required' }
+# curl.exe on Windows (schannel) asks for the certificate's revocation status. The
+# gate's private CA publishes no revocation list, so the check cannot finish:
+# --ssl-revoke-best-effort still checks where a list exists and verifies the
+# certificate against the saved CA, but does not fail when there is none.
 $work = Join-Path ([IO.Path]::GetTempPath()) ('croak-install-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
@@ -37,7 +41,7 @@ try {
     $saved = Join-Path $env:USERPROFILE '.config\croak\ca\ca.crt'
     if (-not $expected -and (Test-Path -LiteralPath $saved -PathType Leaf)) {
         # Verified with the CA this PC already trusts; a different CA at the gate stops here.
-        & curl.exe -fsSL --proto '=https' --tlsv1.2 --cacert $saved "$Gate/download/ca.crt" -o $ca
+        & curl.exe -fsSL --proto '=https' --tlsv1.2 --ssl-revoke-best-effort --cacert $saved "$Gate/download/ca.crt" -o $ca
         if ($LASTEXITCODE -ne 0) { throw 'The gate could not be verified with the CA saved on this PC; if the gate CA changed, pass -CaSha256' }
         if ((Get-CaFingerprint $ca) -cne (Get-CaFingerprint $saved)) { throw 'The gate CA differs from the one saved on this PC; pass -CaSha256 to adopt a new one' }
     } else {
@@ -53,7 +57,7 @@ try {
         }
     }
     function Get-Download([string]$Name, [string]$Path) {
-        & curl.exe -fsSL --proto '=https' --tlsv1.2 --cacert $ca "$Gate/download/$Name" -o $Path
+        & curl.exe -fsSL --proto '=https' --tlsv1.2 --ssl-revoke-best-effort --cacert $ca "$Gate/download/$Name" -o $Path
         if ($LASTEXITCODE -ne 0) { throw "Download failed: $Name" }
     }
     $manifestPath = Join-Path $work 'manifest.json'

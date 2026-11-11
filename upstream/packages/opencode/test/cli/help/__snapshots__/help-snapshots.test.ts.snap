@@ -1,7 +1,7 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode acp --help 1`] = `
-"cc acp
+"croakcode acp
 
 start ACP (Agent Client Protocol) server
 
@@ -22,16 +22,16 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp --help 1`] = `
-"cc mcp
+"croakcode mcp
 
 manage MCP (Model Context Protocol) servers
 
 Commands:
-  cc mcp add            add an MCP server
-  cc mcp list           list MCP servers and their status                              [aliases: ls]
-  cc mcp auth [name]    authenticate with an OAuth-enabled MCP server
-  cc mcp logout [name]  remove OAuth credentials for an MCP server
-  cc mcp debug <name>   debug OAuth connection for an MCP server
+  croakcode mcp add            add an MCP server
+  croakcode mcp list           list MCP servers and their status                       [aliases: ls]
+  croakcode mcp auth [name]    authenticate with an OAuth-enabled MCP server
+  croakcode mcp logout [name]  remove OAuth credentials for an MCP server
+  croakcode mcp debug <name>   debug OAuth connection for an MCP server
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -42,7 +42,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode resume --help 1`] = `
-"cc resume [project]
+"croakcode resume [project]
 
 resume a croakcode session
 
@@ -76,7 +76,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode attach --help 1`] = `
-"cc attach <url>
+"croakcode attach <url>
 
 attach to a running croakcode server
 
@@ -103,7 +103,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode run --help 1`] = `
-"cc run [message..]
+"croakcode run [message..]
 
 run croakcode with a message
 
@@ -155,24 +155,24 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode debug --help 1`] = `
-"cc debug
+"croakcode debug
 
 debugging and troubleshooting tools
 
 Commands:
-  cc debug config        show resolved configuration
-  cc debug lsp           LSP debugging utilities
-  cc debug rg            ripgrep debugging utilities
-  cc debug file          file system debugging utilities
-  cc debug scrap         list all known projects
-  cc debug skill         list all available skills
-  cc debug snapshot      snapshot debugging utilities
-  cc debug startup       print startup timing
-  cc debug agent <name>  show agent configuration details
-  cc debug v2            debug v2 catalog and built-in plugins
-  cc debug info          show debug information
-  cc debug paths         show global paths (data, config, cache, state)
-  cc debug wait          wait indefinitely (for debugging)
+  croakcode debug config        show resolved configuration
+  croakcode debug lsp           LSP debugging utilities
+  croakcode debug rg            ripgrep debugging utilities
+  croakcode debug file          file system debugging utilities
+  croakcode debug scrap         list all known projects
+  croakcode debug skill         list all available skills
+  croakcode debug snapshot      snapshot debugging utilities
+  croakcode debug startup       print startup timing
+  croakcode debug agent <name>  show agent configuration details
+  croakcode debug v2            debug v2 catalog and built-in plugins
+  croakcode debug info          show debug information
+  croakcode debug paths         show global paths (data, config, cache, state)
+  croakcode debug wait          wait indefinitely (for debugging)
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -183,14 +183,14 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers --help 1`] = `
-"cc providers
+"croakcode providers
 
 manage AI providers and credentials
 
 Commands:
-  cc providers list         list providers and credentials                             [aliases: ls]
-  cc providers login [url]  log in to a provider
-  cc providers logout       log out from a configured provider
+  croakcode providers list         list providers and credentials                      [aliases: ls]
+  croakcode providers login [url]  log in to a provider
+  croakcode providers logout       log out from a configured provider
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -201,13 +201,13 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent --help 1`] = `
-"cc agent
+"croakcode agent
 
 manage agents
 
 Commands:
-  cc agent create  create a new agent
-  cc agent list    list all available agents
+  croakcode agent create  create a new agent
+  croakcode agent list    list all available agents
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -218,7 +218,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode upgrade --help 1`] = `
-"cc upgrade
+"croakcode upgrade
 
 upgrade croakcode from the gate
 
@@ -231,7 +231,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode uninstall --help 1`] = `
-"cc uninstall
+"croakcode uninstall
 
 uninstall croakcode and remove all related files
 
@@ -248,7 +248,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode serve --help 1`] = `
-"cc serve
+"croakcode serve
 
 starts a headless croakcode server
 
@@ -268,7 +268,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode web --help 1`] = `
-"cc web
+"croakcode web
 
 start croakcode server and open web interface
 
@@ -288,7 +288,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode models --help 1`] = `
-"cc models [provider]
+"croakcode models [provider]
 
 list all available models
 
@@ -306,7 +306,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode stats --help 1`] = `
-"cc stats
+"croakcode stats
 
 show token usage and cost statistics
 
@@ -324,7 +324,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode export --help 1`] = `
-"cc export [sessionID]
+"croakcode export [sessionID]
 
 export session data as JSON
 
@@ -341,7 +341,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode import --help 1`] = `
-"cc import <file>
+"croakcode import <file>
 
 import session data from JSON file or URL
 
@@ -357,13 +357,13 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github --help 1`] = `
-"cc github
+"croakcode github
 
 manage GitHub agent
 
 Commands:
-  cc github install  install the GitHub agent
-  cc github run      run the GitHub agent
+  croakcode github install  install the GitHub agent
+  croakcode github run      run the GitHub agent
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -374,7 +374,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode pr --help 1`] = `
-"cc pr <number>
+"croakcode pr <number>
 
 fetch and checkout a GitHub PR branch, then run cc
 
@@ -390,13 +390,13 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session --help 1`] = `
-"cc session
+"croakcode session
 
 manage sessions
 
 Commands:
-  cc session list                list sessions
-  cc session delete <sessionID>  delete a session
+  croakcode session list                list sessions
+  croakcode session delete <sessionID>  delete a session
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -407,7 +407,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode plugin --help 1`] = `
-"cc plugin <module>
+"croakcode plugin <module>
 
 install plugin and update config
 
@@ -425,14 +425,14 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db --help 1`] = `
-"cc db
+"croakcode db
 
 database tools
 
 Commands:
-  cc db [query]     open an interactive sqlite3 shell or run a query                       [default]
-  cc db path        print the database path
-  cc db migrate     migrate JSON data to SQLite (merges with existing data)
+  croakcode db [query]     open an interactive sqlite3 shell or run a query                [default]
+  croakcode db path        print the database path
+  croakcode db migrate     migrate JSON data to SQLite (merges with existing data)
 
 Positionals:
   query  SQL query to execute                                                               [string]
@@ -447,7 +447,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp list --help 1`] = `
-"cc mcp list
+"croakcode mcp list
 
 list MCP servers and their status
 
@@ -460,7 +460,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp add --help 1`] = `
-"cc mcp add
+"croakcode mcp add
 
 add an MCP server
 
@@ -473,12 +473,12 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp auth --help 1`] = `
-"cc mcp auth [name]
+"croakcode mcp auth [name]
 
 authenticate with an OAuth-enabled MCP server
 
 Commands:
-  cc mcp auth list  list OAuth-capable MCP servers and their auth status               [aliases: ls]
+  croakcode mcp auth list  list OAuth-capable MCP servers and their auth status        [aliases: ls]
 
 Positionals:
   name  name of the MCP server                                                              [string]
@@ -492,7 +492,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp logout --help 1`] = `
-"cc mcp logout [name]
+"croakcode mcp logout [name]
 
 remove OAuth credentials for an MCP server
 
@@ -508,7 +508,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers list --help 1`] = `
-"cc providers list
+"croakcode providers list
 
 list providers and credentials
 
@@ -521,12 +521,12 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers login --help 1`] = `
-"cc providers login [url]
+"croakcode providers login [url]
 
 log in to a provider
 
 Positionals:
-  url  cc auth provider                                                                     [string]
+  url  croakcode auth provider                                                              [string]
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -539,7 +539,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers logout --help 1`] = `
-"cc providers logout
+"croakcode providers logout
 
 log out from a configured provider
 
@@ -552,7 +552,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent create --help 1`] = `
-"cc agent create
+"croakcode agent create
 
 create a new agent
 
@@ -572,7 +572,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent list --help 1`] = `
-"cc agent list
+"croakcode agent list
 
 list all available agents
 
@@ -585,7 +585,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session list --help 1`] = `
-"cc session list
+"croakcode session list
 
 list sessions
 
@@ -600,7 +600,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session delete --help 1`] = `
-"cc session delete <sessionID>
+"croakcode session delete <sessionID>
 
 delete a session
 
@@ -616,7 +616,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github install --help 1`] = `
-"cc github install
+"croakcode github install
 
 install the GitHub agent
 
@@ -629,7 +629,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github run --help 1`] = `
-"cc github run
+"croakcode github run
 
 run the GitHub agent
 
@@ -644,7 +644,7 @@ Options:
 `;
 
 exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db path --help 1`] = `
-"cc db path
+"croakcode db path
 
 print the database path
 

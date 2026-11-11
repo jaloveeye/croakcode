@@ -6,7 +6,9 @@ import semver from "semver"
 import { InstallationVersion } from "@croakcode/core/installation/version"
 import { Flock } from "@croakcode/core/util/flock"
 
-const interval = 24 * 60 * 60 * 1000
+// How long a startup reuses the last manifest. The gate is on the local network
+// and the manifest is small; a day made a new release show up a day late.
+export const CHECK_INTERVAL_MS = 60 * 60 * 1000
 const archiveName = /^croakcode-(\d+\.\d+\.\d+)-(linux-x64|linux-arm64|darwin-x64|darwin-arm64|windows-x64)\.(tar\.gz|zip)$/
 
 type Entry = { file: string; sha256: string; size: number }
@@ -58,7 +60,7 @@ export async function check(options: { force?: boolean; now?: number; version?: 
       cache = { ...data, manifest: parseManifest(data.manifest) }
     }
   } catch {}
-  if (!options.force && cache && now - cache.checkedAt < interval) return classify(cache.manifest, version)
+  if (!options.force && cache && now - cache.checkedAt < CHECK_INTERVAL_MS) return classify(cache.manifest, version)
   try {
     const response = await download(`${gate}/download/manifest.json`)
     const manifest = parseManifest(await response.json())
