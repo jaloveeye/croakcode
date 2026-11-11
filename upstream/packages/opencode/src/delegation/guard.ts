@@ -44,6 +44,8 @@ export class DelegationDeniedError extends Schema.TaggedErrorClass<DelegationDen
 export interface Interface {
   readonly beginRun: (input: { readonly sessionID: SessionID; readonly parentID?: SessionID; readonly agent: string }) => Effect.Effect<void>
   readonly endRun: (sessionID: SessionID, status: "completed" | "aborted") => Effect.Effect<void>
+  /** The session's running run id, sent to the gate so its records join this audit by run. */
+  readonly runOf: (sessionID: SessionID) => Effect.Effect<string | undefined>
   readonly checkTool: (sessionID: SessionID, permission: string) => Effect.Effect<void, DelegationDeniedError>
   readonly checkPatterns: (
     sessionID: SessionID,
@@ -318,7 +320,12 @@ export const layer = Layer.effect(
       if (!verdict.ok) return yield* deny(verdict.reason)
     })
 
-    return Service.of({ beginRun, endRun, checkTool, checkPatterns, delegate, deliverable, authorizeExecution })
+    const runOf = Effect.fn("DelegationGuard.runOf")(function* (sessionID: SessionID) {
+      const run = yield* registry.activeRun(sessionID).pipe(Effect.catchDefect(() => Effect.succeed(undefined)))
+      return run?.id
+    })
+
+    return Service.of({ beginRun, endRun, runOf, checkTool, checkPatterns, delegate, deliverable, authorizeExecution })
   }),
 )
 

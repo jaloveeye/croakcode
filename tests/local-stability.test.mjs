@@ -5,8 +5,10 @@ const plugin = (await import("../upstream/.croakcode/plugins/local-stability.js"
 test("exports id and all expected hooks", async () => {
   assert.equal(plugin.id, "croak-local-stability");
   const hooks = await plugin.server({ client: { tui: { showToast: async () => {} }, session: { abort: async () => {} } } });
-  for (const h of ["tool.execute.before", "event", "chat.params", "experimental.session.compacting", "experimental.compaction.autocontinue"])
+  for (const h of ["tool.execute.before", "event", "experimental.session.compacting", "experimental.compaction.autocontinue"])
     assert.equal(typeof hooks[h], "function", h);
+  // Sampling belongs to the gate's model registry, not to a model id here.
+  assert.equal(hooks["chat.params"], undefined);
 });
 
 test("identical read 4th time throws", async () => {
@@ -16,16 +18,13 @@ test("identical read 4th time throws", async () => {
   await assert.rejects(() => hooks["tool.execute.before"](input, output), /Repeated non-progress/);
 });
 
-test("qwen params adjusted for litellm-head", async () => {
-  const hooks = await plugin.server({ client: {} });
-  const out = {};
-  await hooks["chat.params"]({ model: { providerID: "litellm-head", id: "qwen3.8-27b-nvfp4" } }, out);
-  assert.equal(out.temperature, 1.0);
-  assert.equal(out.topP, 0.95);
-  const out2 = { options: { chat_template_kwargs: { enable_thinking: false } } };
-  await hooks["chat.params"]({ model: { providerID: "litellm-head", id: "qwen3.8-27b-nvfp4" } }, out2);
-  assert.equal(out2.temperature, 0.7);
-  assert.equal(out2.topP, 0.8);
+test("the output-limit warning shows for any model behind the gate", async () => {
+  const toasts = [];
+  const hooks = await plugin.server({ client: { tui: { showToast: async (t) => toasts.push(t) }, session: { abort: async () => {} } } });
+  const event = (info) => ({ event: { type: "message.updated", properties: { info } } });
+  await hooks.event(event({ id: "m1", role: "assistant", providerID: "litellm-head", modelID: "croak", finish: "length", sessionID: "s1" }));
+  await hooks.event(event({ id: "m2", role: "assistant", providerID: "other", modelID: "x", finish: "length", sessionID: "s1" }));
+  assert.equal(toasts.length, 1);
 });
 
 test("compaction prompt does not disable built-in idle guard", async () => {

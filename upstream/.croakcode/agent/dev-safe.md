@@ -2,7 +2,7 @@
 name: dev-safe
 description: Agent for the restricted tier. Reads files and edits documents and code without shell, web or subagents.
 mode: primary
-model: litellm-head/default
+model: litellm-head/croak
 permission:
   bash: deny
   webfetch: deny

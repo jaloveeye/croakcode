@@ -8,9 +8,21 @@
       "options": {
         "baseURL": "{env:LITELLM_BASE_URL}"
       },
+      // Which engine and model serve an alias is the gate's business (its model
+      // registry); croakcode sends only the alias and a reasoning level, and the
+      // gate turns the level into that model's own parameters.
       "models": {
-        "qwen3.8-27b-nvfp4": { "name": "Qwen3.8 27B NVFP4" },
-        "default": { "name": "Default" }
+        "croak": {
+          "name": "사내 모델",
+          "variants": {
+            "none": { "reasoningEffort": "none" },
+            "low": { "reasoningEffort": "low" },
+            "high": { "reasoningEffort": "high" }
+          }
+        },
+        // Older aliases, kept so earlier sessions still open.
+        "qwen3.8-27b-nvfp4": { "name": "사내 모델 (이전 설정)" },
+        "default": { "name": "사내 모델 (이전 기본)" }
       }
     }
   },
@@ -40,6 +52,7 @@
   "default_agent": "dev-main",
   // Upstream's update channels are not ours; croakcode updates from the croak gate.
   "autoupdate": false,
+  "model": "litellm-head/croak",
   "agent": { "build": { "hidden": true } },
   // Claude Code skills (~/.claude/skills) are listed twice per request (system
   // prompt and the skill tool), about 4,100 tokens. croakcode does not use them.
