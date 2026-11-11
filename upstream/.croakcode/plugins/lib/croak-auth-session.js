@@ -211,3 +211,10 @@ export async function whoami() {
   if (!token) return null
   return call("GET", "/auth/me", { token })
 }
+
+/** The gate's model list for this user (GET /v1/croak/models), or null when logged out. */
+export async function gateModels() {
+  const token = await accessToken()
+  if (!token) return null
+  return (await call("GET", "/v1/croak/models", { token }))?.models ?? null
+}
