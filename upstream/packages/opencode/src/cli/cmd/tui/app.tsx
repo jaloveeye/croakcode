@@ -59,7 +59,6 @@ import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
-import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { PermissionModeProvider, usePermissionMode } from "./context/permission"
 import { TuiConfigProvider, useTuiConfig } from "./context/tui-config"
@@ -117,7 +116,6 @@ const appBindingCommands = [
   "theme.switch_mode",
   "theme.mode.lock",
   "help.show",
-  "docs.open",
   "workspace.list",
   "app.debug",
   "app.console",
@@ -824,15 +822,6 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         slashName: "help",
         run: () => {
           dialog.replace(() => <DialogHelp />)
-        },
-        category: "System",
-      },
-      {
-        name: "docs.open",
-        title: "Open docs",
-        run: () => {
-          open("https://croakcode.ai/docs").catch(() => {})
-          dialog.clear()
         },
         category: "System",
       },

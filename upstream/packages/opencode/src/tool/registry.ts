@@ -54,10 +54,13 @@ import { Wildcard } from "@/util/wildcard"
 import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { croakGate } from "@/provider/croak-gate"
 
 const log = Log.create({ service: "tool.registry" })
 
 export function webSearchEnabled(_providerID: ProviderID, flags = { exa: false, parallel: false }) {
+  // Web search sends the model's query to Exa or Parallel, outside the croak gate.
+  if (croakGate()) return false
   return flags.exa || flags.parallel
 }
 
