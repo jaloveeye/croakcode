@@ -49,4 +49,5 @@ curl.exe -fsSLk --proto =https https://게이트주소:8443/download/install.ps1
 - 기존 `~/.croakcode` 설정과 실행 명령은 이름에 시각을 붙여 보관한다.
 - 업데이트는 `croakcode upgrade`로 한다. 자세한 내용은 `docs/update-release.md`에 있다.
 - HWP 도구(rhwp)는 따로 설치한다.
+- Windows 기본 콘솔에서는 화면을 그릴 수 없다. 그 콘솔에서 실행하면 Windows Terminal 새 창으로 다시 연다. 기본 콘솔에서 연 WSL도 같다. Windows Terminal이 없으면 설치 방법을 알린다.
 - 이 PC에서 소스 설치본을 실행 파일로 바꿀 때는 대화 기록(`croakcode-local.db`)을 `croakcode.db`로 옮긴다.

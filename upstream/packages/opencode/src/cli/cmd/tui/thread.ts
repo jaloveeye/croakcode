@@ -1,6 +1,15 @@
 import { cmd } from "@/cli/cmd/cmd"
 import { Rpc } from "@/util/rpc"
-import { LEGACY_CONSOLE_MESSAGE, RELAUNCHED_MESSAGE, legacyWindowsConsole, windowsTerminalRelaunch } from "@/cli/croak/terminal"
+import {
+  LEGACY_CONSOLE_MESSAGE,
+  RELAUNCHED_MESSAGE,
+  WSL_CONSOLE_MESSAGE,
+  keepShellAfterRelaunch,
+  legacyWindowsConsole,
+  legacyWslConsole,
+  windowsTerminalRelaunch,
+  wslTerminalRelaunch,
+} from "@/cli/croak/terminal"
 import { type rpc } from "./worker"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -125,17 +134,26 @@ export const TuiThreadCommand = cmd({
   handler: async (args) => {
     // croakcode: the legacy Windows console only shows a black screen; say so
     // before input processing is switched off and ctrl+c stops working.
-    if (legacyWindowsConsole(process.env)) {
+    // WSL in the same console draws the same black screen.
+    const legacy = legacyWindowsConsole(process.env) ? "windows" : legacyWslConsole(process.env) ? "wsl" : undefined
+    if (legacy) {
       // Reopen in Windows Terminal when it is installed; otherwise explain.
       const { existsSync } = await import("node:fs")
-      const relaunch = windowsTerminalRelaunch(process.env, process.argv.slice(2), process.cwd(), (name) => Bun.which(name), existsSync)
+      const which = (name: string) => Bun.which(name)
+      const relaunch = (legacy === "windows" ? windowsTerminalRelaunch : wslTerminalRelaunch)(
+        process.env,
+        process.argv.slice(2),
+        process.cwd(),
+        which,
+        existsSync,
+      )
       if (relaunch) {
         const { spawn } = await import("node:child_process")
         spawn(relaunch.command, relaunch.args, { detached: true, stdio: "ignore", windowsHide: false }).unref()
         UI.println(RELAUNCHED_MESSAGE)
         return
       }
-      UI.error(LEGACY_CONSOLE_MESSAGE)
+      UI.error(legacy === "windows" ? LEGACY_CONSOLE_MESSAGE : WSL_CONSOLE_MESSAGE)
       process.exitCode = 1
       return
     }
@@ -285,6 +303,14 @@ export const TuiThreadCommand = cmd({
       }
     } finally {
       unguard?.()
+    }
+    // A Windows Terminal tab croakcode opened from WSL keeps a shell, like
+    // cmd.exe /k on Windows, so the exit screen (how to resume) stays.
+    const shell = keepShellAfterRelaunch(process.env)
+    if (shell) {
+      const { spawnSync } = await import("node:child_process")
+      const { CROAKCODE_RELAUNCHED: _, ...env } = process.env
+      spawnSync(shell, ["-l"], { stdio: "inherit", env })
     }
     process.exit(0)
   },
