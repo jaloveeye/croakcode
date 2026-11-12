@@ -688,6 +688,21 @@ describe("session HttpApi", () => {
   )
 
   it.instance(
+    "never shares a session, even when the config allows it",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const created = yield* createSession({ title: "no share" })
+        const response = yield* request(pathFor(SessionPaths.share, { sessionID: created.id }), {
+          method: "POST",
+          headers: { "x-opencode-directory": test.directory },
+        })
+        expect(response.status).not.toBe(200)
+      }),
+    { git: true, config: { formatter: false, lsp: false, share: "manual" } },
+  )
+
+  it.instance(
     "persists selected workspace id when creating a session",
     () =>
       Effect.gen(function* () {

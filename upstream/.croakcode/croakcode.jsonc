@@ -51,6 +51,9 @@
   "default_agent": "dev-main",
   // Upstream's update channels are not ours; croakcode updates from the croak gate.
   "autoupdate": false,
+  // Sharing uploads a whole conversation to an outside server past the gate;
+  // croakcode refuses it in code as well (src/share/session.ts).
+  "share": "disabled",
   "model": "litellm-head/croak",
   "agent": { "build": { "hidden": true } },
   // Claude Code skills (~/.claude/skills) are listed twice per request (system

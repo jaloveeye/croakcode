@@ -25,6 +25,11 @@ export const layer = Layer.effect(
     const flags = yield* RuntimeFlags.Service
 
     const share = Effect.fn("SessionShare.share")(function* (sessionID: SessionID) {
+      // croakcode never shares: upstream's share service (opncd.ai, or an
+      // enterprise.url) receives the whole conversation directly from the PC,
+      // past the croak gate's masking and audit. Refused whatever the config
+      // says, so a user config cannot turn it back on.
+      if (sessionID) throw new Error("croakcode는 대화를 외부 공유 서버에 올리지 않습니다.")
       const conf = yield* cfg.get()
       if (conf.share === "disabled") throw new Error("Sharing is disabled in configuration")
       const result = yield* shareNext.create(sessionID)
