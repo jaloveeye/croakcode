@@ -1,10 +1,10 @@
 /** @jsxImportSource @opentui/solid */
-// /login, /logout, /whoami and /agent-perm for croak-gate.
+// /login, /logout, /whoami, /agent-perm and /chatkey for croak-gate.
 //
 // /login opens the croak login page in the Windows browser. After the user
 // signs in, the page shows a one-time code; pasting it here finishes the login
 // (the code only works together with this session's PKCE verifier).
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { createSignal, Show } from "solid-js"
 import { readPolicy, writePolicy } from "./lib/policy-state.js"
@@ -29,6 +29,30 @@ function openBrowser(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Copies text with the system's clipboard program. False when there is none:
+ * the dialog still shows the text to copy by hand.
+ */
+function copyText(text: string): boolean {
+  const tries: [string, string[]][] =
+    process.platform === "win32"
+      ? [["clip.exe", []]]
+      : process.platform === "darwin"
+        ? [["pbcopy", []]]
+        : [
+            ["/mnt/c/Windows/System32/clip.exe", []],
+            ["wl-copy", []],
+            ["xclip", ["-selection", "clipboard"]],
+          ]
+  for (const [command, args] of tries) {
+    try {
+      const done = spawnSync(command, args, { input: text, timeout: 3000, stdio: ["pipe", "ignore", "ignore"] })
+      if (done.status === 0) return true
+    } catch {}
+  }
+  return false
 }
 
 const KST = new Intl.DateTimeFormat("ko-KR", {
@@ -271,11 +295,152 @@ const tui = async (api: any) => {
     ))
   }
 
+  // /chatkey: chat-only keys for a chat program on this PC (Open WebUI and the like).
+  async function chatKey() {
+    let listed: any
+    try {
+      listed = await S.chatKeys()
+    } catch (error: any) {
+      toast("error", "대화 전용 키를 읽지 못했습니다", error?.message ?? String(error))
+      return
+    }
+    if (!listed) {
+      toast("warning", "로그인하지 않았습니다", "/login으로 로그인한 뒤 다시 실행하세요.")
+      return
+    }
+    const keys: any[] = listed.keys ?? []
+    const DialogSelect = api.ui.DialogSelect
+    api.ui.dialog.replace(() => (
+      <DialogSelect
+        title="대화 전용 키 (Open WebUI 같은 대화 프로그램용)"
+        skipFilter
+        options={[
+          {
+            title: "새 키 만들기",
+            value: "new",
+            description: `${keys.length}/${listed.limit}개 · 최대 ${listed.max_days}일`,
+            disabled: keys.length >= listed.limit,
+          },
+          ...keys.map((k) => ({ title: k.name, value: k.id, description: `${when(k.expires_at)}까지 · 고르면 삭제` })),
+        ]}
+        onSelect={(opt: { value: string | number }) => {
+          if (opt.value === "new") return askChatKeyName(listed)
+          const key = keys.find((k) => k.id === opt.value)
+          if (key) confirmChatKeyDelete(key)
+        }}
+      />
+    ))
+  }
+
+  function askChatKeyName(listed: any) {
+    const DialogPrompt = api.ui.DialogPrompt
+    api.ui.dialog.replace(() => (
+      <DialogPrompt
+        title="새 대화 전용 키: 이름"
+        description={() => <text fg={api.theme.current.textMuted}>어디에 쓰는 키인지 알아볼 이름입니다 (1~40자).</text>}
+        placeholder="Open WebUI"
+        onCancel={() => api.ui.dialog.clear()}
+        onConfirm={(value: string) => {
+          const name = value.trim() || "Open WebUI"
+          askChatKeyDays(listed, name)
+        }}
+      />
+    ))
+  }
+
+  function askChatKeyDays(listed: any, name: string) {
+    const DialogPrompt = api.ui.DialogPrompt
+    const [busy, setBusy] = createSignal(false)
+    api.ui.dialog.replace(() => (
+      <DialogPrompt
+        title={`새 대화 전용 키: ${name} · 유효 기간(일)`}
+        description={() => <text fg={api.theme.current.textMuted}>{`1~${listed.max_days}일. 비워 두면 30일입니다.`}</text>}
+        placeholder="30"
+        busy={busy()}
+        busyText="만드는 중..."
+        onCancel={() => api.ui.dialog.clear()}
+        onConfirm={async (value: string) => {
+          if (busy()) return
+          const days = value.trim() ? Number(value.trim()) : undefined
+          if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > listed.max_days)) {
+            toast("warning", "유효 기간을 확인하세요", `1~${listed.max_days} 사이의 정수로 씁니다.`)
+            return
+          }
+          setBusy(true)
+          let made: any
+          try {
+            made = await S.createChatKey(name, days)
+          } catch (error: any) {
+            setBusy(false)
+            toast("error", "키를 만들지 못했습니다", error?.message ?? String(error))
+            return
+          }
+          if (!made?.key) {
+            setBusy(false)
+            toast("warning", "로그인하지 않았습니다", "/login으로 로그인한 뒤 다시 실행하세요.")
+            return
+          }
+          showChatKey(made)
+        }}
+      />
+    ))
+  }
+
+  function showChatKey(made: any) {
+    const base = made.base_url || `${S.authUrl()}/v1`
+    const copied = copyText(made.key)
+    const DialogAlert = api.ui.DialogAlert
+    api.ui.dialog.replace(() => (
+      <DialogAlert
+        title={`대화 전용 키를 만들었습니다: ${made.name}`}
+        message={[
+          `주소: ${base}`,
+          `키: ${made.key}`,
+          "",
+          copied ? "키를 클립보드에 복사했습니다." : "클립보드에 복사하지 못했습니다. 위의 키를 직접 복사하세요.",
+          "키는 지금 한 번만 보입니다. 닫으면 다시 볼 수 없습니다.",
+          "",
+          "Open WebUI의 OpenAI API 연결에 이 주소와 키를 넣으세요.",
+          `대화 프로그램이 게이트 인증서(${S.caFile()})를 신뢰해야 연결됩니다.`,
+          `이 키로는 도구를 쓸 수 없습니다. ${when(made.expires_at)}까지 씁니다. 이 PC에서만 쓰세요.`,
+        ].join("\n")}
+        onConfirm={() => api.ui.dialog.clear()}
+      />
+    ))
+  }
+
+  function confirmChatKeyDelete(key: any) {
+    const DialogConfirm = api.ui.DialogConfirm
+    api.ui.dialog.replace(() => (
+      <DialogConfirm
+        title={`'${key.name}' 키를 지울까요?`}
+        message="지우면 이 키를 쓰는 대화 프로그램이 바로 연결되지 않습니다."
+        onCancel={() => api.ui.dialog.clear()}
+        onConfirm={async () => {
+          try {
+            await S.deleteChatKey(key.id)
+            toast("info", `'${key.name}' 키를 지웠습니다`, "")
+          } catch (error: any) {
+            toast("error", "키를 지우지 못했습니다", error?.message ?? String(error))
+          }
+        }}
+      />
+    ))
+  }
+
   api.keymap.registerLayer({
     commands: [
       { name: "croak.login", title: "Croak: 로그인", category: "Croak", namespace: "palette", slashName: "login", run: login },
       { name: "croak.logout", title: "Croak: 로그아웃", category: "Croak", namespace: "palette", slashName: "logout", run: logout },
       { name: "croak.whoami", title: "Croak: 내 권한 보기", category: "Croak", namespace: "palette", slashName: "whoami", run: whoami },
+      {
+        name: "croak.chatkey",
+        title: "Croak: 대화 전용 키 (Open WebUI 등)",
+        category: "Croak",
+        namespace: "palette",
+        slashName: "chatkey",
+        run: chatKey,
+      },
       {
         name: "croak.agent-perm",
         title: "Croak: 이 세션의 도구 끄고 켜기",
