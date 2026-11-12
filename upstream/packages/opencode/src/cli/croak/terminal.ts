@@ -37,6 +37,70 @@ export function windowsTerminalRelaunch(
   return { command: wt, args: ["-d", cwd, "cmd.exe", "/k", launcher, ...args] }
 }
 
+/**
+ * True for WSL running in the legacy Windows console: the same black screen as
+ * legacyWindowsConsole, but process.platform is linux and WSL always sets TERM.
+ * Windows Terminal passes WT_SESSION into WSL; VS Code sets TERM_PROGRAM; tmux
+ * and screen answer the queries themselves; over ssh the client's terminal
+ * draws. A window croakcode opened itself (CROAKCODE_RELAUNCHED) is never
+ * reopened, so a wrong guess opens one window, not one after another.
+ */
+export function legacyWslConsole(env: NodeJS.ProcessEnv, platform: string = process.platform) {
+  if (platform !== "linux") return false
+  if (!env.WSL_DISTRO_NAME && !env.WSL_INTEROP) return false
+  if (env.CROAKCODE_ALLOW_CONSOLE === "1" || env.CROAKCODE_RELAUNCHED) return false
+  return !(
+    env.WT_SESSION ||
+    env.TERM_PROGRAM ||
+    env.TMUX ||
+    env.STY ||
+    env.SSH_CONNECTION ||
+    env.SSH_TTY ||
+    env.WEZTERM_EXECUTABLE ||
+    env.ConEmuANSI
+  )
+}
+
+/** wt.exe reads ";" as "next command"; a literal one is written "\;". */
+const wtArg = (value: string) => value.replaceAll(";", "\\;")
+
+/**
+ * How to reopen the TUI from WSL in a Windows Terminal tab of the same
+ * distribution, or undefined when that is not possible. The tab runs the WSL
+ * launcher (it sets the gate settings) with CROAKCODE_RELAUNCHED=wsl. --exec
+ * runs it without the default shell, which would expand its arguments; after
+ * croakcode exits the tab keeps a shell (see keepShellAfterRelaunch).
+ */
+export function wslTerminalRelaunch(
+  env: NodeJS.ProcessEnv,
+  args: string[],
+  cwd: string,
+  which: (name: string) => string | null | undefined,
+  exists: (file: string) => boolean = () => false,
+): { command: string; args: string[] } | undefined {
+  const installed = env.HOME ? `${env.HOME}/.local/bin/croakcode` : undefined
+  const launcher = env.CROAKCODE_LAUNCHER || (installed && exists(installed) ? installed : undefined)
+  const wt = which("wt.exe")
+  const distro = env.WSL_DISTRO_NAME
+  if (!launcher || !wt || !distro) return undefined
+  return {
+    command: wt,
+    args: ["wsl.exe", "-d", distro, "--cd", cwd, "--exec", "env", "CROAKCODE_RELAUNCHED=wsl", launcher, ...args].map(wtArg),
+  }
+}
+
+/** The shell a relaunched WSL tab keeps after croakcode exits, so its exit screen stays. */
+export function keepShellAfterRelaunch(env: NodeJS.ProcessEnv) {
+  return env.CROAKCODE_RELAUNCHED === "wsl" ? env.SHELL || "/bin/bash" : undefined
+}
+
+export const WSL_CONSOLE_MESSAGE = [
+  "이 창(Windows 기본 콘솔)의 WSL에서는 croakcode 화면을 그릴 수 없습니다.",
+  "Windows Terminal에서 WSL을 열고 croakcode를 입력하세요.",
+  "Windows 10은 Microsoft Store에서 Windows Terminal을 설치할 수 있습니다.",
+  "화면 없이 쓰려면 croakcode run \"질문\"을 실행하세요.",
+].join("\n")
+
 export const RELAUNCHED_MESSAGE = "Windows Terminal 새 창에서 croakcode를 열었습니다."
 
 export const LEGACY_CONSOLE_MESSAGE = [
