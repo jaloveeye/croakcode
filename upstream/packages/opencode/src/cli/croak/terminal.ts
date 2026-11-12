@@ -25,8 +25,12 @@ export function windowsTerminalRelaunch(
   args: string[],
   cwd: string,
   which: (name: string) => string | null | undefined,
+  exists: (file: string) => boolean = () => false,
 ): { command: string; args: string[] } | undefined {
-  const launcher = env.CROAKCODE_LAUNCHER
+  // Launchers from 0.6.2 and earlier do not set CROAKCODE_LAUNCHER, and an
+  // upgrade replaces only the binary: fall back to where the installer puts it.
+  const installed = env.USERPROFILE ? `${env.USERPROFILE}\\.local\\bin\\croakcode.cmd` : undefined
+  const launcher = env.CROAKCODE_LAUNCHER || (installed && exists(installed) ? installed : undefined)
   const wt = which("wt.exe") ?? which("wt")
   if (!launcher || !wt) return undefined
   // /k keeps the tab after croakcode exits, so its exit screen (how to resume) stays.
