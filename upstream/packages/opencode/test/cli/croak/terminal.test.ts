@@ -37,6 +37,13 @@ describe("reopening in Windows Terminal", () => {
     })
   })
 
+  test("an older launcher without CROAKCODE_LAUNCHER is found where the installer puts it", () => {
+    const installed = "C:\\Users\\u\\.local\\bin\\croakcode.cmd"
+    const relaunch = windowsTerminalRelaunch({ USERPROFILE: "C:\\Users\\u" }, [], "C:\\w", which, (f: string) => f === installed)
+    expect(relaunch?.args).toEqual(["-d", "C:\\w", "cmd.exe", "/k", installed])
+    expect(windowsTerminalRelaunch({ USERPROFILE: "C:\\Users\\u" }, [], "C:\\w", which, () => false)).toBeUndefined()
+  })
+
   test("not without Windows Terminal or without the launcher", () => {
     expect(windowsTerminalRelaunch({ CROAKCODE_LAUNCHER: "x.cmd" }, [], "C:\\\\", () => null)).toBeUndefined()
     expect(windowsTerminalRelaunch({}, [], "C:\\\\", which)).toBeUndefined()

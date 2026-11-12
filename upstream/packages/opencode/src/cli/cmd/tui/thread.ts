@@ -127,7 +127,8 @@ export const TuiThreadCommand = cmd({
     // before input processing is switched off and ctrl+c stops working.
     if (legacyWindowsConsole(process.env)) {
       // Reopen in Windows Terminal when it is installed; otherwise explain.
-      const relaunch = windowsTerminalRelaunch(process.env, process.argv.slice(2), process.cwd(), (name) => Bun.which(name))
+      const { existsSync } = await import("node:fs")
+      const relaunch = windowsTerminalRelaunch(process.env, process.argv.slice(2), process.cwd(), (name) => Bun.which(name), existsSync)
       if (relaunch) {
         const { spawn } = await import("node:child_process")
         spawn(relaunch.command, relaunch.args, { detached: true, stdio: "ignore", windowsHide: false }).unref()

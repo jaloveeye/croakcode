@@ -11,6 +11,7 @@ import { Global } from "@croakcode/core/global"
 import { iife } from "@/util/iife"
 import { useToast } from "../ui/toast"
 import { useArgs } from "./args"
+import { useKV } from "./kv"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { Filesystem } from "@/util/filesystem"
@@ -44,7 +45,21 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const agent = iife(() => {
-      const agents = createMemo(() => sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden))
+      // croakcode: the croak login plugin puts the tier's agent names (gate
+      // patterns: "*" and a trailing "*") under croak_allowed_agents. Agents the
+      // tier cannot use are left out of the list; the gate still enforces.
+      const kv = useKV()
+      const allowed = (name: string) => {
+        const list = kv.get("croak_allowed_agents")
+        if (!Array.isArray(list)) return true
+        return list.some((p) => p === "*" || (typeof p === "string" && (p.endsWith("*") ? name.startsWith(p.slice(0, -1)) : name === p)))
+      }
+      const primary = createMemo(() => sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden))
+      // Never an empty list: with no allowed agent left, the gate's refusal explains.
+      const agents = createMemo(() => {
+        const usable = primary().filter((x) => allowed(x.name))
+        return usable.length ? usable : primary()
+      })
       const visibleAgents = createMemo(() => sync.data.agent.filter((x) => !x.hidden))
       const [agentStore, setAgentStore] = createStore({
         current: undefined as string | undefined,
@@ -59,6 +74,15 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         theme.error,
         theme.info,
       ])
+      // An agent chosen earlier that this tier cannot use: switch, and say so.
+      createEffect(() => {
+        const chosen = agentStore.current
+        if (!chosen || agents().some((x) => x.name === chosen)) return
+        const next = agents().at(0)
+        if (!next) return
+        setAgentStore("current", next.name)
+        toast.show({ variant: "info", message: `이 등급에서는 ${chosen} 에이전트를 쓸 수 없어 ${next.name}(으)로 바꿨습니다.`, duration: 5000 })
+      })
       return {
         list() {
           return agents()

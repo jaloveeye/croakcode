@@ -10,6 +10,9 @@ import { createSignal, Show } from "solid-js"
 import { readPolicy, writePolicy } from "./lib/policy-state.js"
 import * as S from "./lib/croak-auth-session.js"
 
+/** TUI kv key the agent list is filtered by (context/local.tsx). */
+const ALLOWED_AGENTS_KEY = "croak_allowed_agents"
+
 /** Tools a user may switch off for one session with /agent-perm. */
 const SESSION_TOOLS = ["bash", "edit", "write", "webfetch", "websearch"]
 const CMD = "/mnt/c/Windows/System32/cmd.exe"
@@ -65,6 +68,32 @@ const tui = async (api: any) => {
   }
   const timer = setInterval(reload, 5000)
   api.lifecycle?.onDispose?.(() => clearInterval(timer))
+
+  // The account whose conversation is open. The gate refuses a session that
+  // another account started, so a different account gets a new session.
+  const ownerKey = "croak_session_account"
+  const lastAccount = () => api.kv?.get?.(ownerKey) as string | undefined
+  const rememberAccount = (name: string | undefined) => api.kv?.set?.(ownerKey, name)
+  if (session()?.user?.username) rememberAccount(session().user.username)
+
+  // The agents this account's tier may use (shown in the agent list; the gate
+  // still enforces). Without a login every agent stays listed.
+  async function refreshAgents() {
+    if (!currentSession()) return api.kv?.set?.(ALLOWED_AGENTS_KEY, undefined)
+    try {
+      const me = await S.whoami()
+      const agents = me?.rules?.agents
+      api.kv?.set?.(ALLOWED_AGENTS_KEY, Array.isArray(agents) && agents.length ? agents : undefined)
+    } catch {
+      // Keep the last list: the gate is unreachable now, and it enforces anyway.
+    }
+  }
+  void refreshAgents()
+
+  function openNewSession(reason: string) {
+    if (api.route?.current?.name === "session") api.route.navigate("home")
+    toast("info", "새 세션을 열었습니다", reason)
+  }
 
   function Account(props: { compact?: boolean }) {
     const theme = () => api.theme.current
@@ -145,6 +174,11 @@ const tui = async (api: any) => {
             reload()
             const u = started.user ?? {}
             toast("success", `${u.username}님, 로그인했습니다`, `${TIER_NAMES[u.tier] ?? u.tier} 등급 · ${when(started.session_expires_at)}까지`)
+            const before = lastAccount()
+            rememberAccount(u.username)
+            void refreshAgents()
+            if (before && u.username && before !== u.username)
+              openNewSession(`${u.username} 계정으로 바뀌었습니다. 이전 세션은 ${before} 계정으로 다시 로그인하면 이어서 쓸 수 있습니다.`)
           } catch (error: any) {
             setBusy(false)
             toast("error", "로그인하지 못했습니다", error?.message ?? String(error))
@@ -157,7 +191,14 @@ const tui = async (api: any) => {
   async function logout() {
     const had = await S.logout()
     reload()
-    toast("info", had ? "로그아웃했습니다" : "로그인 상태가 아닙니다", had ? "다시 쓰려면 /login을 실행하세요." : "/login으로 로그인하세요.")
+    void refreshAgents()
+    toast(
+      "info",
+      had ? "로그아웃했습니다" : "로그인 상태가 아닙니다",
+      had
+        ? "같은 계정으로 /login하면 이 세션을 이어서 씁니다. 다른 계정으로 로그인하면 새 세션이 열립니다."
+        : "/login으로 로그인하세요.",
+    )
   }
 
   async function whoami() {
@@ -249,6 +290,12 @@ const tui = async (api: any) => {
   // Tell the user when the gate rejects the token (weekly logout, revoke, lock).
   api.event?.on?.("session.error", (event: any) => {
     const text = JSON.stringify(event?.properties?.error ?? "")
+    // The gate refused a session another account started (a login made outside
+    // this TUI, or an old session reopened): move to a new one.
+    if (/foreign_session|다른 계정이 시작한 세션/.test(text)) {
+      openNewSession("이 세션은 다른 계정이 시작했습니다. 지금 계정으로 새 세션에서 다시 시작하세요.")
+      return
+    }
     if (/\b401\b|Authentication Error|invalid.*key|expired/i.test(text)) {
       if (loggedInOnce || S.load()) toast("warning", "다시 로그인하세요", "로그인이 끝났습니다. /login으로 다시 로그인하세요.")
       else toast("warning", "로그인하세요", "아직 로그인하지 않았습니다. /login으로 로그인하세요.")
