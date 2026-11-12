@@ -133,3 +133,13 @@ upstream은 모델 정보를 `models.dev`에서 받아 캐시한다. 게이트 �
 - 신뢰를 기록하자 MCP 연결, instructions 요청, 플러그인 실행이 모두 일어났다. 설정 파일을 바꾸자 다시 제한 상태가 됐다.
 - tmux로 TUI를 띄웠다. 질문 창에서 Enter를 누르자 "신뢰 안 함"이 기록됐다. `/trust`에서 신뢰를 고르자 인스턴스를 다시 읽었고 MCP가 연결됐다.
 - 단위 시험: `test/croak/project-trust.test.ts`, `test/config/config.test.ts`의 게이트 시험 3개, provider 게이트 시험 3개
+
+## 6. 추가로 찾은 것 (2026-11-12, 0.6.8 배포 뒤)
+
+홈 화면 팁을 정리하다가 `.croakcode/tools/`를 안내하는 팁을 보았다. 이 폴더의 `.ts`, `.js` 파일은 도구 목록을 만들 때 import된다. import하면 파일의 코드가 실행된다. 5절의 신뢰 확인은 플러그인 폴더만 건너뛰고 이 폴더는 건너뛰지 않았다.
+
+- 0.6.8 실행 파일로 재현했다. 신뢰하지 않은 저장소에서 `croakcode run`을 실행하자 도구 파일이 import됐다.
+- 게이트 모드에서 신뢰하지 않은 저장소의 `.croakcode` 폴더는 도구 파일을 읽지 않게 했다(`src/tool/registry.ts`).
+- 신뢰 질문에 `tools (N개 파일)`도 나온다.
+- 고친 코드로 같은 재현을 했다. 신뢰하기 전에는 import되지 않았고 신뢰한 뒤에는 import됐다.
+- 시험: `test/tool/registry.test.ts`의 게이트 시험, `test/croak/project-trust.test.ts`의 도구 파일 시험

@@ -132,3 +132,10 @@ describe("connection mode", () => {
     expect(connectionFor({ connection: { mode: "direct" } })).toEqual({ mode: "direct" })
   })
 })
+
+describe("tool files", () => {
+  test("an untrusted project's tool files are named in the question", () => {
+    write(path.join(root, ".croakcode", "tools", "probe.ts"), "export default 1")
+    expect(ProjectTrust.inspect(root, root, home).ignored).toContain(".croakcode/tools (1개 파일)")
+  })
+})

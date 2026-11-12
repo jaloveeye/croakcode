@@ -68,7 +68,7 @@ function parse(tip: string): TipPart[] {
   return parts
 }
 
-const NO_MODELS_TIP = "Run {highlight}/connect{/highlight} to add an AI provider and start coding"
+const NO_MODELS_TIP = "Run {highlight}/login{/highlight} to sign in to the croak gate and start coding"
 const NO_MODELS_PARTS = parse(NO_MODELS_TIP)
 
 function shortcutText(value: string) {
@@ -164,7 +164,7 @@ export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
 const TIPS: Tip[] = [
   "Type {highlight}@{/highlight} followed by a filename to fuzzy search and attach files",
   "Start a message with {highlight}!{/highlight} to run shell commands directly (e.g., {highlight}!ls -la{/highlight})",
-  (shortcuts) => press(shortcuts.agentCycle(), "to cycle between Build and Plan agents"),
+  (shortcuts) => press(shortcuts.agentCycle(), "to switch between the agents your tier allows"),
   "Use {highlight}/undo{/highlight} to revert the last message and file changes",
   "Use {highlight}/redo{/highlight} to restore previously undone messages and file changes",
   "Run {highlight}/undo{/highlight} and then {highlight}/redo{/highlight} to safely experiment with changes",
@@ -185,7 +185,6 @@ const TIPS: Tip[] = [
   (shortcuts) => `Use ${commandText("/export", shortcuts.sessionExport())} to save the conversation as Markdown`,
   (shortcuts) => press(shortcuts.messagesCopy(), "to copy the assistant's last message to clipboard"),
   (shortcuts) => press(shortcuts.commandList(), "to see all available actions and commands"),
-  "Run {highlight}/connect{/highlight} to add API keys for 75+ supported LLM providers",
   (shortcuts) => `The leader key is ${shortcutText(shortcuts.leader())}; combine with other keys for quick actions`,
   (shortcuts) => press(shortcuts.modelCycleRecent(), "to quickly switch between recently used models"),
   (shortcuts) => press(shortcuts.sessionSidebarToggle(), "in a session to show or hide the sidebar panel"),
@@ -198,7 +197,7 @@ const TIPS: Tip[] = [
   (shortcuts) => press(shortcuts.inputNewline(), "to add newlines in your prompt"),
   (shortcuts) => press(shortcuts.inputClear(), "when typing to clear the input field"),
   (shortcuts) => press(shortcuts.sessionInterrupt(), "to stop the AI mid-response"),
-  "Switch to {highlight}Plan{/highlight} agent to get suggestions without making actual changes",
+  "Switch to the {highlight}Dev-Plan{/highlight} agent to get a plan without changing files",
   "Use {highlight}@agent-name{/highlight} in prompts to invoke specialized subagents",
   (shortcuts) => {
     const items = [
@@ -233,19 +232,14 @@ const TIPS: Tip[] = [
   "Add {highlight}.ts{/highlight} files to {highlight}.croakcode/plugins/{/highlight} for event hooks",
   "Use plugins to send OS notifications when sessions complete",
   "Create a plugin to prevent croakcode from reading sensitive files",
-  "Use {highlight}cc run{/highlight} for non-interactive scripting",
-  "Use {highlight}cc resume --last{/highlight} to resume the last session",
-  "Use {highlight}cc run -f file.ts{/highlight} to attach files via CLI",
+  "Use {highlight}croakcode run{/highlight} for non-interactive scripting",
+  "Use {highlight}croakcode resume --last{/highlight} to resume the last session",
+  "Use {highlight}croakcode run -f file.ts{/highlight} to attach files via CLI",
   "Use {highlight}--format json{/highlight} for machine-readable output in scripts",
-  "Run {highlight}cc serve{/highlight} for headless API access to croakcode",
-  "Use {highlight}cc run --attach{/highlight} to connect to a running server",
-  "Run {highlight}cc upgrade{/highlight} to update to the latest version",
-  "Run {highlight}cc auth list{/highlight} to see all configured providers",
-  "Run {highlight}cc agent create{/highlight} for guided agent creation",
-  "Use {highlight}/cc{/highlight} in GitHub issues/PRs to trigger AI actions",
-  "Run {highlight}cc github install{/highlight} to set up the GitHub workflow",
-  "Comment {highlight}/cc fix this{/highlight} on issues to auto-create PRs",
-  "Comment {highlight}/oc{/highlight} on PR code lines for targeted code reviews",
+  "Run {highlight}croakcode serve{/highlight} for headless API access to croakcode",
+  "Use {highlight}croakcode run --attach{/highlight} to connect to a running server",
+  "Run {highlight}croakcode upgrade{/highlight} to update to the latest version",
+  "Run {highlight}croakcode agent create{/highlight} for guided agent creation",
   'Use {highlight}"theme": "system"{/highlight} to match your terminal\'s colors',
   "Create JSON theme files in {highlight}.croakcode/themes/{/highlight} directory",
   "Themes support dark/light variants for both modes",
@@ -260,7 +254,7 @@ const TIPS: Tip[] = [
   "Override global tool settings per agent configuration",
   "Permission {highlight}doom_loop{/highlight} prevents infinite tool call loops",
   "Permission {highlight}external_directory{/highlight} protects files outside project",
-  "Run {highlight}cc debug config{/highlight} to troubleshoot configuration",
+  "Run {highlight}croakcode debug config{/highlight} to troubleshoot configuration",
   "Use {highlight}--print-logs{/highlight} flag to see detailed logs in stderr",
   (shortcuts) => `Use ${commandText("/timeline", shortcuts.sessionTimeline())} to jump to specific messages`,
   (shortcuts) => press(shortcuts.messagesToggleConceal(), "to toggle code block visibility in messages"),
@@ -270,8 +264,11 @@ const TIPS: Tip[] = [
     shortcuts.commandList()
       ? `Toggle username display in chat via the command palette (${shortcutText(shortcuts.commandList())})`
       : "Toggle username display in chat via the command palette",
-  "Run {highlight}docker run -it --rm ghcr.io/croakcode/croakcode{/highlight} for containerized use",
-  "Use {highlight}/connect{/highlight} with croak-gate for curated, tested models",
+  "Run {highlight}/whoami{/highlight} to see your tier and the agents and tools it allows",
+  "Run {highlight}/chatkey{/highlight} to make a chat-only key for Open WebUI and the like",
+  "Run {highlight}/trust{/highlight} to decide whether this project's own croakcode settings are used",
+  "Run {highlight}/upgrade{/highlight} to install a newer croakcode from the gate",
+  "Run {highlight}/agent-perm{/highlight} to switch tools off for this session",
   "Commit your project's {highlight}AGENTS.md{/highlight} file to Git for team sharing",
   "Use {highlight}/review{/highlight} to review uncommitted changes, branches, or PRs",
   (shortcuts) => `Use ${commandText("/help", shortcuts.helpShow())} to show the help dialog`,
