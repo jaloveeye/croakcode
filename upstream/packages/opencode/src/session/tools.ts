@@ -211,7 +211,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             )
             yield* guard.checkTool(ctx.sessionID, item.id).pipe(Effect.orDie)
             yield* guard
-              .authorizeExecution({ sessionID: ctx.sessionID, tool: item.id, args, mode: input.connectionMode ?? "direct" })
+              .authorizeExecution({ sessionID: ctx.sessionID, tool: item.id, args, mode: input.connectionMode ?? "gate" })
               .pipe(Effect.orDie)
             const target = yield* fileTarget(args)
             if (input.readBeforeWrite && target && CHANGES_FILE.has(item.id)) {
@@ -270,7 +270,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           )
           yield* guard.checkTool(ctx.sessionID, key).pipe(Effect.orDie)
           yield* guard
-            .authorizeExecution({ sessionID: ctx.sessionID, tool: key, args, mode: input.connectionMode ?? "direct" })
+            .authorizeExecution({ sessionID: ctx.sessionID, tool: key, args, mode: input.connectionMode ?? "gate" })
             .pipe(Effect.orDie)
           const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.gen(function* () {
             yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })

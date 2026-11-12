@@ -1,6 +1,7 @@
 import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { upgradeNow } from "./croak-upgrade"
+import { askProjectTrust } from "./croak-trust"
 import * as Clipboard from "@tui/util/clipboard"
 import * as Selection from "@tui/util/selection"
 import * as TuiAudio from "@tui/util/audio"
@@ -488,6 +489,26 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     }
   })
 
+  // Behind the croak gate, ask once whether this project's own config may be used in full.
+  const trustProject = (force = false) => {
+    const paths = project.instance.path()
+    if (!paths.directory) return Promise.resolve()
+    return askProjectTrust({
+      dialog,
+      directory: paths.directory,
+      worktree: paths.worktree,
+      force,
+      reload: () => sdk.client.instance.dispose(),
+      notify: (variant, message) => toast.show({ variant, message, duration: 8000 }),
+    }).catch(() => {})
+  }
+  let trustAsked = false
+  createEffect(() => {
+    if (trustAsked || !project.instance.path().directory) return
+    trustAsked = true
+    void trustProject()
+  })
+
   const args = useArgs()
   onMount(() => {
     batch(() => {
@@ -724,6 +745,16 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         category: "Agent",
         run: () => {
           local.model.variant.cycle()
+        },
+      },
+      {
+        name: "croak.trust",
+        title: "이 저장소의 설정 신뢰 여부 정하기",
+        category: "System",
+        slashName: "trust",
+        run: () => {
+          dialog.clear()
+          void trustProject(true)
         },
       },
       {

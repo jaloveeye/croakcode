@@ -5,6 +5,8 @@ import {
   containsGateContext,
 } from "../../../../../.croakcode/plugins/lib/connection.js"
 
+import { croakGate } from "@/provider/croak-gate"
+
 export type ConnectionMode = "gate" | "direct"
 
 // Resolves the effective connection mode for a request, applying the spec §5.3
@@ -13,6 +15,9 @@ export type ConnectionMode = "gate" | "direct"
 export function connectionFor(config: { connection?: { mode?: unknown } } | undefined): {
   mode: ConnectionMode
 } {
+  // Behind the croak gate every request goes to the gate, so "direct" would only
+  // switch off the gate's execution permits (DelegationGuard.authorizeExecution).
+  if (croakGate()) return { mode: "gate" }
   return { mode: resolveConnectionMode({ global: config?.connection?.mode }) }
 }
 
