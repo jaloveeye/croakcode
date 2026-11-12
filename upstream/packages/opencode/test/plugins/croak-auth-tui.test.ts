@@ -28,7 +28,7 @@ type SlotReg = { slots?: Record<string, unknown> }
 // `api.keymap.registerLayer({ commands: [{ slashName, run }] })` and its account
 // widgets through `api.slots.register({ slots: { sidebar_content, home_prompt_right } })`.
 // This test pins that registration contract without rendering the widgets.
-test("croak-auth TUI registers /login /logout /whoami /agent-perm and both slots", async () => {
+test("croak-auth TUI registers /login /logout /whoami /chatkey /agent-perm and both slots", async () => {
   const layers: Layer[] = []
   const slots: SlotReg[] = []
   const api = apiWithSlots(slots, layers)
@@ -43,8 +43,8 @@ test("croak-auth TUI registers /login /logout /whoami /agent-perm and both slots
   for (const name of ["login", "logout", "whoami", "agent-perm"]) {
     expect(slash).toContain(name)
   }
-  expect(slash.length).toBe(4)
-  expect(slash).toEqual(["login", "logout", "whoami", "agent-perm"])
+  expect(slash.length).toBe(5)
+  expect(slash).toEqual(["login", "logout", "whoami", "chatkey", "agent-perm"])
 
   const all = Object.assign({}, ...slots.map((s) => s.slots ?? {}))
   expect(typeof all.sidebar_content).toBe("function")

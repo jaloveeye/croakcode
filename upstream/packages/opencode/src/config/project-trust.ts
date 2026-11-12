@@ -67,6 +67,11 @@ export function trustRoot(directory: string, worktree?: string) {
   return worktree && worktree !== "/" ? worktree : directory
 }
 
+/** A folder's real path, as Inspection.dirs holds them. */
+export function realDir(p: string) {
+  return real(p)
+}
+
 function real(p: string) {
   try {
     return fs.realpathSync(p)
@@ -260,7 +265,8 @@ export function inspect(directory: string, worktree: string | undefined, home = 
     ignored.push(...sanitize(readJsonc(file)).ignored)
   }
   for (const dir of dirs) {
-    for (const sub of ["plugin", "plugins"]) {
+    // Plugins and tool files are imported, which runs their code.
+    for (const sub of ["plugin", "plugins", "tool", "tools"]) {
       const listed: string[] = []
       walk(path.join(dir, sub), listed)
       if (listed.length) ignored.push(`${path.basename(dir)}/${sub} (${listed.length}개 파일)`)

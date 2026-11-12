@@ -181,6 +181,32 @@ describe("tool.registry", () => {
     }),
   )
 
+  // croakcode: importing a tool file runs its code, so behind the croak gate an
+  // untrusted project's own tool files are not loaded (config/project-trust.ts).
+  it.instance("behind the croak gate an untrusted project's tool files are not loaded", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const tool = path.join(test.directory, ".croakcode", "tools")
+      yield* Effect.promise(() => fs.mkdir(tool, { recursive: true }))
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(tool, "probe.ts"),
+          "export default { description: 'probe', args: {}, execute: async () => 'ok' }\n",
+        ),
+      )
+      const before = process.env.CROAK_AUTH_URL
+      process.env.CROAK_AUTH_URL = "https://gate.example.test:8443"
+      try {
+        const registry = yield* ToolRegistry.Service
+        const ids = yield* registry.ids()
+        expect(ids).not.toContain("probe")
+      } finally {
+        if (before === undefined) delete process.env.CROAK_AUTH_URL
+        else process.env.CROAK_AUTH_URL = before
+      }
+    }),
+  )
+
   it.instance("ignores non-tool exports in .croakcode/tool files", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance

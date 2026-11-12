@@ -55,6 +55,7 @@ import { Reference } from "@/reference/reference"
 import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { croakGate } from "@/provider/croak-gate"
+import { ProjectTrust } from "@/config/project-trust"
 
 const log = Log.create({ service: "tool.registry" })
 
@@ -200,7 +201,12 @@ export const layer: Layer.Layer<
           }
         }
 
-        const dirs = yield* config.directories()
+        // Importing a tool file runs its code. Behind the croak gate an
+        // untrusted project's own .croakcode folders are skipped, like its
+        // plugins (config/project-trust.ts).
+        const project = croakGate() ? ProjectTrust.inspect(ctx.directory, ctx.worktree) : undefined
+        const skipped = new Set(project && ProjectTrust.restricted(project) ? project.dirs : [])
+        const dirs = (yield* config.directories()).filter((dir) => !skipped.has(ProjectTrust.realDir(dir)))
         const matches = dirs.flatMap((dir) =>
           Glob.scanSync("{tool,tools}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true }),
         )
