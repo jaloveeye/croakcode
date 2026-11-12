@@ -101,11 +101,19 @@ try {
     $launcher = @'
 @echo off
 setlocal
-if exist "%USERPROFILE%\.local\share\croakcode\croakcode.pending.exe" (
-  move /y "%USERPROFILE%\.local\share\croakcode\croakcode.pending.exe" "%USERPROFILE%\.local\share\croakcode\croakcode.exe" >nul
-  if errorlevel 1 (
-    echo Close all running croakcode processes and try again.
-    exit /b 1
+set "CROAK_APP_DIR=%USERPROFILE%\.local\share\croakcode"
+rem An update waits as croakcode.pending.exe until no croakcode runs. Retry a few
+rem times (antivirus may hold the new file briefly); if it still cannot be
+rem replaced, start the current version and finish the update next time.
+if exist "%CROAK_APP_DIR%\croakcode.pending.exe" (
+  for /l %%i in (1,1,5) do (
+    if exist "%CROAK_APP_DIR%\croakcode.pending.exe" (
+      move /y "%CROAK_APP_DIR%\croakcode.pending.exe" "%CROAK_APP_DIR%\croakcode.exe" >nul 2>&1 || timeout /t 1 /nobreak >nul
+    )
+  )
+  if exist "%CROAK_APP_DIR%\croakcode.pending.exe" (
+    echo croakcode update is waiting: another croakcode is still running.
+    echo Starting the current version. Close the other croakcode windows and start croakcode again to finish the update.
   )
 )
 rem A terminal can start in the Windows system folder; never use it as the project.

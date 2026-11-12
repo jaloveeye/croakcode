@@ -1,5 +1,6 @@
 import type { TuiPlugin, TuiPluginApi } from "@croakcode/plugin/tui"
 import type { InternalTuiPlugin } from "../../plugin/internal"
+import { updateBusy, updateLatest, upgradeNow } from "@tui/croak-upgrade"
 import { createMemo, Show } from "solid-js"
 import { Global } from "@croakcode/core/global"
 
@@ -66,9 +67,14 @@ function View(props: { api: TuiPluginApi }) {
         </span>{" "}
         <span>{props.api.app.version}</span>
       </text>
-      <Show when={process.env.CROAKCODE_UPDATE_LATEST}>
-        <text fg={theme().warning}>새 버전 {process.env.CROAKCODE_UPDATE_LATEST}</text>
-        <text fg={theme().textMuted}>croakcode upgrade</text>
+      <Show when={updateLatest()}>
+        <text
+          fg={theme().warning}
+          onMouseUp={() => void upgradeNow((variant, message) => props.api.ui.toast({ variant, message, duration: 8000 }))}
+        >
+          {updateBusy() ? "업데이트를 받는 중..." : `새 버전 ${updateLatest()} (지금 ${props.api.app.version})`}
+        </text>
+        <text fg={theme().textMuted}>눌러서 업데이트 · /upgrade</text>
       </Show>
     </box>
   )
