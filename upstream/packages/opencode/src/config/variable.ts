@@ -2,6 +2,7 @@ export * as ConfigVariable from "./variable"
 
 import path from "path"
 import os from "os"
+import { realpathSync } from "fs"
 import { Filesystem } from "@/util/filesystem"
 import { InvalidError } from "./error"
 
@@ -20,6 +21,23 @@ type SubstituteInput = ParseSource & {
   text: string
   missing?: "error" | "empty"
   env?: Record<string, string>
+  /**
+   * An untrusted project config (config/project-trust.ts): {env:} becomes empty
+   * and {file:} reads only files inside this folder.
+   */
+  restrict?: { root: string }
+}
+
+function within(root: string, file: string) {
+  const real = (p: string) => {
+    try {
+      return realpathSync(p)
+    } catch {
+      return path.resolve(p)
+    }
+  }
+  const relative = path.relative(real(root), real(file))
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
 }
 
 function source(input: ParseSource) {
@@ -34,6 +52,7 @@ function dir(input: ParseSource) {
 export async function substitute(input: SubstituteInput) {
   const missing = input.missing ?? "error"
   let text = input.text.replace(/\{env:([^}]+)\}/g, (_, varName) => {
+    if (input.restrict) return ""
     return (input.env?.[varName] ?? process.env[varName]) || ""
   })
 
@@ -64,6 +83,10 @@ export async function substitute(input: SubstituteInput) {
     }
 
     const resolvedPath = path.isAbsolute(filePath) ? filePath : path.resolve(configDir, filePath)
+    if (input.restrict && !within(input.restrict.root, resolvedPath)) {
+      cursor = index + token.length
+      continue
+    }
     const fileContent = (
       await Filesystem.readText(resolvedPath).catch((error: NodeJS.ErrnoException) => {
         if (missing === "empty") return ""

@@ -1,6 +1,8 @@
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"
+import { croakGate } from "./provider/croak-gate"
+import { outsideGateCommand, outsideGateMessage } from "./cli/croak/outbound"
 import { GenerateCommand } from "./cli/cmd/generate"
 import * as Log from "@croakcode/core/util/log"
 import { ConsoleCommand } from "./cli/cmd/account"
@@ -96,6 +98,11 @@ const cli = yargs(args)
     type: "boolean",
   })
   .middleware(async (opts) => {
+    const outside = croakGate() ? outsideGateCommand((opts._ ?? []).map(String)) : undefined
+    if (outside) {
+      process.stderr.write(outsideGateMessage(outside) + EOL)
+      process.exit(1)
+    }
     if (opts.pure) {
       process.env.CROAKCODE_PURE = "1"
     }

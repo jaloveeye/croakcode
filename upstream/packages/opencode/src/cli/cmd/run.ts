@@ -11,6 +11,8 @@
 // Also supports `--command` for slash-command execution, `--format json` for
 // raw event streaming, `--continue` / `--session` for session resumption,
 // and `--fork` for forking before continuing.
+import { croakGate } from "@/provider/croak-gate"
+import { ProjectTrust } from "@/config/project-trust"
 import type { Argv } from "yargs"
 import { LOGIN_HINT, isLoginError } from "@/cli/croak/terminal"
 import path from "path"
@@ -325,6 +327,18 @@ export const RunCommand = effectCmd({
           process.exit(1)
         }
       })()
+      // Behind the croak gate an untrusted project's config is restricted (config/project-trust.ts).
+      // run has no question to ask, so it says so; the TUI's /trust decides.
+      // With --dir the project is another folder, whose worktree is not known here; skip the notice.
+      if (localInstance && directory === localInstance.directory && croakGate()) {
+        const project = ProjectTrust.inspect(localInstance.directory, localInstance.worktree)
+        if (ProjectTrust.restricted(project))
+          process.stderr.write(
+            `[croak] 이 저장소의 설정 일부(${project.ignored.slice(0, 4).join(", ")}${project.ignored.length > 4 ? " 등" : ""})를 빼고 씁니다. croakcode 화면에서 /trust로 신뢰할 수 있습니다.` +
+              EOL,
+          )
+      }
+
       const attachHeaders = args.attach
         ? ServerAuth.headers({ password: args.password, username: args.username })
         : undefined

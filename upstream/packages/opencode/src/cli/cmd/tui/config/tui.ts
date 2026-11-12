@@ -1,5 +1,7 @@
 export * as TuiConfig from "./tui"
 
+import { croakGate } from "@/provider/croak-gate"
+import { ProjectTrust } from "@/config/project-trust"
 import path from "path"
 import { createBindingLookup } from "@opentui/keymap/extras"
 import { mergeDeep, unique } from "remeda"
@@ -179,9 +181,23 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
       return yield* load(text, filepath)
     })
 
+  // Behind the croak gate an untrusted project's tui.json may not add plugins
+  // (config/project-trust.ts); the TUI asks the user, then reloads.
+  const gateProject = croakGate()
+    ? ProjectTrust.inspect(ctx.directory, ProjectTrust.findWorktree(ctx.directory) ?? "/")
+    : undefined
+  const restrictPlugins = (file: string) => !!gateProject && ProjectTrust.restricted(gateProject) && !isOwnFile(file)
+  const isOwnFile = (file: string) =>
+    file.startsWith(Global.Path.config + path.sep) ||
+    file.startsWith(path.join(Global.Path.home, ".croakcode") + path.sep) ||
+    file === Flag.CROAKCODE_TUI_CONFIG ||
+    (!!Flag.CROAKCODE_CONFIG_DIR && file.startsWith(Flag.CROAKCODE_CONFIG_DIR + path.sep))
+
   const mergeFile = (acc: Acc, file: string) =>
     Effect.gen(function* () {
-      const data = yield* loadFile(file)
+      const loaded = yield* loadFile(file)
+      const data = restrictPlugins(file) && loaded.plugin ? { ...loaded, plugin: undefined } : loaded
+      if (data !== loaded) log.warn("tui plugins ignored until the project is trusted", { path: file })
       if (Object.keys(data).length) {
         appliedOrder += 1
         log.info("applying tui config", { path: file, order: appliedOrder })

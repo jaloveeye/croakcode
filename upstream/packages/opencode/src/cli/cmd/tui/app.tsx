@@ -1,6 +1,7 @@
 import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { upgradeNow } from "./croak-upgrade"
+import { askProjectTrust } from "./croak-trust"
 import * as Clipboard from "@tui/util/clipboard"
 import * as Selection from "@tui/util/selection"
 import * as TuiAudio from "@tui/util/audio"
@@ -59,7 +60,6 @@ import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
-import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { PermissionModeProvider, usePermissionMode } from "./context/permission"
 import { TuiConfigProvider, useTuiConfig } from "./context/tui-config"
@@ -117,7 +117,6 @@ const appBindingCommands = [
   "theme.switch_mode",
   "theme.mode.lock",
   "help.show",
-  "docs.open",
   "workspace.list",
   "app.debug",
   "app.console",
@@ -490,6 +489,26 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     }
   })
 
+  // Behind the croak gate, ask once whether this project's own config may be used in full.
+  const trustProject = (force = false) => {
+    const paths = project.instance.path()
+    if (!paths.directory) return Promise.resolve()
+    return askProjectTrust({
+      dialog,
+      directory: paths.directory,
+      worktree: paths.worktree,
+      force,
+      reload: () => sdk.client.instance.dispose(),
+      notify: (variant, message) => toast.show({ variant, message, duration: 8000 }),
+    }).catch(() => {})
+  }
+  let trustAsked = false
+  createEffect(() => {
+    if (trustAsked || !project.instance.path().directory) return
+    trustAsked = true
+    void trustProject()
+  })
+
   const args = useArgs()
   onMount(() => {
     batch(() => {
@@ -729,6 +748,16 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         },
       },
       {
+        name: "croak.trust",
+        title: "이 저장소의 설정 신뢰 여부 정하기",
+        category: "System",
+        slashName: "trust",
+        run: () => {
+          dialog.clear()
+          void trustProject(true)
+        },
+      },
+      {
         name: "croak.upgrade",
         title: "croakcode 업데이트",
         category: "System",
@@ -824,15 +853,6 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         slashName: "help",
         run: () => {
           dialog.replace(() => <DialogHelp />)
-        },
-        category: "System",
-      },
-      {
-        name: "docs.open",
-        title: "Open docs",
-        run: () => {
-          open("https://croakcode.ai/docs").catch(() => {})
-          dialog.clear()
         },
         category: "System",
       },

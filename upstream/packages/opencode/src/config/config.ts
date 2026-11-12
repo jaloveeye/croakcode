@@ -11,7 +11,7 @@ import { Flag } from "@croakcode/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { applyEdits, modify } from "jsonc-parser"
-import { existsSync } from "fs"
+import { existsSync, realpathSync } from "fs"
 import { Account } from "@/account/account"
 import { isRecord } from "@/util/record"
 import type { ConsoleState } from "./console-state"
@@ -42,6 +42,8 @@ import { ConfigSkills } from "./skills"
 import { ConfigVariable } from "./variable"
 import { Npm } from "@croakcode/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
+import { ProjectTrust } from "./project-trust"
+import { croakGate } from "@/provider/croak-gate"
 
 const log = Log.create({ service: "config" })
 
@@ -440,16 +442,19 @@ export const layer = Layer.effect(
       text: string,
       options: { path: string } | { dir: string; source: string },
       env?: Record<string, string>,
+      restrict?: { root: string },
     ) {
       const source = "path" in options ? options.path : options.source
       const expanded = yield* Effect.promise(() =>
         ConfigVariable.substitute(
           "path" in options
-            ? { text, type: "path", path: options.path, env }
-            : { text, type: "virtual", ...options, env },
+            ? { text, type: "path", path: options.path, env, restrict }
+            : { text, type: "virtual", ...options, env, restrict },
         ),
       )
-      const parsed = ConfigParse.jsonc(expanded, source)
+      const raw = ConfigParse.jsonc(expanded, source)
+      // An untrusted project config: only the keys ProjectTrust keeps.
+      const parsed = restrict && isRecord(raw) ? ProjectTrust.sanitize(raw).kept : raw
       const data = ConfigParse.schema(Info, normalizeLoadedConfig(parsed, source), source)
       if (!("path" in options)) return data
 
@@ -465,6 +470,14 @@ export const layer = Layer.effect(
       const text = yield* readConfigFile(filepath)
       if (!text) return {} as Info
       return yield* loadConfig(text, { path: filepath }, env)
+    })
+
+    // A project config file read before its project is trusted (config/project-trust.ts).
+    const loadRestricted = Effect.fnUntraced(function* (filepath: string, root: string) {
+      log.info("loading restricted", { path: filepath })
+      const text = yield* readConfigFile(filepath)
+      if (!text) return {} as Info
+      return yield* loadConfig(text, { path: filepath }, undefined, { root })
     })
 
     const loadGlobal = Effect.fnUntraced(function* (env?: Record<string, string>) {
@@ -566,8 +579,11 @@ export const layer = Layer.effect(
           return mergePluginOrigins(source, next.plugin, kind)
         }
 
+        // Behind the croak gate no outside server supplies config: a remote
+        // config is read as the user's own (it may add MCP servers and plugins).
+        const remoteConfig = !croakGate()
         for (const [key, value] of Object.entries(auth)) {
-          if (value.type === "wellknown") {
+          if (remoteConfig && value.type === "wellknown") {
             const url = key.replace(/\/+$/, "")
             authEnv[value.key] = value.token
             const wellknownURL = `${url}/.well-known/croakcode`
@@ -615,9 +631,17 @@ export const layer = Layer.effect(
           log.debug("loaded custom config", { path: Flag.CROAKCODE_CONFIG })
         }
 
+        // Behind the croak gate a project's own config is read in full only
+        // after the user trusts it (config/project-trust.ts).
+        const project = croakGate() ? ProjectTrust.inspect(ctx.directory, ctx.worktree) : undefined
+        const restrict = project && ProjectTrust.restricted(project) ? { root: project.root } : undefined
+        const projectDirs = new Set(project?.dirs ?? [])
+        const isProjectDir = (dir: string) => projectDirs.has(existsSync(dir) ? realpathSync(dir) : dir)
+        if (restrict) log.warn("project config restricted until trusted", { root: restrict.root, ignored: project?.ignored })
+
         if (!Flag.CROAKCODE_DISABLE_PROJECT_CONFIG) {
           for (const file of yield* ConfigPaths.files("croakcode", ctx.directory, ctx.worktree).pipe(Effect.orDie)) {
-            yield* merge(file, yield* loadFile(file, authEnv), "local")
+            yield* merge(file, restrict ? yield* loadRestricted(file, restrict.root) : yield* loadFile(file, authEnv), "local")
           }
         }
 
@@ -634,11 +658,12 @@ export const layer = Layer.effect(
         const deps: Fiber.Fiber<void>[] = []
 
         for (const dir of directories) {
+          const limited = restrict && isProjectDir(dir) ? restrict : undefined
           if (dir.endsWith(".croakcode") || dir === Flag.CROAKCODE_CONFIG_DIR) {
             for (const file of ["croakcode.json", "croakcode.jsonc"]) {
               const source = path.join(dir, file)
               log.debug(`loading config from ${source}`)
-              yield* merge(source, yield* loadFile(source, authEnv))
+              yield* merge(source, limited ? yield* loadRestricted(source, limited.root) : yield* loadFile(source, authEnv))
               result.agent ??= {}
               result.mode ??= {}
               result.plugin ??= []
@@ -653,7 +678,7 @@ export const layer = Layer.effect(
           // would be installed into every config folder. croakcode's plugins are
           // local files. A folder with its own package.json still gets the
           // dependencies it declares.
-          const declares = yield* fs.existsSafe(path.join(dir, "package.json"))
+          const declares = !limited && (yield* fs.existsSafe(path.join(dir, "package.json")))
           const dep = yield* (declares ? npmSvc.install(dir, { add: [] }) : Effect.void)
             .pipe(
               Effect.exit,
@@ -670,12 +695,19 @@ export const layer = Layer.effect(
           deps.push(dep)
 
           result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
-          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.load(dir)))
-          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.loadMode(dir)))
+          const agents = yield* Effect.promise(() => ConfigAgent.load(dir))
+          const modes = yield* Effect.promise(() => ConfigAgent.loadMode(dir))
+          const loosen = (value: Record<string, unknown>) =>
+            (limited ? ProjectTrust.sanitizeAgentFiles(value as Record<string, Record<string, unknown>>).agents : value) as typeof agents
+          result.agent = mergeDeep(result.agent ?? {}, loosen(agents))
+          result.agent = mergeDeep(result.agent ?? {}, loosen(modes))
           // Auto-discovered plugins under `.croakcode/plugin(s)` are already local files, so ConfigPlugin.load
           // returns normalized Specs and we only need to attach origin metadata here.
-          const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
-          yield* mergePluginOrigins(dir, list)
+          // An untrusted project's plugins do not run.
+          if (!limited) {
+            const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
+            yield* mergePluginOrigins(dir, list)
+          }
         }
 
         if (process.env.CROAKCODE_CONFIG_CONTENT) {
@@ -691,7 +723,7 @@ export const layer = Layer.effect(
         const activeAccount = Option.getOrUndefined(
           yield* accountSvc.active().pipe(Effect.catch(() => Effect.succeed(Option.none()))),
         )
-        if (activeAccount?.active_org_id) {
+        if (remoteConfig && activeAccount?.active_org_id) {
           const accountID = activeAccount.id
           const orgID = activeAccount.active_org_id
           const url = activeAccount.url

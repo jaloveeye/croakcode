@@ -29,6 +29,7 @@ import { ModelID, ProviderID } from "./schema"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
+import { croakGate, GATE_ONLY_MESSAGE } from "./croak-gate"
 
 const log = Log.create({ service: "provider" })
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 10_000
@@ -1243,7 +1244,9 @@ export const layer = Layer.effect(
         const disabled = new Set(cfg.disabled_providers ?? [])
         const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
 
+        const gate = croakGate()
         function isProviderAllowed(providerID: ProviderID): boolean {
+          if (gate && providerID !== gate.provider) return false
           if (enabled && !enabled.has(providerID)) return false
           if (disabled.has(providerID)) return false
           return true
@@ -1255,7 +1258,7 @@ export const layer = Layer.effect(
           if (!p || !models) continue
 
           const providerID = ProviderID.make(p.id)
-          if (disabled.has(providerID)) continue
+          if (!isProviderAllowed(providerID)) continue
 
           const provider = database[providerID]
           if (!provider) continue
@@ -1576,6 +1579,11 @@ export const layer = Layer.effect(
         })
 
         if (baseURL !== undefined) options["baseURL"] = baseURL
+        const gate = croakGate()
+        if (gate) {
+          if (model.providerID !== gate.provider || model.api.npm !== gate.npm) throw new Error(GATE_ONLY_MESSAGE)
+          options["baseURL"] = gate.baseURL
+        }
         if (options["apiKey"] === undefined && provider.key) options["apiKey"] = provider.key
         if (model.headers)
           options["headers"] = {

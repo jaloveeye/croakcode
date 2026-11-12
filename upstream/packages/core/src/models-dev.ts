@@ -152,6 +152,10 @@ export const layer = Layer.effect(
       return Date.now() - mtime < Duration.toMillis(ttl)
     })
 
+    // Behind the croak gate (the launcher sets CROAK_AUTH_URL) the gate's own
+    // model list is used; models.dev is an outside server croakcode does not call.
+    const behindGate = () => !!process.env.CROAK_AUTH_URL?.trim()
+
     const fetchApi = Effect.fn("ModelsDev.fetchApi")(function* () {
       return yield* HttpClientRequest.get(`${source}/api.json`).pipe(
         HttpClientRequest.setHeader("User-Agent", USER_AGENT),
@@ -181,7 +185,7 @@ export const layer = Layer.effect(
       if (fromDisk) return fromDisk
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
-      if (Flag.CROAKCODE_DISABLE_MODELS_FETCH) return {}
+      if (Flag.CROAKCODE_DISABLE_MODELS_FETCH || behindGate()) return {}
       // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
       const text = yield* Effect.scoped(
         Effect.gen(function* () {
@@ -197,6 +201,7 @@ export const layer = Layer.effect(
     const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
 
     const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
+      if (behindGate()) return
       if (!force && (yield* fresh())) return
       yield* Effect.scoped(
         Effect.gen(function* () {

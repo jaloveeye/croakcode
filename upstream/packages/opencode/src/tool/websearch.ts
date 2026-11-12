@@ -5,6 +5,7 @@ import * as McpWebSearch from "./mcp-websearch"
 import DESCRIPTION from "./websearch.txt"
 import { checksum } from "@croakcode/core/util/encode"
 import { InstallationVersion } from "@croakcode/core/installation/version"
+import { croakGate } from "@/provider/croak-gate"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 export const Parameters = Schema.Struct({
@@ -109,6 +110,7 @@ export const WebSearchTool = Tool.define(
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
+          if (croakGate()) return yield* Effect.fail(new Error("croakcode는 게이트 밖 검색 서비스를 쓰지 않습니다."))
           const provider = selectWebSearchProvider(ctx.sessionID, {
             exa: flags.enableExa,
             parallel: flags.enableParallel,

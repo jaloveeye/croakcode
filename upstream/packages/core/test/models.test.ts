@@ -211,6 +211,32 @@ describe("ModelsDev Service", () => {
     }),
   )
 
+  it.live("behind the croak gate refresh(true) never calls models.dev", () =>
+    Effect.gen(function* () {
+      yield* writeCache(fixture)
+      const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
+      const before = process.env.CROAK_AUTH_URL
+      process.env.CROAK_AUTH_URL = "https://gate.example.test:8443"
+      const after = yield* provided(
+        state,
+        Effect.gen(function* () {
+          const svc = yield* ModelsDev.Service
+          yield* svc.refresh(true)
+          return yield* svc.get()
+        }),
+      ).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (before === undefined) delete process.env.CROAK_AUTH_URL
+            else process.env.CROAK_AUTH_URL = before
+          }),
+        ),
+      )
+      expect(after).toEqual(fixture)
+      expect((yield* Ref.get(state)).calls.length).toBe(0)
+    }),
+  )
+
   it.live("refresh(false) skips fetch when on-disk file is fresh", () =>
     Effect.gen(function* () {
       // Fresh: mtime within the 5-minute TTL.

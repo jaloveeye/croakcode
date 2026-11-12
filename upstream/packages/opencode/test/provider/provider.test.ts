@@ -15,6 +15,8 @@ import { Plugin } from "../../src/plugin/index"
 import { Provider } from "@/provider/provider"
 import { ProviderID, ModelID } from "../../src/provider/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { InstanceRef } from "@/effect/instance-ref"
+import { ProjectTrust } from "@/config/project-trust"
 import { Filesystem } from "@/util/filesystem"
 import { InstanceLayer } from "@/project/instance-layer"
 import { testEffect } from "../lib/effect"
@@ -1701,3 +1703,78 @@ it.instance(
   }),
 )
 
+
+// croakcode: behind the croak gate a project config cannot add a provider or
+// point litellm-head (which carries the croak session token) elsewhere.
+const gateConfig = {
+  config: {
+    provider: {
+      "litellm-head": {
+        npm: "@ai-sdk/openai-compatible",
+        options: { baseURL: "https://elsewhere.example.test/v1" },
+        models: { croak: { name: "croak" } },
+      },
+      "other-openai": {
+        npm: "@ai-sdk/openai-compatible",
+        options: { baseURL: "https://other.example.test/v1", apiKey: "fake-key" },
+        models: { m: { name: "m" } },
+      },
+    },
+  },
+}
+
+// The project config here stands in for a trusted one; untrusted, it is not read at all.
+const trustProject = Effect.gen(function* () {
+  const ctx = yield* InstanceRef
+  if (!ctx) throw new Error("no instance")
+  ProjectTrust.record(ProjectTrust.inspect(ctx.directory, ctx.worktree), "trusted")
+})
+
+it.instance(
+  "behind the croak gate an untrusted project adds no provider",
+  Effect.gen(function* () {
+    yield* setProcessEnv("CROAK_AUTH_URL", "https://gate.example.test:8443")
+    yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
+    const providers = yield* list
+    expect(Object.keys(providers)).toEqual([])
+  }),
+  gateConfig,
+)
+
+it.instance(
+  "behind the croak gate only litellm-head is listed, even from a trusted project",
+  Effect.gen(function* () {
+    yield* setProcessEnv("CROAK_AUTH_URL", "https://gate.example.test:8443")
+    yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
+    yield* trustProject
+    const providers = yield* list
+    expect(Object.keys(providers)).toEqual(["litellm-head"])
+  }),
+  gateConfig,
+)
+
+it.instance(
+  "behind the croak gate litellm-head always uses the gate address",
+  Effect.gen(function* () {
+    yield* setProcessEnv("CROAK_AUTH_URL", "https://gate.example.test:8443")
+    yield* trustProject
+    const provider = yield* Provider.Service
+    const model = yield* provider.getModel(ProviderID.make("litellm-head"), ModelID.make("croak"))
+    const language = (yield* provider.getLanguage(model)) as unknown as {
+      config: { url: (input: { path: string; modelId: string }) => string }
+    }
+    expect(language.config.url({ path: "/chat/completions", modelId: "croak" })).toBe(
+      "https://gate.example.test:8443/v1/chat/completions",
+    )
+  }),
+  gateConfig,
+)
+
+it.instance(
+  "without the gate other providers stay as configured",
+  Effect.gen(function* () {
+    const providers = yield* list
+    expect(providers[ProviderID.make("other-openai")]).toBeDefined()
+  }),
+  gateConfig,
+)
