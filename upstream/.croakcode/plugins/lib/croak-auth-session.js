@@ -219,3 +219,26 @@ export async function gateModels() {
   if (!token) return null
   return (await call("GET", "/v1/croak/models", { token }))?.models ?? null
 }
+
+/**
+ * Chat-only keys (croak-auth /auth/chat-keys): for a chat program such as Open
+ * WebUI on this PC. The gate refuses tools with them. The key itself comes back
+ * only from createChatKey, once.
+ */
+export async function chatKeys() {
+  const token = await accessToken()
+  if (!token) return null
+  return call("GET", "/auth/chat-keys", { token })
+}
+
+export async function createChatKey(name, days) {
+  const token = await accessToken()
+  if (!token) return null
+  return call("POST", "/auth/chat-keys", { token, body: { name, ...(days ? { days } : {}) } })
+}
+
+export async function deleteChatKey(id) {
+  const token = await accessToken()
+  if (!token) return null
+  return call("DELETE", `/auth/chat-keys/${encodeURIComponent(String(id))}`, { token })
+}
