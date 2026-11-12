@@ -1,5 +1,6 @@
 import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
+import { upgradeNow } from "./croak-upgrade"
 import * as Clipboard from "@tui/util/clipboard"
 import * as Selection from "@tui/util/selection"
 import * as TuiAudio from "@tui/util/audio"
@@ -725,6 +726,15 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         category: "Agent",
         run: () => {
           local.model.variant.cycle()
+        },
+      },
+      {
+        name: "croak.upgrade",
+        title: "croakcode 업데이트",
+        category: "System",
+        slashName: "upgrade",
+        run: () => {
+          void upgradeNow((variant, message) => toast.show({ variant, message, duration: 8000 }))
         },
       },
       {
