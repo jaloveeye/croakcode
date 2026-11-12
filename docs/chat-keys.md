@@ -14,7 +14,10 @@ croakcode 로그인 키는 croakcode에서만 쓸 수 있다. Open WebUI 같은 
 ## 대화 프로그램에 넣기
 
 - Open WebUI의 OpenAI API 연결에 게이트 주소(`https://<게이트>/v1`)와 키를 넣는다.
-- 대화 프로그램이 게이트 인증서를 신뢰해야 연결된다. 인증서는 `~/.config/croak/ca/ca.crt`에 있다. Windows에서는 `%USERPROFILE%\.config\croak\ca\ca.crt`다.
+- 대화 프로그램이 게이트 인증서를 신뢰해야 연결된다. 인증서는 게이트의 `https://<게이트>/download/ca.crt`에서 받는다. croakcode를 설치한 PC에는 `~/.config/croak/ca/ca.crt`로도 있다.
+- 받은 인증서의 SHA-256 지문을 `/chatkey` 화면과 다운로드 페이지의 값과 비교한다. 비교 명령은 다운로드 페이지에 있다.
+- 인증서는 그 대화 프로그램에만 등록한다. Windows나 브라우저 전체의 신뢰 목록에는 넣지 않는다.
+- Open WebUI를 Docker로 쓰면 이미지에 등록한다. 방법은 다운로드 페이지(`https://<게이트>/download/#chat`)에 있다.
 
 ## 제한
 

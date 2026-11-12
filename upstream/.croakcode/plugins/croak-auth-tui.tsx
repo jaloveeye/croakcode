@@ -5,7 +5,8 @@
 // signs in, the page shows a one-time code; pasting it here finishes the login
 // (the code only works together with this session's PKCE verifier).
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { X509Certificate } from "node:crypto"
+import { existsSync, readFileSync } from "node:fs"
 import { createSignal, Show } from "solid-js"
 import { readPolicy, writePolicy } from "./lib/policy-state.js"
 import * as S from "./lib/croak-auth-session.js"
@@ -386,8 +387,19 @@ const tui = async (api: any) => {
     ))
   }
 
+  /** The gate CA's SHA-256 fingerprint, as the download page shows it; undefined when unreadable. */
+  function caFingerprint(): string | undefined {
+    try {
+      return new X509Certificate(readFileSync(S.caFile())).fingerprint256
+    } catch {
+      return undefined
+    }
+  }
+
   function showChatKey(made: any) {
     const base = made.base_url || `${S.authUrl()}/v1`
+    const gate = base.replace(/\/v1$/, "")
+    const fingerprint = caFingerprint()
     const copied = copyText(made.key)
     const DialogAlert = api.ui.DialogAlert
     api.ui.dialog.replace(() => (
@@ -401,7 +413,13 @@ const tui = async (api: any) => {
           "키는 지금 한 번만 보입니다. 닫으면 다시 볼 수 없습니다.",
           "",
           "Open WebUI의 OpenAI API 연결에 이 주소와 키를 넣으세요.",
-          `대화 프로그램이 게이트 인증서(${S.caFile()})를 신뢰해야 연결됩니다.`,
+          "",
+          "대화 프로그램이 게이트 인증서를 믿어야 연결됩니다.",
+          `인증서: ${gate}/download/ca.crt (이 PC: ${S.caFile()})`,
+          ...(fingerprint ? [`지문(SHA-256): ${fingerprint}`] : []),
+          "인증서는 그 대화 프로그램에만 등록하세요. Windows 전체에는 넣지 않습니다.",
+          `등록 방법: ${gate}/download/#chat`,
+          "",
           `이 키로는 도구를 쓸 수 없습니다. ${when(made.expires_at)}까지 씁니다. 이 PC에서만 쓰세요.`,
         ].join("\n")}
         onConfirm={() => api.ui.dialog.clear()}
