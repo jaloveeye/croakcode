@@ -22,6 +22,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { Guard } from "@/delegation/guard"
 import { Audit } from "@/delegation/audit"
 import { InstanceState } from "@/effect/instance-state"
+import { Permit } from "@/delegation/permit"
 import { ReadState } from "@/tool/read-state"
 
 const log = Log.create({ service: "session.tools" })
@@ -213,6 +214,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             yield* guard
               .authorizeExecution({ sessionID: ctx.sessionID, tool: item.id, args, mode: input.connectionMode ?? "gate" })
               .pipe(Effect.orDie)
+            Permit.markPermitted(ctx.callID)
             const target = yield* fileTarget(args)
             if (input.readBeforeWrite && target && CHANGES_FILE.has(item.id)) {
               const verdict = ReadState.check(ctx.sessionID, target, input.messages)
@@ -272,6 +274,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           yield* guard
             .authorizeExecution({ sessionID: ctx.sessionID, tool: key, args, mode: input.connectionMode ?? "gate" })
             .pipe(Effect.orDie)
+          Permit.markPermitted(opts.toolCallId)
           const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.gen(function* () {
             yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
             return yield* Effect.promise(() => execute(args, opts))

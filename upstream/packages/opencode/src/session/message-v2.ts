@@ -25,6 +25,7 @@ import { Effect, Schema, Types } from "effect"
 import { NonNegativeInt } from "@croakcode/core/schema"
 import * as EffectLogger from "@croakcode/core/effect/logger"
 import { MessageError } from "./message-error"
+import { Permit } from "@/delegation/permit"
 import { AuthError, OutputLengthError } from "./message-error"
 export { AuthError, OutputLengthError } from "./message-error"
 
@@ -642,6 +643,11 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
 ) {
   const result: UIMessage[] = []
   const toolNames = new Set<string>()
+  // croakcode: with execution permits on, a tool call that ended without a
+  // permit sends Permit.UNRUN_RESULT in place of its error (see there).
+  const permitsOn = Permit.loadConfig().enabled
+  const errorTextOf = (callID: string, text: string) =>
+    permitsOn && !Permit.wasPermitted(callID) ? Permit.UNRUN_RESULT : text
   // Track media from tool results that need to be injected as user messages
   // for providers that don't support that media type in tool results.
   //
@@ -847,7 +853,7 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
                 state: "output-error",
                 toolCallId: part.callID,
                 input: part.state.input,
-                errorText: part.state.error,
+                errorText: errorTextOf(part.callID, part.state.error),
                 ...(part.metadata?.providerExecuted ? { providerExecuted: true } : {}),
                 ...(differentModel ? {} : { callProviderMetadata: providerMeta(part.metadata) }),
               })
@@ -861,7 +867,7 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
               state: "output-error",
               toolCallId: part.callID,
               input: part.state.input,
-              errorText: "[Tool execution was interrupted]",
+              errorText: errorTextOf(part.callID, "[Tool execution was interrupted]"),
               ...(part.metadata?.providerExecuted ? { providerExecuted: true } : {}),
               ...(differentModel ? {} : { callProviderMetadata: providerMeta(part.metadata) }),
             })
