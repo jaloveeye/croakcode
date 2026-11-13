@@ -69,7 +69,13 @@ export async function init(options: Options) {
   if (options.print) return
   logpath = path.join(
     Global.Path.log,
-    options.dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log",
+    // The TUI's worker starts in the same second as the TUI; its own file name
+    // keeps it from truncating the TUI's log.
+    options.dev
+      ? "dev.log"
+      : new Date().toISOString().split(".")[0].replace(/:/g, "") +
+          (process.env.CROAKCODE_PROCESS_ROLE === "worker" ? "-worker" : "") +
+          ".log",
   )
   const runID = process.env.CROAKCODE_RUN_ID
   const shouldTruncate = !options.dev || !runID || process.env[initializedRunID] !== runID
@@ -88,7 +94,7 @@ export async function init(options: Options) {
 
 async function cleanup(dir: string) {
   const files = (
-    await Glob.scan("????-??-??T??????.log", {
+    await Glob.scan("????-??-??T??????{,-worker}.log", {
       cwd: dir,
       absolute: false,
       include: "file",

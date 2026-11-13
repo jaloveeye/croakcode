@@ -52,11 +52,15 @@ describe("reopening in Windows Terminal", () => {
 
 describe("WSL in the legacy Windows console", () => {
   const { legacyWslConsole, wslTerminalRelaunch, keepShellAfterRelaunch } = require("../../../src/cli/croak/terminal")
-  const wsl = { WSL_DISTRO_NAME: "Ubuntu", TERM: "xterm-256color", HOME: "/home/u" }
+  const wsl = { WSL_DISTRO_NAME: "Ubuntu", TERM: "xterm-256color", HOME: "/home/u", CROAKCODE_WSL_RELAUNCH: "1" }
+
+  test("is off unless CROAKCODE_WSL_RELAUNCH=1", () => {
+    expect(legacyWslConsole({ WSL_DISTRO_NAME: "Ubuntu", TERM: "xterm-256color" }, "linux")).toBe(false)
+  })
 
   test("WSL without a modern terminal counts, even with TERM set", () => {
     expect(legacyWslConsole(wsl, "linux")).toBe(true)
-    expect(legacyWslConsole({ WSL_INTEROP: "/run/WSL/1_interop", TERM: "xterm" }, "linux")).toBe(true)
+    expect(legacyWslConsole({ WSL_INTEROP: "/run/WSL/1_interop", TERM: "xterm", CROAKCODE_WSL_RELAUNCH: "1" }, "linux")).toBe(true)
   })
 
   test("plain Linux, Windows Terminal, VS Code, tmux, screen and ssh are fine", () => {
