@@ -1056,3 +1056,49 @@ describe("MessageV2 consistency", () => {
     ),
   )
 })
+
+// croakcode: a forked session's copied tool calls have no execution permit
+// under the new session id; fork marks them so the fork asks again.
+describe("Session.fork and execution permits", () => {
+  it.instance("marks copied tool calls, and the mark is not sent to the provider", () =>
+    Effect.gen(function* () {
+      const { Permit } = yield* Effect.promise(() => import("../../src/delegation/permit"))
+      const session = yield* SessionNs.Service
+      const created = yield* session.create({})
+      const u1 = yield* addUser(created.id, "read it")
+      const a1 = yield* addAssistant(created.id, u1, { finish: "tool-calls" })
+      yield* session.updatePart({
+        id: PartID.ascending(),
+        sessionID: created.id,
+        messageID: a1,
+        type: "tool",
+        callID: "call_1",
+        tool: "read",
+        state: {
+          status: "completed",
+          input: { filePath: "/work/a.txt" },
+          output: "file body",
+          title: "",
+          metadata: {},
+          time: { start: 1, end: 2 },
+        },
+      })
+
+      const forked = yield* session.fork({ sessionID: created.id })
+      const original = (yield* session.messages({ sessionID: created.id })).flatMap((m) => m.parts).find((p) => p.type === "tool")
+      const copy = (yield* session.messages({ sessionID: forked.id })).flatMap((m) => m.parts).find((p) => p.type === "tool")
+      expect(original?.type === "tool" && original.metadata?.[Permit.COPIED_KEY]).toBeFalsy()
+      expect(copy?.type === "tool" && copy.metadata?.[Permit.COPIED_KEY]).toBe("copied")
+      expect(copy?.type === "tool" && copy.callID).toBe("call_1")
+
+      // The mark is bookkeeping: it must not ride along as provider metadata.
+      const model = { id: "m", providerID: "p", api: { npm: "@ai-sdk/openai-compatible" }, capabilities: { input: {}, output: {} } } as any
+      const sent = yield* MessageV2.toModelMessagesEffect(yield* session.messages({ sessionID: forked.id }), model)
+      expect(JSON.stringify(sent)).not.toContain(Permit.COPIED_KEY)
+      expect(JSON.stringify(sent)).toContain("file body")
+
+      yield* session.remove(forked.id)
+      yield* session.remove(created.id)
+    }),
+  )
+})

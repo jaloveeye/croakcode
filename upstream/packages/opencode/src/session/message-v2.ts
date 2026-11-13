@@ -632,7 +632,8 @@ function providerMeta(metadata: Record<string, any> | undefined) {
   if (!metadata) return undefined
   // SEC-03: `origin` is runtime provenance, not provider metadata. It must never
   // be forwarded to the provider in the request body.
-  const { providerExecuted: _, origin: __, ...rest } = metadata
+  // croakcode: the copied-call marker (Permit.COPIED_KEY) is bookkeeping too.
+  const { providerExecuted: _, origin: __, [Permit.COPIED_KEY]: ___, ...rest } = metadata
   return Object.keys(rest).length > 0 ? rest : undefined
 }
 
@@ -646,8 +647,8 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
   // croakcode: with execution permits on, a tool call that ended without a
   // permit sends Permit.UNRUN_RESULT in place of its error (see there).
   const permitsOn = Permit.loadConfig().enabled
-  const errorTextOf = (callID: string, text: string) =>
-    permitsOn && !Permit.wasPermitted(callID) ? Permit.UNRUN_RESULT : text
+  const errorTextOf = (sessionID: string, callID: string, text: string) =>
+    permitsOn && !Permit.wasPermitted(sessionID, callID) ? Permit.UNRUN_RESULT : text
   // Track media from tool results that need to be injected as user messages
   // for providers that don't support that media type in tool results.
   //
@@ -853,7 +854,7 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
                 state: "output-error",
                 toolCallId: part.callID,
                 input: part.state.input,
-                errorText: errorTextOf(part.callID, part.state.error),
+                errorText: errorTextOf(part.sessionID, part.callID, part.state.error),
                 ...(part.metadata?.providerExecuted ? { providerExecuted: true } : {}),
                 ...(differentModel ? {} : { callProviderMetadata: providerMeta(part.metadata) }),
               })
@@ -867,7 +868,7 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
               state: "output-error",
               toolCallId: part.callID,
               input: part.state.input,
-              errorText: errorTextOf(part.callID, "[Tool execution was interrupted]"),
+              errorText: errorTextOf(part.sessionID, part.callID, "[Tool execution was interrupted]"),
               ...(part.metadata?.providerExecuted ? { providerExecuted: true } : {}),
               ...(differentModel ? {} : { callProviderMetadata: providerMeta(part.metadata) }),
             })

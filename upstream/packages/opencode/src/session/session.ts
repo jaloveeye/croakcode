@@ -39,6 +39,7 @@ import { Permission } from "@/permission"
 import { Global } from "@croakcode/core/global"
 import { Effect, Layer, Option, Context, Schema, Types } from "effect"
 import { NonNegativeInt, optionalOmitUndefined } from "@croakcode/core/schema"
+import { Permit } from "@/delegation/permit"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 const log = Log.create({ service: "session" })
@@ -797,6 +798,9 @@ export const layer: Layer.Layer<
           if (p.type === "compaction" && p.tail_start_id) {
             p.tail_start_id = idMap.get(p.tail_start_id)
           }
+          // croakcode: the gate holds no execution permit for this call under
+          // the new session id; the fork asks for one before its first request.
+          if (p.type === "tool") p.metadata = { ...p.metadata, [Permit.COPIED_KEY]: "copied" }
           yield* updatePart(p)
         }
       }

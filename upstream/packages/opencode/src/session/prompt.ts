@@ -66,6 +66,8 @@ import { SessionTable } from "./session.sql"
 import { referencePromptMetadata, referenceTextPart } from "./prompt/reference"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
+import { Permit } from "@/delegation/permit"
+import { EffectBridge } from "@/effect/bridge"
 import { LLMEvent } from "@croakcode/llm"
 
 // @ts-ignore
@@ -324,6 +326,81 @@ export const layer = Layer.effect(
         .pipe(Effect.catchCause((cause) => elog.error("failed to generate title", { error: Cause.squash(cause) })))
     })
 
+    // croakcode: the user's own shell command (!cmd), a user-invoked subtask
+    // and the structured-output tool are not ordinary model tool calls, but
+    // their results reach the gate as tool results all the same, and the gate
+    // refuses a result without a permit. Behind the gate they ask for one.
+    // A shell command runs outside the prompt loop, so it gets a run of its own.
+    const authorizeUserTool = Effect.fnUntraced(function* (call: {
+      sessionID: SessionID
+      agent: string
+      tool: string
+      args: unknown
+      callID: string | undefined
+    }) {
+      // Same switch as every other tool: permits are on when the login (or
+      // the environment) gave a gate key. Off: nothing to ask, as before.
+      if (!Permit.loadConfig().enabled) return
+      const had = yield* guard.runOf(call.sessionID)
+      if (!had) {
+        const info = yield* sessions.get(call.sessionID).pipe(Effect.orDie)
+        yield* guard.beginRun({
+          sessionID: call.sessionID,
+          ...(info.parentID ? { parentID: info.parentID } : {}),
+          agent: call.agent,
+        })
+      }
+      yield* guard
+        .authorizeExecution({ sessionID: call.sessionID, tool: call.tool, args: call.args, mode: "gate" })
+        .pipe(
+          Effect.ensuring(
+            had ? Effect.void : guard.endRun(call.sessionID, "completed").pipe(Effect.catchDefect(() => Effect.void)),
+          ),
+        )
+      Permit.markPermitted(call.sessionID, call.callID)
+    })
+
+    // croakcode: a forked session holds copies of its parent's tool calls
+    // (Session.fork marks them). The gate has no permit for them under the new
+    // session id, and a permit never carries over to another session, so the
+    // fork asks for each one again before its first request. A call that only
+    // sends the fixed "never ran" text needs none. A refused or failed request
+    // leaves the mark, and the next loop asks again.
+    const repermitCopied = Effect.fnUntraced(function* (sessionID: SessionID) {
+      if (!Permit.loadConfig().enabled) return
+      const copied = (yield* sessions.messages({ sessionID }))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.ToolPart => part.type === "tool" && part.metadata?.[Permit.COPIED_KEY] === "copied")
+      if (copied.length === 0) return
+      yield* Effect.forEach(
+        copied,
+        (part) =>
+          Effect.gen(function* () {
+            const state = part.state
+            const sendsResult =
+              state.status === "completed" ||
+              (state.status === "error" && state.metadata?.interrupted === true && typeof state.metadata.output === "string")
+            if (sendsResult) {
+              const target = Permit.permitTarget(part.tool, state.input)
+              const permitted = yield* guard
+                .authorizeExecution({ sessionID, tool: target.tool, args: target.args, mode: "gate" })
+                .pipe(
+                  Effect.as(true),
+                  Effect.catchCause(() => Effect.succeed(false)),
+                )
+              if (!permitted) {
+                log.warn("no permit for a copied tool call", { sessionID, tool: target.tool })
+                return
+              }
+              Permit.markPermitted(sessionID, part.callID)
+            }
+            const { [Permit.COPIED_KEY]: _, ...rest } = part.metadata ?? {}
+            yield* sessions.updatePart({ ...part, metadata: Object.keys(rest).length > 0 ? rest : undefined })
+          }),
+        { concurrency: 8, discard: true },
+      )
+    })
+
     const handleSubtask = Effect.fn("SessionPrompt.handleSubtask")(function* (input: {
       task: MessageV2.SubtaskPart
       model: Provider.Model
@@ -393,14 +470,24 @@ export const layer = Layer.effect(
 
       let error: Error | undefined
       const taskAbort = new AbortController()
-      // A user-invoked subtask is not a model tool call, so it needs no Gate
-      // execution permit (Task 9); every tool the child then runs goes through
-      // the tool wrappers and their permit check. Reading the connection mode
-      // here would also add a second snapshot before the step's (SEC-03).
+      // A user-invoked subtask is not a model tool call, but its result goes
+      // back to the model as the task tool's result, and the gate checks every
+      // tool result it sees. So behind the gate it asks for a permit too
+      // (authorizeUserTool reads no connection mode: SEC-03 keeps one snapshot
+      // per step). The part's input is what the gate hashes.
       const result = yield* guard
         .checkTool(sessionID, TaskTool.id)
         .pipe(Effect.orDie)
         .pipe(
+          Effect.andThen(
+            authorizeUserTool({
+              sessionID,
+              agent: task.agent,
+              tool: TaskTool.id,
+              args: part.state.input,
+              callID: part.callID,
+            }).pipe(Effect.orDie),
+          ),
           Effect.andThen(
             taskTool.execute(taskArgs, {
           agent: task.agent,
@@ -648,6 +735,38 @@ export const layer = Layer.effect(
               }
             }),
           )
+
+          // Behind the gate the command's output goes to the model as a bash
+          // result, so it needs a permit first. Without one nothing runs and
+          // the part ends as an error (sent to the gate as "never ran").
+          const refused = yield* authorizeUserTool({
+            sessionID: input.sessionID,
+            agent: input.agent,
+            tool: ShellID.ToolID,
+            args: part.state.input,
+            callID: part.callID,
+          }).pipe(
+            Effect.as(undefined as string | undefined),
+            Effect.catchCause((cause) => {
+              const defect = Cause.squash(cause)
+              return Effect.succeed(defect instanceof Error ? defect.message : String(defect))
+            }),
+          )
+          if (refused !== undefined) {
+            const ended = Date.now()
+            if (!msg.time.completed) {
+              msg.time.completed = ended
+              yield* sessions.updateMessage(msg)
+            }
+            part.state = {
+              status: "error",
+              input: part.state.input,
+              error: `실행 허가를 받지 못해 명령을 실행하지 않았습니다: ${refused}`,
+              time: { start: part.state.status === "running" ? part.state.time.start : ended, end: ended },
+            }
+            yield* sessions.updatePart(part)
+            return { info: msg, parts: [part] }
+          }
 
           const exit = yield* restore(
             Effect.gen(function* () {
@@ -1469,11 +1588,23 @@ export const layer = Layer.effect(
             )
 
             if (lastUser.format?.type === "json_schema") {
+              const run = yield* EffectBridge.make()
               tools["StructuredOutput"] = createStructuredOutputTool({
                 schema: lastUser.format.schema,
                 onSuccess(output) {
                   structured = output
                 },
+                // Its result is a tool result in later turns of the session.
+                authorize: (args, callID) =>
+                  run.promise(
+                    authorizeUserTool({
+                      sessionID,
+                      agent: lastUser.agent,
+                      tool: "StructuredOutput",
+                      args,
+                      callID,
+                    }).pipe(Effect.orDie),
+                  ),
               })
             }
 
@@ -1615,6 +1746,9 @@ export const layer = Layer.effect(
             agent: info.agent ?? "unknown",
           })
           .pipe(Effect.catchDefect((defect) => elog.warn("delegation run not started", { sessionID, defect: String(defect) })))
+        yield* repermitCopied(sessionID).pipe(
+          Effect.catchCause((cause) => elog.warn("copied tool calls not re-permitted", { sessionID, cause: Cause.pretty(cause) })),
+        )
         return yield* runLoop(sessionID)
       }).pipe(
         Effect.onExit((exit) =>
@@ -2009,6 +2143,8 @@ export type CommandInput = Schema.Schema.Type<typeof CommandInput>
 export function createStructuredOutputTool(input: {
   schema: Record<string, any>
   onSuccess: (output: unknown) => void
+  /** croakcode: asks the gate for an execution permit before the result is kept. */
+  authorize?: (args: unknown, callID: string | undefined) => Promise<void>
 }): AITool {
   // Remove $schema property if present (not needed for tool input)
   const { $schema: _, ...toolSchema } = input.schema
@@ -2016,7 +2152,8 @@ export function createStructuredOutputTool(input: {
   return tool({
     description: STRUCTURED_OUTPUT_DESCRIPTION,
     inputSchema: jsonSchema(toolSchema as JSONSchema7),
-    async execute(args) {
+    async execute(args, options) {
+      await input.authorize?.(args, options?.toolCallId)
       // AI SDK validates args against inputSchema before calling execute()
       input.onSuccess(args)
       return {

@@ -48,3 +48,24 @@ describe("web search", () => {
     expect(webSearchEnabled(ProviderID.make(GATE_PROVIDER), { exa: true, parallel: false })).toBe(true)
   })
 })
+
+describe("execution permit bookkeeping", () => {
+  const { Permit } = require("../../src/delegation/permit")
+
+  test("a permit is remembered per session, not per call id alone", () => {
+    Permit.markPermitted("ses_a", "call_1")
+    expect(Permit.wasPermitted("ses_a", "call_1")).toBe(true)
+    // A fork copies the call id into another session.
+    expect(Permit.wasPermitted("ses_b", "call_1")).toBe(false)
+  })
+
+  test("a tool_call proxy call is permitted as the tool it called, like the gate reads it", () => {
+    expect(Permit.permitTarget("read", { filePath: "/a" })).toEqual({ tool: "read", args: { filePath: "/a" } })
+    expect(Permit.permitTarget("tool_call", { name: "todowrite", input: { todos: [] } })).toEqual({
+      tool: "todowrite",
+      args: { todos: [] },
+    })
+    // Not the proxy's shape: left as it is.
+    expect(Permit.permitTarget("tool_call", { name: "x" })).toEqual({ tool: "tool_call", args: { name: "x" } })
+  })
+})
