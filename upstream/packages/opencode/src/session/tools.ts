@@ -346,7 +346,18 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     tools[key] = item
   }
 
-  return input.deferredTools ? deferTools(tools) : tools
+  // tool_search runs no tool of the user's, but its result reaches the gate
+  // like any other, so it asks for an execution permit too.
+  const authorizeSearch = (args: unknown, callID: string | undefined) =>
+    run.promise(
+      Effect.gen(function* () {
+        yield* guard
+          .authorizeExecution({ sessionID: input.session.id, tool: "tool_search", args, mode: input.connectionMode ?? "gate" })
+          .pipe(Effect.orDie)
+        Permit.markPermitted(callID)
+      }),
+    )
+  return input.deferredTools ? deferTools(tools, authorizeSearch) : tools
 })
 
 // Phase 5 Task 8 (experimental): the request carries the core tools plus
@@ -355,7 +366,10 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
 // execution permits, audit and read state apply under the real tool name.
 const CORE_TOOLS = new Set(["read", "edit", "write", "bash", "glob", "grep", "invalid", "StructuredOutput"])
 
-export function deferTools(tools: Record<string, AITool>): Record<string, AITool> {
+export function deferTools(
+  tools: Record<string, AITool>,
+  authorizeSearch: (args: unknown, callID: string | undefined) => Promise<void> = async () => {},
+): Record<string, AITool> {
   const hidden = Object.fromEntries(Object.entries(tools).filter(([name]) => !CORE_TOOLS.has(name)))
   const names = Object.keys(hidden).toSorted()
   if (names.length === 0) return tools
@@ -373,7 +387,8 @@ export function deferTools(tools: Record<string, AITool>): Record<string, AITool
       required: ["query"],
       additionalProperties: false,
     }),
-    async execute(args: { query: string }) {
+    async execute(args: { query: string }, options) {
+      await authorizeSearch(args, options?.toolCallId)
       const words = args.query.toLowerCase().split(/\s+/).filter(Boolean)
       const matches = names.filter((name) => {
         const text = `${name} ${hidden[name].description ?? ""}`.toLowerCase()
