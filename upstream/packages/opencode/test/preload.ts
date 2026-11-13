@@ -77,6 +77,9 @@ delete process.env["CEREBRAS_API_KEY"]
 delete process.env["SAMBANOVA_API_KEY"]
 delete process.env["CROAKCODE_SERVER_PASSWORD"]
 delete process.env["CROAKCODE_SERVER_USERNAME"]
+// The croak gate restricts providers to litellm-head. Tests use their own
+// providers, so start without the gate; gate-specific tests set it explicitly.
+delete process.env["CROAK_AUTH_URL"]
 
 // Use in-memory sqlite
 process.env["CROAKCODE_DB"] = ":memory:"
