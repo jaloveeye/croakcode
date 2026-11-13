@@ -9,7 +9,7 @@ import { Bus } from "../bus"
 import { InstanceState } from "@/effect/instance-state"
 import { FileWatcher } from "@/file/watcher"
 import { ShareNext } from "@/share/share-next"
-import { Effect, Layer } from "effect"
+import { Effect, Fiber, Layer } from "effect"
 import { Config } from "@/config/config"
 import { Service } from "./bootstrap-service"
 import { Reference } from "@/reference/reference"
@@ -44,9 +44,30 @@ export const layer = Layer.effect(
       yield* plugin.init()
       // Each service self-manages its own slow work via Effect.forkScoped against
       // its per-instance state scope. We just await materialization here.
+      // croakcode: one of these sometimes never finished (WSL, large folders),
+      // and the TUI waited forever on a blank screen. Each one is named in the
+      // log when it ends; one still running after 10 s is left to finish in
+      // the background with a warning, so the TUI starts.
+      const services = { reference, lsp, shareNext, format, file, fileWatcher, vcs, snapshot, project }
       yield* Effect.forEach(
-        [reference, lsp, shareNext, format, file, fileWatcher, vcs, snapshot, project],
-        (s) => s.init().pipe(Effect.catchCause((cause) => Effect.logWarning("init failed", { cause }))),
+        Object.entries(services),
+        ([name, s]) =>
+          Effect.gen(function* () {
+            const fiber = yield* Effect.forkDetach(
+              s.init().pipe(
+                Effect.tap(() => Effect.logInfo("init done").pipe(Effect.annotateLogs("service", name))),
+                Effect.catchCause((cause) => Effect.logWarning("init failed", { cause, service: name })),
+              ),
+            )
+            // Waiting stops after 10 s; the init itself keeps running.
+            yield* Fiber.await(fiber).pipe(
+              Effect.asVoid,
+              Effect.timeoutOrElse({
+                duration: "10 seconds",
+                orElse: () => Effect.logWarning("init still running after 10 s; not waiting", { service: name }),
+              }),
+            )
+          }),
         { concurrency: "unbounded", discard: true },
       ).pipe(Effect.withSpan("InstanceBootstrap.init"))
     }).pipe(Effect.withSpan("InstanceBootstrap"))

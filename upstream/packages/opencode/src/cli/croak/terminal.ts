@@ -47,6 +47,10 @@ export function windowsTerminalRelaunch(
  */
 export function legacyWslConsole(env: NodeJS.ProcessEnv, platform: string = process.platform) {
   if (platform !== "linux") return false
+  // Opt-in: Windows Terminal does not always pass WT_SESSION into WSL (a WSL
+  // started from a PowerShell tab), and a wrong guess opened a new window and
+  // left the user's tab empty.
+  if (env.CROAKCODE_WSL_RELAUNCH !== "1") return false
   if (!env.WSL_DISTRO_NAME && !env.WSL_INTEROP) return false
   if (env.CROAKCODE_ALLOW_CONSOLE === "1" || env.CROAKCODE_RELAUNCHED) return false
   return !(
