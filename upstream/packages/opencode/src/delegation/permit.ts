@@ -75,16 +75,39 @@ export function canonicalJson(value: unknown): string {
  */
 export const UNRUN_RESULT = "[croak] 이 도구 호출은 실행되지 않았다."
 
-// Tool calls that got a permit in this process. A call missing here sends
-// UNRUN_RESULT in place of its error (MessageV2.toModelMessages).
+// Tool calls that got a permit in this process, per session: a fork copies
+// call ids into a new session, and a permit never carries over to another
+// session. A call missing here sends UNRUN_RESULT in place of its error
+// (MessageV2.toModelMessages).
 const permittedCalls = new Set<string>()
 
-export function markPermitted(callID: string | undefined) {
-  if (callID) permittedCalls.add(callID)
+export function markPermitted(sessionID: string, callID: string | undefined) {
+  if (callID) permittedCalls.add(`${sessionID}:${callID}`)
 }
 
-export function wasPermitted(callID: string) {
-  return permittedCalls.has(callID)
+export function wasPermitted(sessionID: string, callID: string) {
+  return permittedCalls.has(`${sessionID}:${callID}`)
+}
+
+/**
+ * Part metadata key Session.fork sets on a copied tool call ("copied"): the
+ * gate holds no permit for it under the new session id, so the fork asks for
+ * one before its first request (SessionPrompt). Never sent to the provider.
+ */
+export const COPIED_KEY = "croakPermit"
+
+/**
+ * The tool and arguments a permit is for, as the gate reads a call
+ * (croak_core.answered_tool_calls): a tool_call proxy call counts as the tool
+ * it called.
+ */
+export function permitTarget(tool: string, input: unknown): { tool: string; args: unknown } {
+  if (tool === "tool_call" && input && typeof input === "object") {
+    const proxy = input as { name?: unknown; input?: unknown }
+    if (typeof proxy.name === "string" && proxy.input && typeof proxy.input === "object" && !Array.isArray(proxy.input))
+      return { tool: proxy.name, args: proxy.input }
+  }
+  return { tool, args: input }
 }
 
 export function argsHash(args: unknown): string {

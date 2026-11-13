@@ -1,4 +1,5 @@
 import { NodeFileSystem } from "@effect/platform-node"
+import { Permit } from "../../src/delegation/permit"
 import { FetchHttpClient } from "effect/unstable/http"
 import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
@@ -982,6 +983,138 @@ it.instance(
   30_000,
 )
 
+// croakcode: behind the gate the user's own shell command is a bash result the
+// gate checks, so it asks for an execution permit before it runs.
+const permitGate = generateKeyPairSync("ed25519")
+const permitPublic = permitGate.publicKey.export({ format: "der", type: "spki" }).subarray(-32).toString("base64")
+
+/** Runs body with execution permits required and a fake gate at `url` (or none listening). */
+const withPermits = <A, E, R>(url: string, body: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const keys = ["CROAKCODE_EXECUTION_PERMIT", "CROAKCODE_GATE_PERMIT_PUBLIC_KEY", "CROAKCODE_GATE_PERMIT_URL", "CROAK_CONFIG_DIR"]
+      const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+      const dir = mkdtempSync(path.join(os.tmpdir(), "croak-permit-shell-"))
+      // A login with a token that is not about to expire; the token is fake.
+      const later = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+      writeFileSync(
+        path.join(dir, "session.json"),
+        JSON.stringify({ access_token: "fake-token", refresh_token: "fake-refresh", access_expires_at: later, session_expires_at: later }),
+      )
+      process.env.CROAKCODE_EXECUTION_PERMIT = "required"
+      process.env.CROAKCODE_GATE_PERMIT_PUBLIC_KEY = permitPublic
+      process.env.CROAKCODE_GATE_PERMIT_URL = url
+      process.env.CROAK_CONFIG_DIR = dir
+      return saved
+    }),
+    () => body,
+    (saved) =>
+      Effect.sync(() => {
+        for (const [key, value] of Object.entries(saved)) {
+          if (value === undefined) delete process.env[key]
+          else process.env[key] = value
+        }
+      }),
+  )
+
+it.instance(
+  "a user-invoked subtask asks the gate for a task permit, and does not run without one",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Pinned" })
+      yield* llm.text("done")
+      const msg = yield* user(chat.id, "hello")
+      yield* addSubtask(chat.id, msg.id)
+      // A gate that hears the request and refuses it.
+      const asked: { tool: string; args: string; sid: string }[] = []
+      const server = Bun.serve({
+        port: 0,
+        async fetch(request) {
+          asked.push((await request.json()) as { tool: string; args: string; sid: string })
+          return new Response("no", { status: 403 })
+        },
+      })
+      yield* withPermits(`http://127.0.0.1:${server.port}`, prompt.loop({ sessionID: chat.id })).pipe(
+        Effect.ensuring(Effect.sync(() => void server.stop(true))),
+      )
+
+      const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
+      const task = msgs
+        .flatMap((m) => m.parts)
+        .find((p): p is MessageV2.ToolPart => p.type === "tool" && p.tool === "task")
+      expect(task?.state.status).toBe("error")
+      // The permit is asked for what the gate will hash: the part's input.
+      expect(asked[0]).toEqual(
+        expect.objectContaining({ tool: "task", sid: chat.id, args: Permit.argsHash(task?.state.input) }),
+      )
+      // The child never ran.
+      expect((yield* sessions.children(chat.id)).length).toBe(0)
+      expect(Permit.wasPermitted(chat.id, task!.callID)).toBe(false)
+    }),
+  30_000,
+)
+
+it.instance(
+  "a forked session asks the gate again for the permits of its copied tool calls",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Pinned" })
+      const seeded = yield* seed(chat.id, { finish: "tool-calls" })
+      yield* sessions.updatePart({
+        id: PartID.ascending(),
+        messageID: seeded.assistant.id,
+        sessionID: chat.id,
+        type: "tool",
+        callID: "call_read_1",
+        tool: "read",
+        state: {
+          status: "completed",
+          input: { filePath: "/work/a.txt" },
+          output: "file body",
+          title: "",
+          metadata: {},
+          time: { start: 1, end: 2 },
+        },
+      })
+      const forked = yield* sessions.fork({ sessionID: chat.id })
+      yield* llm.text("done")
+      yield* user(forked.id, "go on")
+
+      const asked: { tool: string; args: string; sid: string }[] = []
+      const server = Bun.serve({
+        port: 0,
+        async fetch(request) {
+          const body = (await request.json()) as { tool: string; args: string; sid: string }
+          asked.push(body)
+          const now = Date.now()
+          const segment = Permit.encodePayload({ aud: "croakcode", ...(body as any), iat: now, exp: now + 30_000, nonce: `n${now}${asked.length}` })
+          return Response.json({ token: Permit.joinToken(segment, cryptoSign(null, Buffer.from(segment, "ascii"), permitGate.privateKey)) })
+        },
+      })
+      yield* withPermits(`http://127.0.0.1:${server.port}`, prompt.loop({ sessionID: forked.id })).pipe(
+        Effect.ensuring(Effect.sync(() => void server.stop(true))),
+      )
+
+      // The copied call was permitted again, under the fork's own session id.
+      expect(asked).toContainEqual(
+        expect.objectContaining({ tool: "read", sid: forked.id, args: Permit.argsHash({ filePath: "/work/a.txt" }) }),
+      )
+      expect(Permit.wasPermitted(forked.id, "call_read_1")).toBe(true)
+      expect(Permit.wasPermitted(chat.id, "call_read_1")).toBe(false)
+      const copy = (yield* sessions.messages({ sessionID: forked.id }))
+        .flatMap((m) => m.parts)
+        .find((p): p is MessageV2.ToolPart => p.type === "tool")
+      expect(copy?.metadata?.[Permit.COPIED_KEY]).toBeUndefined()
+    }),
+  30_000,
+)
+
 it.instance(
   "Phase 4: the user-invoked subtask path re-checks delegated authority",
   () =>
@@ -1722,6 +1855,59 @@ unixNoLLMServer(
       expect(tool.state.metadata.output).toContain("out")
       expect(tool.state.metadata.output).toContain("err")
       yield* run.assertNotBusy(chat.id)
+    }),
+  { config: cfg },
+)
+
+unixNoLLMServer(
+  "shell asks the gate for a bash permit and runs with it",
+  () =>
+    Effect.gen(function* () {
+      const { prompt, chat } = yield* boot()
+      const asked: { tool: string; args: string; sid: string }[] = []
+      const server = Bun.serve({
+        port: 0,
+        async fetch(request) {
+          const body = (await request.json()) as { tool: string; args: string; sid: string }
+          asked.push(body)
+          const now = Date.now()
+          const segment = Permit.encodePayload({ aud: "croakcode", ...(body as any), iat: now, exp: now + 30_000, nonce: `n${now}` })
+          return Response.json({ token: Permit.joinToken(segment, cryptoSign(null, Buffer.from(segment, "ascii"), permitGate.privateKey)) })
+        },
+      })
+      const result = yield* withPermits(
+        `http://127.0.0.1:${server.port}`,
+        prompt.shell({ sessionID: chat.id, agent: "build", command: "printf permitted" }),
+      ).pipe(Effect.ensuring(Effect.sync(() => void server.stop(true))))
+
+      const tool = completedTool(result.parts)
+      if (!tool) return
+      expect(tool.state.output).toContain("permitted")
+      // The permit is for what the gate will hash: the part's input.
+      expect(asked).toEqual([
+        expect.objectContaining({ tool: "bash", sid: chat.id, args: Permit.argsHash({ command: "printf permitted" }) }),
+      ])
+      expect(Permit.wasPermitted(chat.id, tool.callID)).toBe(true)
+    }),
+  { config: cfg },
+)
+
+unixNoLLMServer(
+  "shell does not run a command it gets no permit for",
+  () =>
+    Effect.gen(function* () {
+      const { prompt, chat } = yield* boot()
+      const marker = path.join(os.tmpdir(), `croak-permit-marker-${Date.now()}`)
+      // Nothing listens on this port: the permit request fails.
+      const result = yield* withPermits(
+        "http://127.0.0.1:1",
+        prompt.shell({ sessionID: chat.id, agent: "build", command: `touch ${marker}` }),
+      )
+      const tool = errorTool(result.parts)
+      if (!tool) return
+      expect(tool.state.error).toContain("실행 허가")
+      expect(existsSync(marker)).toBe(false)
+      expect(Permit.wasPermitted(chat.id, tool.callID)).toBe(false)
     }),
   { config: cfg },
 )
