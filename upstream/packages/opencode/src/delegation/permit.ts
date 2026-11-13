@@ -66,6 +66,27 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`
 }
 
+/**
+ * What the gate gets back for a tool call that never ran because it had no
+ * permit (a policy plugin refused it, its arguments were invalid, it was
+ * interrupted before the permit). The gate lets exactly this text through
+ * without a permit: it carries nothing, so it cannot carry a result out.
+ * Must match the gate's croak_core.UNRUN_RESULT.
+ */
+export const UNRUN_RESULT = "[croak] 이 도구 호출은 실행되지 않았다."
+
+// Tool calls that got a permit in this process. A call missing here sends
+// UNRUN_RESULT in place of its error (MessageV2.toModelMessages).
+const permittedCalls = new Set<string>()
+
+export function markPermitted(callID: string | undefined) {
+  if (callID) permittedCalls.add(callID)
+}
+
+export function wasPermitted(callID: string) {
+  return permittedCalls.has(callID)
+}
+
 export function argsHash(args: unknown): string {
   return createHash("sha256").update(canonicalJson(args)).digest("hex")
 }
