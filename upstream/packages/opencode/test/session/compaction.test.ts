@@ -305,15 +305,20 @@ function llm() {
   const queue: Array<
     Stream.Stream<LLMEvent, unknown> | ((input: LLM.StreamInput) => Stream.Stream<LLMEvent, unknown>)
   > = []
+  let calls = 0
 
   return {
     push(stream: Stream.Stream<LLMEvent, unknown> | ((input: LLM.StreamInput) => Stream.Stream<LLMEvent, unknown>)) {
       queue.push(stream)
     },
+    get calls() {
+      return calls
+    },
     layer: Layer.succeed(
       LLM.Service,
       LLM.Service.of({
         stream: (input) => {
+          calls++
           const item = queue.shift() ?? Stream.empty
           const stream = typeof item === "function" ? item(input) : item
           return stream.pipe(Stream.mapEffect((event) => Effect.succeed(event)))
@@ -345,6 +350,35 @@ function reply(
     )
   }
 }
+
+const VALID_SUMMARY = `## Goal
+- test
+
+## Constraints & Preferences
+- (none)
+
+## Progress
+### Done
+- (none)
+
+### In Progress
+- (none)
+
+### Blocked
+- (none)
+
+## Key Decisions
+- (none)
+
+## Next Steps
+- (none)
+
+## Critical Context
+- (none)
+
+## Relevant Files
+- (none)`
+const VALID_SUMMARY_WITH_PREAMBLE = `Here is the corrected summary:\n\n${VALID_SUMMARY}`
 
 function plugin(ready: Deferred.Deferred<void>) {
   return Layer.mock(Plugin.Service)({
@@ -1502,6 +1536,141 @@ describe("session.compaction.process", () => {
       expect(part?.type).toBe("compaction")
       expect(part?.tail_start_id).toBe(keep.id)
     }).pipe(withCompaction({ config: cfg({ tail_turns: 2, preserve_recent_tokens: 500 }) })),
+  )
+
+  itCompaction.instance(
+    "verifies the summary against the original conversation",
+    () => {
+      const stub = llm()
+      let verifyInput: LLM.StreamInput | undefined
+      stub.push(reply("summary one"))
+      stub.push(
+        reply(VALID_SUMMARY_WITH_PREAMBLE, (input) => {
+          verifyInput = input
+        }),
+      )
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        const msg = yield* createUserMessage(session.id, "hello")
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (item) => item.info.role === "assistant" && item.info.summary,
+        )
+        const text = summary?.parts.find((part) => part.type === "text")
+        expect(text?.type === "text" ? text.text : "").toContain("## Goal")
+        expect(text?.type === "text" ? text.text : "").not.toContain("summary one")
+        expect(text?.type === "text" ? text.text : "").not.toContain("Here is the corrected summary")
+        expect(JSON.stringify(verifyInput?.messages)).toContain("hello")
+        expect(JSON.stringify(verifyInput?.messages)).toContain("summary one")
+        expect(summary?.info.role === "assistant" ? summary.info.tokens.total : undefined).toBe(4)
+        expect(stub.calls).toBe(2)
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ verify: true }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "keeps the original summary when verification returns an invalid summary",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary one"))
+      stub.push(reply("not a valid summary"))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        const msg = yield* createUserMessage(session.id, "hello")
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (item) => item.info.role === "assistant" && item.info.summary,
+        )
+        const text = summary?.parts.find((part) => part.type === "text")
+        expect(text?.type === "text" ? text.text : "").toBe("summary one")
+        expect(stub.calls).toBe(2)
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ verify: true }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "keeps the original summary when verification fails",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary one"))
+      stub.push(Stream.fail(new Error("boom")))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        const msg = yield* createUserMessage(session.id, "hello")
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (item) => item.info.role === "assistant" && item.info.summary,
+        )
+        const text = summary?.parts.find((part) => part.type === "text")
+        expect(text?.type === "text" ? text.text : "").toBe("summary one")
+        expect(stub.calls).toBe(2)
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ verify: true }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "does not verify when compaction.verify is off",
+    () => {
+      const stub = llm()
+      stub.push(reply("summary one"))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        const msg = yield* createUserMessage(session.id, "hello")
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+
+        const summary = (yield* ssn.messages({ sessionID: session.id })).find(
+          (item) => item.info.role === "assistant" && item.info.summary,
+        )
+        const text = summary?.parts.find((part) => part.type === "text")
+        expect(text?.type === "text" ? text.text : "").toBe("summary one")
+        expect(stub.calls).toBe(1)
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ verify: false }) }))
+    },
+    { git: true },
+  )
+
+  itCompaction.instance(
+    "skips verification when the request exceeds the usable context",
+    () => {
+      const stub = llm()
+      const summary = "x".repeat(10_000)
+      stub.push(reply(summary))
+      return Effect.gen(function* () {
+        const ssn = yield* SessionNs.Service
+        const session = yield* ssn.create({})
+        const msg = yield* createUserMessage(session.id, "hello")
+        const msgs = yield* ssn.messages({ sessionID: session.id })
+        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+
+        const summaryMessage = (yield* ssn.messages({ sessionID: session.id })).find(
+          (item) => item.info.role === "assistant" && item.info.summary,
+        )
+        const text = summaryMessage?.parts.find((part) => part.type === "text")
+        expect(text?.type === "text" ? text.text : "").toBe(summary)
+        expect(stub.calls).toBe(1)
+      }).pipe(
+        withCompaction({
+          llm: stub.layer,
+          config: cfg({ verify: true, reserved: 1 }),
+          provider: ProviderTest.fake({ model: createModel({ context: 200, input: 100, output: 10 }) }),
+        }),
+      )
+    },
+    { git: true },
   )
 })
 

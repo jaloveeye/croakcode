@@ -294,6 +294,9 @@ export const Info = Schema.Struct({
       reserved: Schema.optional(NonNegativeInt).annotate({
         description: "Token buffer for compaction. Leaves enough window to avoid overflow during compaction.",
       }),
+      verify: Schema.optional(Schema.Boolean).annotate({
+        description: "Verify the summary against the original conversation and correct it (default: false)",
+      }),
     }),
   ),
   experimental: Schema.optional(

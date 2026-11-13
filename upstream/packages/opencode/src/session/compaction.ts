@@ -7,13 +7,16 @@ import { MessageV2 } from "./message-v2"
 import { Token } from "@/util/token"
 import * as Log from "@croakcode/core/util/log"
 import { SessionProcessor } from "./processor"
+import { LLM } from "./llm"
+import { LLMResponse } from "@croakcode/llm"
 import { Agent } from "@/agent/agent"
 import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
 import { NotFoundError } from "@/storage/storage"
 import { ModelID, ProviderID } from "@/provider/schema"
-import { Effect, Layer, Context, Schema } from "effect"
+import { Effect, Layer, Context, Schema, Option } from "effect"
 import * as DateTime from "effect/DateTime"
+import * as Stream from "effect/Stream"
 import { InstanceState } from "@/effect/instance-state"
 import { isOverflow as overflow, usable } from "./overflow"
 import { serviceUse } from "@croakcode/core/effect/service-use"
@@ -77,6 +80,17 @@ Rules:
 - Use terse bullets, not prose paragraphs.
 - Preserve exact file paths, commands, error strings, and identifiers when known.
 - Do not mention the summary process or that context was compacted.`
+const VERIFY_SYSTEM_PROMPT = `You verify an anchored summary against the original conversation. Correct wrong, missing, or stale facts. Preserve exact file paths, commands, error strings, and identifiers. Keep the same Markdown structure and section order. Return only the corrected summary.`
+const VERIFY_PROMPT = `Compare the summary above with the conversation history. Correct every fact that does not match the history. Keep all required sections. Return only the corrected summary.`
+const REQUIRED_SECTIONS = [
+  "## Goal",
+  "## Constraints & Preferences",
+  "## Progress",
+  "## Key Decisions",
+  "## Next Steps",
+  "## Critical Context",
+  "## Relevant Files",
+]
 type Turn = {
   start: number
   end: number
@@ -223,6 +237,7 @@ export const layer = Layer.effect(
     const provider = yield* Provider.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
+    const llm = Option.getOrUndefined(yield* Effect.serviceOption(LLM.Service))
 
     const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
       tokens: MessageV2.Assistant["tokens"]
@@ -481,6 +496,99 @@ export const layer = Layer.effect(
         return "stop"
       }
 
+      if (result === "continue" && cfg.compaction?.verify && llm) {
+        const current = (yield* session.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
+          (item) => item.info.id === msg.id,
+        )
+        const summary = current ? summaryText(current) : undefined
+        if (current && summary) {
+          const verifyMessages = [
+            ...modelMessages,
+            { role: "assistant" as const, content: [{ type: "text" as const, text: summary }] },
+            { role: "user" as const, content: [{ type: "text" as const, text: VERIFY_PROMPT }] },
+          ]
+          const estimate = Token.estimate(JSON.stringify(verifyMessages))
+          if (estimate > usable({ cfg, model, outputTokenMax: flags.outputTokenMax })) {
+            log.info("skipping verification: request too large", { estimate })
+          } else {
+            const verified = yield* llm
+              .stream({
+                user: userMessage,
+                sessionID: input.sessionID,
+                model,
+                agent: { ...agent, prompt: VERIFY_SYSTEM_PROMPT },
+                system: [],
+                messages: verifyMessages,
+                tools: {},
+                toolChoice: "none",
+                connection,
+              })
+              .pipe(
+                Stream.runCollect,
+                Effect.map((events) => {
+                  const list = Array.from(events)
+                  const text = LLMResponse.text({ events: list }).trim()
+                  const start = text.indexOf("## Goal")
+                  const normalized = start > 0 ? text.slice(start) : text
+                  if (!normalized || !REQUIRED_SECTIONS.every((section) => normalized.includes(section))) {
+                    return undefined
+                  }
+                  return { text: normalized, usage: LLMResponse.usage({ events: list }) }
+                }),
+                Effect.catch((error) =>
+                  Effect.sync(() => {
+                    log.warn("compaction verification failed", { error: String(error) })
+                    return undefined
+                  }),
+                ),
+              )
+            if (verified) {
+              const textParts = current.parts.filter((part): part is MessageV2.TextPart => part.type === "text")
+              if (textParts.length === 0) {
+                yield* session.updatePart({
+                  id: PartID.ascending(),
+                  messageID: msg.id,
+                  sessionID: input.sessionID,
+                  type: "text",
+                  text: verified.text,
+                  time: { start: Date.now(), end: Date.now() },
+                })
+              } else {
+                const [first, ...rest] = textParts
+                yield* session.updatePart({
+                  ...first,
+                  text: verified.text,
+                  time: { start: first.time?.start ?? Date.now(), end: Date.now() },
+                })
+                for (const part of rest) {
+                  yield* session.removePart({
+                    sessionID: input.sessionID,
+                    messageID: msg.id,
+                    partID: part.id,
+                  })
+                }
+              }
+              if (verified.usage) {
+                const usage = Session.getUsage({ model, usage: verified.usage })
+                msg.cost += usage.cost
+                msg.tokens = {
+                  total: (msg.tokens.total ?? 0) + (usage.tokens.total ?? 0),
+                  input: msg.tokens.input + usage.tokens.input,
+                  output: msg.tokens.output + usage.tokens.output,
+                  reasoning: msg.tokens.reasoning + usage.tokens.reasoning,
+                  cache: {
+                    read: msg.tokens.cache.read + usage.tokens.cache.read,
+                    write: msg.tokens.cache.write + usage.tokens.cache.write,
+                  },
+                }
+                yield* session.updateMessage(msg)
+              }
+              log.info("compaction summary verified", { sessionID: input.sessionID })
+            }
+          }
+        }
+      }
+
       if (compactionPart && selected.tail_start_id && compactionPart.tail_start_id !== selected.tail_start_id) {
         yield* session.updatePart({
           ...compactionPart,
@@ -641,6 +749,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Session.defaultLayer),
     Layer.provide(SessionProcessor.defaultLayer),
+    Layer.provide(LLM.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Plugin.defaultLayer),
     Layer.provide(Bus.layer),
