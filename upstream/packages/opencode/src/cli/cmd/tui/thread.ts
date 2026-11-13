@@ -271,9 +271,21 @@ export const TuiThreadCommand = cmd({
         client.call("checkUpgrade", { directory: cwd }).catch(() => {})
       }, 1000).unref?.()
 
+      // croakcode: on some terminals the screen sometimes never appears.
+      // Log each startup step, and the one still pending after 8 s, so the
+      // log shows where it stopped.
+      let step = "import app"
+      const mark = (next: string) => {
+        Log.Default.info("tui startup", { done: step, next })
+        step = next
+      }
+      const watchdog = setTimeout(() => Log.Default.warn("tui startup still waiting", { step }), 8000)
+      watchdog.unref?.()
       try {
         const { createTuiRenderer, tui } = await import("./app")
+        mark("create renderer")
         const renderer = await createTuiRenderer(config)
+        mark("mount")
         const handle = tui({
           url: transport.url,
           renderer,
@@ -296,6 +308,10 @@ export const TuiThreadCommand = cmd({
             fork: args.fork,
             autoApprove: args["dangerously-skip-permissions"],
           },
+        })
+        void handle.ready?.then?.(() => {
+          clearTimeout(watchdog)
+          mark("running")
         })
         await handle.done
       } finally {
