@@ -1,3 +1,4 @@
+import * as Log from "@croakcode/core/util/log"
 import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { upgradeNow } from "./croak-upgrade"
@@ -229,7 +230,9 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
   const renderer = input.renderer
   // Prewarm palette before ThemeProvider mounts so `system` theme avoids a first-paint fallback flash.
   void renderer.getPalette({ size: 16 }).catch(() => undefined)
+  Log.Default.info("tui startup", { done: "renderer", next: "theme mode" })
   const mode = (await renderer.waitForThemeMode(1000)) ?? "dark"
+  Log.Default.info("tui startup", { done: "theme mode", next: "render", mode })
   if (renderer.isDestroyed) return
 
   await render(() => {
