@@ -160,8 +160,10 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             title: val.title,
             metadata: val.metadata,
             status: "running",
-            input: args,
-            time: { start: Date.now() },
+            // A deferred tool's execution args omit the tool_call envelope.
+            // Preserve the original model input so the gate can verify its permit.
+            input: match.state.status === "running" ? match.state.input : args,
+            time: match.state.status === "running" ? match.state.time : { start: Date.now() },
           },
         }
       }),
@@ -413,7 +415,9 @@ export function deferTools(
     async execute(args: { name: string; input: Record<string, unknown> }, options) {
       const target = hidden[args.name]
       if (!target?.execute) throw new Error(`Unknown tool "${args.name}". Use tool_search to find it first.`)
-      const input = args.input ?? {}
+      // Read the arguments like the gate does (Permit.proxyInput); a JSON string is unwrapped.
+      const input = Permit.proxyInput(args.input)
+      if (!input) throw new Error(`tool_call: input must be an object with ${args.name}'s parameters.`)
       try {
         // The tool's own wrapper runs first: permission, execution permit, audit.
         return await target.execute(input, options)

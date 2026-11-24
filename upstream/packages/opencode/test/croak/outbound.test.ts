@@ -65,7 +65,14 @@ describe("execution permit bookkeeping", () => {
       tool: "todowrite",
       args: { todos: [] },
     })
-    // Not the proxy's shape: left as it is.
-    expect(Permit.permitTarget("tool_call", { name: "x" })).toEqual({ tool: "tool_call", args: { name: "x" } })
+    // The arguments as a JSON string, and no arguments at all: read like the gate does.
+    expect(Permit.permitTarget("tool_call", { name: "todowrite", input: '{"todos":[]}' })).toEqual({
+      tool: "todowrite",
+      args: { todos: [] },
+    })
+    expect(Permit.permitTarget("tool_call", { name: "x" })).toEqual({ tool: "x", args: {} })
+    // Not an object: left as the proxy call itself; croakcode does not run it.
+    for (const input of ["[1]", "not json", "3", [1], 3])
+      expect(Permit.permitTarget("tool_call", { name: "x", input })).toEqual({ tool: "tool_call", args: { name: "x", input } })
   })
 })

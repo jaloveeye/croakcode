@@ -102,12 +102,33 @@ export const COPIED_KEY = "croakPermit"
  * it called.
  */
 export function permitTarget(tool: string, input: unknown): { tool: string; args: unknown } {
-  if (tool === "tool_call" && input && typeof input === "object") {
+  if (tool === "tool_call" && input && typeof input === "object" && !Array.isArray(input)) {
     const proxy = input as { name?: unknown; input?: unknown }
-    if (typeof proxy.name === "string" && proxy.input && typeof proxy.input === "object" && !Array.isArray(proxy.input))
-      return { tool: proxy.name, args: proxy.input }
+    const args = proxyInput(proxy.input)
+    if (typeof proxy.name === "string" && args) return { tool: proxy.name, args }
   }
   return { tool, args: input }
+}
+
+/**
+ * The arguments a tool_call proxy call passes to its tool, read the same way
+ * as the gate (croak_core.proxy_input): an object as it is, a JSON string that
+ * holds an object, and nothing at all as {}. Anything else is undefined: the
+ * call does not run. A model sometimes sends the arguments as a JSON string;
+ * read differently on the two sides, the permit and the gate's check missed
+ * each other and the whole session was refused.
+ */
+export function proxyInput(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return {}
+  if (typeof value === "string") {
+    try {
+      return proxyInput(JSON.parse(value) ?? 0)
+    } catch {
+      return undefined
+    }
+  }
+  if (typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>
+  return undefined
 }
 
 export function argsHash(args: unknown): string {
