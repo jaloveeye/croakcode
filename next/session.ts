@@ -7,6 +7,15 @@ import { authorizeRead, openGate, type Gate } from "./gate"
 import { chatTurn, type Call, type Message } from "./chat"
 import { readFileBounded, SafeError, validateFilename } from "./fsafe"
 import {
+  clampOutput,
+  findFiles,
+  grepFiles,
+  listDir,
+  MAX_FIND_RESULTS,
+  MAX_GREP_MATCHES,
+  MAX_LIST_ENTRIES,
+} from "./scan"
+import {
   listPeers,
   openInbox,
   resolvePeer,
@@ -323,6 +332,69 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     held.forEach((m, i) => emit(`[${i + 1}] ${m.fromName}: ${m.text}`))
   }
 
+  // 사용자가 직접 실행하는 읽기 전용 탐색 명령. 모델 도구/permit과 무관하다.
+  const emitBlock = (text: string): void => {
+    const clamped = clampOutput(text)
+    for (const line of clamped.text.split("\n")) emit(line)
+    if (clamped.truncated) emit("... (출력이 길어 잘렸다)")
+  }
+
+  const scanFail = (error: unknown): void => {
+    emit(`오류: ${(error as Error).message}`)
+  }
+
+  const listCommand = (dir: string): void => {
+    try {
+      const result = listDir(cwd, dir || ".")
+      if (result.entries.length === 0) {
+        emit("(비어 있음)")
+        return
+      }
+      const more = result.truncated ? `\n... (${MAX_LIST_ENTRIES}개까지만 표시)` : ""
+      emitBlock(result.entries.join("\n") + more)
+    } catch (error) {
+      scanFail(error)
+    }
+  }
+
+  const findCommand = (glob: string): void => {
+    if (!glob) {
+      emit("사용법: /find <glob>   예: /find **/*.ts")
+      return
+    }
+    try {
+      const result = findFiles(cwd, glob)
+      if (result.files.length === 0) {
+        emit("일치하는 파일이 없다.")
+        return
+      }
+      const more = result.truncated ? `\n... (${MAX_FIND_RESULTS}개까지만 표시)` : ""
+      emitBlock(result.files.join("\n") + more)
+    } catch (error) {
+      scanFail(error)
+    }
+  }
+
+  const grepCommand = (argText: string): void => {
+    const [pattern, ...rest] = argText.split(/\s+/).filter(Boolean)
+    if (!pattern) {
+      emit("사용법: /grep <검색어> [include-glob]   예: /grep TODO **/*.ts")
+      return
+    }
+    try {
+      const result = grepFiles(cwd, pattern, rest.join(" "))
+      if (result.hits.length === 0) {
+        emit(`일치 항목이 없다. (${result.scanned}개 파일 검사)`)
+        return
+      }
+      const body = result.hits.map((h) => `${h.file}:${h.line}: ${h.text}`).join("\n")
+      const more = result.truncated ? `\n... (${MAX_GREP_MATCHES}건까지만 표시)` : ""
+      emitBlock(body + more)
+    } catch (error) {
+      scanFail(error)
+    }
+  }
+
   // /held 의 하위 명령. 인자가 없으면 목록만 보여준다.
   const heldCommand = (args: string[]) => {
     const sub = args[0]
@@ -438,10 +510,20 @@ export async function startSession(options: SessionOptions): Promise<Session> {
         return
       case "help":
         emit("명령: /send <세션> <메시지>, /peers, /held [clear|rm <번호>|find <문자열>], /view [id], /rename <이름>, /inbound <accept|hold|refuse>, /notify <세션>, /quit")
+        emit("탐색: /ls [디렉터리], /find <glob>, /grep <검색어> [include-glob]")
         emit("슬래시 없이 입력하면 모델과 대화한다.")
         return
       case "peers":
         showPeers()
+        return
+      case "ls":
+        listCommand(argText)
+        return
+      case "find":
+        findCommand(argText)
+        return
+      case "grep":
+        grepCommand(argText)
         return
       case "held":
         heldCommand(rest)

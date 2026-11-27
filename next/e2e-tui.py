@@ -35,11 +35,16 @@ def strip(data: str) -> str:
 
 
 class Session:
-    def __init__(self, bin_path, env, name):
+    def __init__(self, bin_path, env, name, cwd=None):
         self.name = name
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
-            os.execvpe(bin_path, [bin_path, "session", "--name", name, "--tui"], env)
+            if cwd:
+                os.chdir(cwd)
+            try:
+                os.execvpe(bin_path, [bin_path, "session", "--name", name, "--tui"], env)
+            except Exception:
+                os._exit(3)
         self.buf = ""
 
     def read(self, secs=0.5):
@@ -98,6 +103,8 @@ def main():
         if code != 0:
             print("빌드 실패")
             return 1
+    # 세션은 작업 디렉터리로 chdir 한 뒤 exec 하므로 절대 경로여야 한다.
+    bin_path = os.path.abspath(bin_path)
 
     base = tempfile.mkdtemp(prefix="croak-e2e-run-")
     env = {
@@ -113,13 +120,22 @@ def main():
     for k in ("HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"):
         os.makedirs(env[k], exist_ok=True)
 
+    work = os.path.join(base, "work")
+    os.makedirs(os.path.join(work, "src", "deep"), exist_ok=True)
+    with open(os.path.join(work, "a.ts"), "w") as f:
+        f.write("const a = 1\n// Needle here\n")
+    with open(os.path.join(work, "src", "deep", "d.ts"), "w") as f:
+        f.write("needle deep\n")
+    with open(os.path.join(work, ".env"), "w") as f:
+        f.write("SECRET=needle\n")
+
     alpha = beta = None
     try:
         print("[1] 두 TUI 세션 시작")
-        alpha = Session(bin_path, env, "alpha")
+        alpha = Session(bin_path, env, "alpha", work)
         time.sleep(0.5)
         alpha.read(0.2)
-        beta = Session(bin_path, env, "beta")
+        beta = Session(bin_path, env, "beta", work)
         time.sleep(1.2)
         alpha.read(0.3)
         beta.read(0.3)
@@ -159,6 +175,21 @@ def main():
         beta.send("q")
         time.sleep(0.2)
         beta.read(0.2)
+
+        print("[4b] beta 읽기 전용 탐색(/ls /find /grep)")
+        beta.send("/ls\r")
+        time.sleep(0.3)
+        ls_chunk = strip(beta.read(0.3))
+        check("beta /ls 디렉터리 표식", "src/" in beta.screen(), ls_chunk[-300:])
+        check("beta /ls 비밀 파일 숨김", ".env" not in ls_chunk, ls_chunk[-300:])
+        beta.send("/find **/*.ts\r")
+        time.sleep(0.4)
+        beta.read(0.3)
+        check("beta /find 중첩 파일", "src/deep/d.ts" in beta.screen())
+        beta.send("/grep needle **/*.ts\r")
+        time.sleep(0.4)
+        beta.read(0.3)
+        check("beta /grep 파일:줄:내용", "a.ts:2: // Needle here" in beta.screen())
 
         print("[5] 정상 종료(/quit)")
         alpha.send("/quit\r")
