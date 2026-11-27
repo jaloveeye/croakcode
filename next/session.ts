@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto"
+import { spawn } from "node:child_process"
 import { createInterface } from "node:readline"
-import { homedir } from "node:os"
-import { join } from "node:path"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { authorizeTool, openGate, type Gate } from "./gate"
+import * as auth from "./auth"
+import { globalDenied, isDenied, matches, policyFile, readPolicy, sessionDenied, toggleSessionTool } from "./policy"
 import { chatTurn, type Call, type Message } from "./chat"
 import { editFileBounded, readFileBounded, SafeError, validateFilename, validateWriteTarget, writeFileBounded } from "./fsafe"
 import {
@@ -32,6 +33,31 @@ import type { Inbound } from "./paths"
 
 const NOTIFY_TTL_MS = 12 * 60 * 60 * 1000
 const MAX_NAME_LEN = 64
+
+/** `/agent-perm`으로 세션별로 켜고 끌 수 있는 도구. */
+const PERMISSION_TOOLS = ["read", "write", "edit", "glob", "grep", "shell", "apply_patch"]
+
+/** 로그인 주소를 기본 브라우저로 연다. 실패해도 주소는 따로 출력한다. */
+function openBrowser(url: string): boolean {
+  const windows = process.platform === "win32"
+  const wsl = !windows && existsSync("/mnt/c/Windows/System32/cmd.exe")
+  const tries: [string, string[], string | undefined][] = windows
+    ? [["cmd.exe", ["/c", "start", "", url], undefined]]
+    : wsl
+      ? [["/mnt/c/Windows/System32/cmd.exe", ["/c", "start", "", url], "/mnt/c"]]
+      : [["xdg-open", [url], undefined]]
+  for (const [command, args, cwd] of tries) {
+    try {
+      const child = spawn(command, args, { detached: true, stdio: "ignore", cwd })
+      child.on("error", () => {})
+      child.unref()
+      return true
+    } catch {
+      // 다음 방법을 시도한다.
+    }
+  }
+  return false
+}
 
 export class SessionError extends Error {
   code: string
@@ -214,29 +240,9 @@ function normalizeName(raw: string): string {
 }
 
 function hasPolicyDeny(sid: string, tool: string): boolean {
+  // 관리 정책 파일은 이 프로토타입이 해석하지 못하므로 fail-closed로 막는다.
   if (process.env.CROAKCODE_ADMIN_POLICY_FILE) return true
-  const file =
-    process.env.CROAK_TOOL_POLICY_FILE ||
-    join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "croak", "tool-policy.json")
-  if (!existsSync(file)) return false
-  let policy: Record<string, unknown>
-  try {
-    policy = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>
-  } catch {
-    return false
-  }
-  if (!policy || typeof policy !== "object") return false
-  const deny = Array.isArray(policy.deny) ? policy.deny : []
-  const sessions =
-    policy.sessions && typeof policy.sessions === "object" && !Array.isArray(policy.sessions)
-      ? (policy.sessions as Record<string, unknown>)
-      : {}
-  const patterns = [...deny] as unknown[]
-  for (const key of ["*", sid]) {
-    const list = sessions[key]
-    if (Array.isArray(list)) patterns.push(...list)
-  }
-  return patterns.some((p) => p === "*" || p === tool)
+  return isDenied(readPolicy(), sid, tool)
 }
 
 export type Session = {
@@ -785,6 +791,117 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     }
   }
 
+  let pendingLogin: { verifier: string } | null = null
+
+  const loginCommand = async (codeText: string): Promise<void> => {
+    const code = codeText.trim()
+    if (!code) {
+      let url: string
+      const { verifier, challenge } = auth.pkce()
+      try {
+        url = auth.loginUrl(challenge)
+      } catch (error) {
+        emit(`오류: ${(error as Error).message}`)
+        return
+      }
+      pendingLogin = { verifier }
+      const opened = process.env.CROAK_NO_BROWSER ? false : openBrowser(url)
+      emit(opened ? "브라우저에서 croak 로그인 페이지를 열었다." : "브라우저를 열지 못했다.")
+      emit(`로그인 주소: ${url}`)
+      emit("로그인한 뒤 화면에 나온 확인 코드를 `/login <코드>`로 입력하라.")
+      return
+    }
+    if (!pendingLogin) {
+      emit("먼저 /login을 실행해 로그인 주소를 받아라.")
+      return
+    }
+    try {
+      const session = await auth.exchange(code, pendingLogin.verifier)
+      pendingLogin = null
+      gate = null // 새 토큰·permit 키로 게이트를 다시 연다.
+      const username = session.user?.username
+      emit(`${typeof username === "string" ? username : "사용자"}님, 로그인했다.`)
+    } catch (error) {
+      emit(`오류: 로그인하지 못했다: ${(error as Error).message}`)
+    }
+  }
+
+  const logoutCommand = async (): Promise<void> => {
+    const had = await auth.logout()
+    pendingLogin = null
+    gate = null
+    emit(had ? "로그아웃했다. 같은 계정으로 /login하면 이 세션을 이어서 쓴다." : "로그인 상태가 아니다.")
+  }
+
+  const whoamiCommand = async (): Promise<void> => {
+    let me: Record<string, any> | null
+    try {
+      me = await auth.whoami()
+    } catch (error) {
+      emit(`오류: 사용자 정보를 읽지 못했다: ${(error as Error).message}`)
+      return
+    }
+    if (!me) {
+      emit("로그인하지 않았다. /login으로 로그인하라.")
+      return
+    }
+    const rules = (me.rules ?? {}) as Record<string, unknown>
+    const roles = Array.isArray(me.roles) ? me.roles.map(String) : []
+    const agents = Array.isArray(rules.agents) ? rules.agents.map(String) : []
+    const deny = Array.isArray(rules.deny_tools) ? rules.deny_tools.map(String) : []
+    emit(`${String(me.username ?? "사용자")} · ${String(me.tier ?? "-")} 등급`)
+    emit(`관리 권한: ${roles.join(", ") || "없음"}`)
+    emit(`쓸 수 있는 에이전트: ${agents.join(", ") || "-"}`)
+    emit(`금지 도구: ${deny.join(", ") || "없음"}`)
+    emit(`로그인 유지: ${String(me.session_expires_at ?? "-")}까지`)
+  }
+
+  /** 서버 등급 규칙(deny_tools)을 읽는다. 게이트에 닿지 않으면 빈 목록. */
+  const tierDenied = async (): Promise<string[]> => {
+    try {
+      const me = await auth.whoami()
+      const raw = me?.rules?.deny_tools
+      return Array.isArray(raw) ? raw.filter((value): value is string => typeof value === "string") : []
+    } catch {
+      return []
+    }
+  }
+
+  const agentPermCommand = async (tool: string): Promise<void> => {
+    if (process.env.CROAKCODE_ADMIN_POLICY_FILE) {
+      emit("관리 정책 파일(CROAKCODE_ADMIN_POLICY_FILE)이 설정되어 있어 도구 정책을 바꿀 수 없다.")
+      return
+    }
+    const policy = readPolicy()
+    if (!tool) {
+      const byTier = await tierDenied()
+      emit(`정책 파일: ${policyFile()}`)
+      for (const name of PERMISSION_TOOLS) {
+        const state = byTier.some((pattern) => matches(pattern, name))
+          ? "등급에서 금지"
+          : globalDenied(policy, name)
+            ? "전역에서 끔"
+            : sessionDenied(policy, inbox.info.id, name)
+              ? "이 세션에서 끔"
+              : "켜짐"
+        emit(`${name}: ${state}`)
+      }
+      emit("`/agent-perm <도구>`로 이 세션의 도구를 켜거나 끈다(등급·전역 규칙보다 넓힐 수 없다).")
+      return
+    }
+    if (!PERMISSION_TOOLS.includes(tool)) {
+      emit(`도구: ${PERMISSION_TOOLS.join(", ")}`)
+      return
+    }
+    const byTier = await tierDenied()
+    if (globalDenied(policy, tool) || byTier.some((pattern) => matches(pattern, tool))) {
+      emit(`${tool}: 전역/등급 정책이 금지한다. 이 세션에서 켤 수 없다.`)
+      return
+    }
+    const { denied } = toggleSessionTool(inbox.info.id, tool)
+    emit(`${tool}: ${denied ? "껐다" : "켰다"} (이 세션에만 적용)`)
+  }
+
   let stopping = false
   const shutdown = async () => {
     if (stopping) return
@@ -813,7 +930,20 @@ export async function startSession(options: SessionOptions): Promise<Session> {
       case "help":
         emit("명령: /send <세션> <메시지>, /peers, /held [clear|rm <번호>|find <문자열>], /view [id], /rename <이름>, /inbound <accept|hold|refuse>, /notify <세션>, /quit")
         emit("탐색: /ls [디렉터리], /find <glob>, /grep <검색어> [include-glob]")
+        emit("인증: /login [코드], /logout, /whoami, /agent-perm [도구]")
         emit("슬래시 없이 입력하면 모델과 대화한다.")
+        return
+      case "login":
+        await loginCommand(argText)
+        return
+      case "logout":
+        await logoutCommand()
+        return
+      case "whoami":
+        await whoamiCommand()
+        return
+      case "agent-perm":
+        await agentPermCommand(rest[0] ?? "")
         return
       case "peers":
         showPeers()

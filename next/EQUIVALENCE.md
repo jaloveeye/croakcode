@@ -8,8 +8,8 @@
 ## 한 줄 결론
 
 **아니다.** `next/`는 기존 croakcode의 부분집합 프로토타입이며, 이번 작업
-(세션 간 메시징 + TUI)으로 **추가된 기능**이 있는 반면, 명령·도구·세션 관리·
-인증·플러그인·위임 등 사용자 경험의 대부분은 **미구현**이다. 기존 croakcode와
+(세션 간 메시징 + TUI, 인증/토큰 갱신)으로 **추가된 기능**이 있는 반면, 명령·도구·
+세션 관리의 나머지와 플러그인·위임 등 사용자 경험의 상당 부분은 **미구현**이다. 기존 croakcode와
 "동일 사용성"을 보장하려면 아래 "동등성 도달 로드맵"이 필요하다.
 
 이번 PR이 실제로 보장하는 것:
@@ -117,10 +117,11 @@
 
 | 기존 croakcode | `next/` | 상태 |
 |---|---|---|
-| `/login`, 게이트 로그인 | 없음 | ✗ |
+| `/login`, 게이트 로그인 | `/login`(브라우저 + PKCE 일회 코드) | ✅ |
+| `/logout`, `/whoami` | `/logout`, `/whoami`(계정·등급·규칙 표시) | ✅ |
 | 게이트 모드 + 서명 permit | permit-gated `read`(gate.ts) | △ 부분 |
-| 토큰 자동 갱신 | 없음 | ✗ |
-| 다단 정책 규칙(전역/세션 deny) | read deny 일부 | △ 부분 |
+| 토큰 자동 갱신 | 만료 10분 전 자동 갱신, 401이면 세션 정리(`auth.ts`) | ✅ |
+| 다단 정책 규칙(전역/세션 deny) | `deny` + `sessions["*"]` + `sessions[<id>]`, `*`/`prefix*` 패턴, `/agent-perm` | ✅ |
 | 위임 런타임(Phase 4), 하위 에이전트, 감사 | 없음 | ✗ |
 | 에이전트 역할(`/agents`), task 위임 | 없음 | ✗ |
 
@@ -131,6 +132,7 @@
 | 기존 croakcode | `next/ session` | 상태 |
 |---|---|---|
 | `init`, `review` (+ 사용자 `.croakcode/command/*.md`) | 없음 | ✗ |
+| `/login /logout /whoami /agent-perm` | `/login [코드] /logout /whoami /agent-perm [도구]` | ✅ |
 | — | `/send /peers /held /view /rename /inbound /notify /help /quit` | ＋ 신규 |
 | — | `/ls [디렉터리] /find <glob> /grep <검색어> [include-glob]` — 사용자가 직접 실행하는 읽기 전용 탐색 | ＋ 신규 |
 
@@ -141,7 +143,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **105 pass / 0 fail** | next CLI·store·fsafe·scan·shell·patch·세션·TUI 단위 |
+| `bun run test:next` | **123 pass / 0 fail** | next CLI·store·fsafe·scan·shell·patch·세션·TUI·인증·정책 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -154,7 +156,8 @@
    `apply_patch`는 upstream 형식과 컨텍스트 탐색을 따르며, 이동/삭제도 지원한다.
 2. **세션 관리**: `resume --last/--list/--session/--fork` 완료. run 이력 재개와 기존 croakcode DB
    (`session`/`message`/`part`) 읽기·가져오기 포함. 기존 DB로의 쓰기(양방향 호환)와 나머지 테이블은 남음.
-3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
+3. **인증/거버넌스**: 완료. `/login`·`/logout`·`/whoami`(PKCE), 만료 10분 전 토큰 자동 갱신,
+   전역/세션 다단 정책과 `/agent-perm`, 게이트 요청마다 갱신 토큰 사용. 위임·감사는 4번.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
 5. **TUI 동등**: 모델/에이전트 전환, 타임라인, 압축, undo/redo, 공유/export.
 6. **플러그인/확장**: `.croakcode` 플러그인·커맨드 로딩.
