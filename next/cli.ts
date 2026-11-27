@@ -316,6 +316,8 @@ async function commandSession(argv: string[]): Promise<void> {
   }
 
   const tui = createTui(process.stdin, process.stdout, { name, inbound: "hold", activity: "idle", peers: 1 })
+  // 상태줄의 피어 수는 주기적으로 레지스트리에서 다시 센다.
+  tui.setStatusProvider(() => ({ peers: Math.max(1, listPeers().length) }))
   const session = await startSession({ name, input: process.stdin, output: process.stdout, tui })
   tui.start(session)
   const shutdown = () => {

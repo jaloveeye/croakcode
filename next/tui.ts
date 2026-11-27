@@ -22,6 +22,8 @@ export type Tui = {
   /** 출력 라인을 로그에 추가하고 다시 그린다. */
   writeLine(line: string): void
   setStatus(patch: Partial<Status>): void
+  /** 주기적으로 상태를 갱신할 공급자를 등록한다(피어 수 등). */
+  setStatusProvider(fn: () => Partial<Status>): void
   /** 전체화면 뷰어를 연다. */
   openViewer(title: string, text: string): void
   /** 입력 처리를 시작한다(세션 준비 후). */
@@ -37,8 +39,12 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
     status: { ...initial } as Status,
     log: [] as string[],
     input: "",
+    cursor: 0,
+    history: [] as string[],
+    historyIdx: -1,
     viewer: null as Viewer | null,
     session: null as Session | null,
+    statusProvider: null as (() => Partial<Status>) | null,
     closed: false,
   }
 
@@ -54,7 +60,6 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
     const s = state.status
     const leftRaw = ` ${s.name}`
     const rightRaw = `${s.activity === "busy" ? "● busy" : "○ idle"} · ${s.peers} peers · ${s.inbound} `
-    const left = `${BOLD}${truncate(leftRaw, Math.max(8, width - displayWidth(rightRaw)))}${RESET}`
     const gap = Math.max(0, width - displayWidth(leftRaw) - displayWidth(rightRaw))
     rows.push(`${REVERSE}${truncate(leftRaw, width)}${" ".repeat(gap)}${rightRaw}${RESET}`)
 
@@ -83,7 +88,8 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
     write(`${HOME}${CLEAR}${frame}`)
     if (!state.viewer) {
       const inputRow = height - 1
-      const col = Math.min(width, displayWidth("> ") + displayWidth(state.input) + 1)
+      const before = state.input.slice(0, state.cursor)
+      const col = Math.min(width, displayWidth("> ") + displayWidth(before) + 1)
       write(`${ESC}${inputRow};${col}H`)
     } else {
       write(`${ESC}${height};1H`)
@@ -102,38 +108,156 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
   const submit = () => {
     const line = state.input
     state.input = ""
+    state.cursor = 0
+    state.historyIdx = -1
+    if (line.trim()) {
+      // 직전 항목과 같으면 중복 저장하지 않는다(히스토리 재호출 대응).
+      if (state.history[state.history.length - 1] !== line) {
+        state.history.push(line)
+        if (state.history.length > 200) state.history.shift()
+      }
+    }
     schedule()
     if (!line.trim() || !state.session) return
     void state.session.handleLine(line)
   }
 
-  const onData = (chunk: Buffer) => {
-    if (state.closed) return
-    const text = chunk.toString("utf8")
-    if (state.viewer) {
-      handleViewerKey(text)
-      return
-    }
-    for (const ch of text) {
-      if (ch === "\r" || ch === "\n") {
+  const setInput = (value: string, cursor: number) => {
+    state.input = value
+    state.cursor = clamp(cursor, 0, value.length)
+  }
+
+  const insert = (text: string) => {
+    const before = state.input.slice(0, state.cursor)
+    const after = state.input.slice(state.cursor)
+    setInput(before + text + after, state.cursor + text.length)
+  }
+
+  const backspace = () => {
+    if (state.cursor === 0) return
+    setInput(state.input.slice(0, state.cursor - 1) + state.input.slice(state.cursor), state.cursor - 1)
+  }
+
+  const deleteForward = () => {
+    if (state.cursor >= state.input.length) return
+    setInput(state.input.slice(0, state.cursor) + state.input.slice(state.cursor + 1), state.cursor)
+  }
+
+  const historyPrev = () => {
+    if (state.history.length === 0) return
+    if (state.historyIdx === -1) state.historyIdx = state.history.length
+    state.historyIdx = Math.max(0, state.historyIdx - 1)
+    const value = state.history[state.historyIdx] ?? ""
+    setInput(value, value.length)
+  }
+
+  const historyNext = () => {
+    if (state.historyIdx === -1) return
+    state.historyIdx = Math.min(state.history.length, state.historyIdx + 1)
+    const value = state.historyIdx >= state.history.length ? "" : (state.history[state.historyIdx] ?? "")
+    setInput(value, value.length)
+  }
+
+  // 입력 편집용 키 처리. 이스케이프 시퀀스는 완성된 단위로 전달된다.
+  const handleEditKey = (key: string): boolean => {
+    switch (key) {
+      case "\r":
+      case "\n":
         submit()
-      } else if (ch === "\x7f" || ch === "\b") {
-        state.input = state.input.slice(0, -1)
-      } else if (ch === "\x03") {
-        // Ctrl+C
+        return true
+      case "\x7f":
+      case "\b":
+        backspace()
+        return true
+      case "\x03": // Ctrl+C
         void state.session?.interrupt()
         close()
-        return
-      } else if (ch === "\x04") {
-        // Ctrl+D: 입력 비었으면 종료
+        return true
+      case "\x04": // Ctrl+D
         if (state.input.length === 0) {
           void state.session?.interrupt()
           close()
-          return
+        } else {
+          deleteForward()
         }
-      } else if (ch >= " " || ch === "\t") {
-        state.input += ch
+        return true
+      case "\x01": // Ctrl+A
+        setInput(state.input, 0)
+        return true
+      case "\x05": // Ctrl+E
+        setInput(state.input, state.input.length)
+        return true
+      case "\x0b": // Ctrl+K: 줄 끝까지 삭제
+        setInput(state.input.slice(0, state.cursor), state.cursor)
+        return true
+      case "\x15": // Ctrl+U: 줄 시작까지 삭제
+        setInput(state.input.slice(state.cursor), 0)
+        return true
+      case "\x1b[D": // left
+        setInput(state.input, state.cursor - 1)
+        return true
+      case "\x1b[C": // right
+        setInput(state.input, state.cursor + 1)
+        return true
+      case "\x1b[H":
+      case "\x1b[1~":
+      case "\x1bOH":
+        setInput(state.input, 0)
+        return true
+      case "\x1b[F":
+      case "\x1b[4~":
+      case "\x1bOF":
+        setInput(state.input, state.input.length)
+        return true
+      case "\x1b[3~": // delete
+        deleteForward()
+        return true
+      case "\x1b[A": // up
+        historyPrev()
+        return true
+      case "\x1b[B": // down
+        historyNext()
+        return true
+      default:
+        return false
+    }
+  }
+
+  // 부분 이스케이프 시퀀스 버퍼
+  let pending = ""
+  const ESC_RE = /\x1b(?:\[[0-9;]*[A-Za-z~]|O[A-Za-z])/
+
+  const onData = (chunk: Buffer) => {
+    if (state.closed) return
+    if (state.viewer) {
+      handleViewerKey(chunk.toString("utf8"))
+      return
+    }
+    let text = pending + chunk.toString("utf8")
+    pending = ""
+
+    while (text.length > 0) {
+      const m = ESC_RE.exec(text)
+      if (m && m.index === 0) {
+        handleEditKey(m[0])
+        text = text.slice(m[0].length)
+        continue
       }
+      // 시작이 ESC인데 아직 완성되지 않은 시퀀스일 수 있다.
+      if (text[0] === "\x1b") {
+        if (text.length === 1) {
+          pending = text // 다음 청크를 기다린다
+          break
+        }
+        // 알 수 없는 이스케이프는 ESC 키로 간주하고 버린다.
+        handleEditKey("\x1b")
+        text = text.slice(1)
+        continue
+      }
+      const ch = text[0] as string
+      text = text.slice(1)
+      if (handleEditKey(ch)) continue
+      if (ch >= " " || ch === "\t") insert(ch)
     }
     schedule()
   }
@@ -141,8 +265,18 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
   const handleViewerKey = (text: string) => {
     const v = state.viewer
     if (!v) return
+    // 이스케이프 시퀀스(화살표/PageUp 등)를 먼저 처리한다.
+    const seq = ESC_RE.exec(text)
+    if (seq && seq.index === 0) {
+      const s = seq[0]
+      if (s === "\x1b[A" || s === "\x1b[5~") v.scroll -= state.height - 3
+      else if (s === "\x1b[B" || s === "\x1b[6~") v.scroll += state.height - 3
+      else if (s === "\x1b[Z") v.scroll -= 1
+      schedule()
+      return
+    }
     for (const ch of text) {
-      if (ch === "q" || ch === "\x1b" || ch === "\x03") {
+      if (ch === "q" || ch === "\x03" || ch === "\x1b") {
         state.viewer = null
         break
       } else if (ch === "j") {
@@ -162,10 +296,12 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
     schedule()
   }
 
+  let refresh: ReturnType<typeof setInterval> | null = null
   const close = () => {
     if (state.closed) return
     state.closed = true
     if (frame) clearTimeout(frame)
+    if (refresh) clearInterval(refresh)
     stdin.off("data", onData)
     stdout.off("resize", onResize)
     if (stdin.isTTY) stdin.setRawMode(false)
@@ -183,6 +319,9 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
       Object.assign(state.status, patch)
       schedule()
     },
+    setStatusProvider(fn: () => Partial<Status>) {
+      state.statusProvider = fn
+    },
     openViewer(title: string, text: string) {
       state.viewer = { title, lines: text.split("\n"), scroll: 0 }
       schedule()
@@ -194,6 +333,13 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
       stdin.on("data", onData)
       stdout.on("resize", onResize)
       stdin.resume()
+      // 피어 수 등 외부 상태를 주기적으로 새로고침한다(로그는 건드리지 않음).
+      refresh = setInterval(() => {
+        if (state.closed || !state.statusProvider) return
+        Object.assign(state.status, state.statusProvider())
+        schedule()
+      }, 2000)
+      if (refresh.unref) refresh.unref()
       draw()
     },
     close,
