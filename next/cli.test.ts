@@ -59,7 +59,7 @@ function textEvents(text: string): unknown[] {
   ]
 }
 
-type Mode = "success" | "permit503" | "wrongArgs" | "write" | "writeEnv" | "writePermit503" | "edit"
+type Mode = "success" | "permit503" | "wrongArgs" | "write" | "writeEnv" | "writePermit503" | "edit" | "glob" | "grep"
 
 let lastPermit = { tool: "", argsHash: "", calls: 0 }
 
@@ -75,7 +75,18 @@ function startServer(mode: Mode): void {
         const body = (await req.json()) as { messages: Array<Record<string, unknown>> }
         const messages = body.messages
         const hasTool = messages.some((m) => m.role === "tool")
-        const scenario = mode === "write" || mode === "writePermit503" ? "write" : mode === "writeEnv" ? "writeEnv" : mode === "edit" ? "edit" : "read"
+        const scenario =
+          mode === "write" || mode === "writePermit503"
+            ? "write"
+            : mode === "writeEnv"
+              ? "writeEnv"
+              : mode === "edit"
+                ? "edit"
+                : mode === "glob"
+                  ? "glob"
+                  : mode === "grep"
+                    ? "grep"
+                    : "read"
         if (!hasTool) {
           const id = `call_${randomUUID()}`
           state.toolCallId = id
@@ -83,6 +94,10 @@ function startServer(mode: Mode): void {
           if (scenario === "writeEnv") return sse(toolCallEvents(id, "write", { filePath: SECRET_FILENAME, content: "SECRET=1\n" }))
           if (scenario === "edit") {
             return sse(toolCallEvents(id, "edit", { filePath: "EDIT.md", oldString: "beta", newString: "BETA", replaceAll: false }))
+          }
+          if (scenario === "glob") return sse(toolCallEvents(id, "glob", { pattern: "**/*.md" }))
+          if (scenario === "grep") {
+            return sse(toolCallEvents(id, "grep", { pattern: "CROAK_TEST", include: "README*.md" }))
           }
           return sse(toolCallEvents(id, "read", { filePath: "README.md" }))
         }
@@ -94,10 +109,17 @@ function startServer(mode: Mode): void {
           return new Response("bad tool id", { status: 400 })
         }
         const content = typeof tool.content === "string" ? tool.content : ""
-        const expected =
-          scenario === "write" ? "파일을 썼다" : scenario === "writeEnv" ? "오류" : scenario === "edit" ? "곳을 바꿨다" : README_MARKER
-        const toolError = content.startsWith("오류:")
-        if (!content.includes(expected) && !toolError) return new Response("bad tool content", { status: 400 })
+        let ok: boolean
+        if (scenario === "glob") {
+          ok = content.includes("README.md") && content.includes("OTHER.md")
+        } else if (scenario === "grep") {
+          ok = content.includes("README.md") && !content.includes("OTHER.md") && content.includes("CROAK_TEST")
+        } else {
+          const expected =
+            scenario === "write" ? "파일을 썼다" : scenario === "writeEnv" ? "오류" : scenario === "edit" ? "곳을 바꿨다" : README_MARKER
+          ok = content.includes(expected)
+        }
+        if (!ok && !content.startsWith("오류:")) return new Response("bad tool content", { status: 400 })
         state.sawTool = true
         return sse(textEvents(KOREAN_REPLY))
       }
@@ -331,6 +353,37 @@ describe("croakcode-next cli", () => {
     }
   })
 
+
+
+  test("glob 도구는 permit 후 파일 목록을 돌려준다", async () => {
+    startServer("glob")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "마크다운 찾아줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.tool).toBe("glob")
+      expect(lastPermit.argsHash).toBe(sha256Hex(JSON.stringify({ pattern: "**/*.md" })))
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("grep 도구는 include 로 대상을 좁힌다", async () => {
+    startServer("grep")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "마커 찾아줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.tool).toBe("grep")
+      expect(lastPermit.argsHash).toBe(
+        sha256Hex(JSON.stringify({ pattern: "CROAK_TEST", include: "README*.md" })),
+      )
+    } finally {
+      stopServer()
+    }
+  })
 
   test("resume --list 는 저장된 세션이 없으면 안내한다", async () => {
     const workspace = makeWorkspace()

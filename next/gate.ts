@@ -319,12 +319,14 @@ function verifyPermit(
   return payload
 }
 
-export type PermitTool = "read" | "write" | "edit"
+export type PermitTool = "read" | "write" | "edit" | "glob" | "grep"
 
 const STRING_ARGS: Record<PermitTool, readonly string[]> = {
   read: ["filePath"],
   write: ["filePath", "content"],
   edit: ["filePath", "oldString", "newString"],
+  glob: ["pattern"],
+  grep: ["pattern", "include"],
 }
 
 function permitArgsError(): never {
@@ -347,6 +349,7 @@ function validatePermitArgs(tool: PermitTool, args: Record<string, unknown>): vo
     if ((args.filePath as string).length === 0 || (args.oldString as string).length === 0) permitArgsError()
     if (typeof args.replaceAll !== "boolean") permitArgsError()
   }
+  if ((tool === "glob" || tool === "grep") && (args.pattern as string).length === 0) permitArgsError()
 }
 
 /**
