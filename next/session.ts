@@ -323,6 +323,54 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     held.forEach((m, i) => emit(`[${i + 1}] ${m.fromName}: ${m.text}`))
   }
 
+  // /held 의 하위 명령. 인자가 없으면 목록만 보여준다.
+  const heldCommand = (args: string[]) => {
+    const sub = args[0]
+    if (!sub) {
+      showHeld()
+      return
+    }
+    if (sub === "clear") {
+      if (held.length === 0) {
+        emit("보류 중인 메시지가 없다.")
+        return
+      }
+      const count = held.length
+      held = []
+      saveHeld(heldName, held)
+      emit(`보류 메시지 ${count}건을 모두 비웠다.`)
+      return
+    }
+    if (sub === "rm") {
+      const index = Number(args[1])
+      if (!Number.isInteger(index) || index < 1 || index > held.length) {
+        emit("사용법: /held rm <번호>  (/held 목록의 [번호])")
+        return
+      }
+      const [removed] = held.splice(index - 1, 1)
+      saveHeld(heldName, held)
+      emit(`삭제: [${index}] ${removed?.fromName}: ${removed?.text.slice(0, 80) ?? ""}`)
+      return
+    }
+    if (sub === "find") {
+      const needle = args.slice(1).join(" ").trim().toLowerCase()
+      if (!needle) {
+        emit("사용법: /held find <문자열>")
+        return
+      }
+      const hits = held
+        .map((m, i) => ({ m, i }))
+        .filter(({ m }) => m.text.toLowerCase().includes(needle) || m.fromName.toLowerCase().includes(needle))
+      if (hits.length === 0) {
+        emit(`'${needle}' 와 일치하는 보류 메시지가 없다.`)
+        return
+      }
+      for (const { m, i } of hits) emit(`[${i + 1}] ${m.fromName}: ${m.text}`)
+      return
+    }
+    emit("사용법: /held [clear|rm <번호>|find <문자열>]")
+  }
+
   const viewAll = (target?: string) => {
     const list = target ? held.filter((m) => m.id === target) : held.length > 0 ? held : current ? [current] : []
     if (list.length === 0) {
@@ -389,14 +437,14 @@ export async function startSession(options: SessionOptions): Promise<Session> {
         await shutdown()
         return
       case "help":
-        emit("명령: /send <세션> <메시지>, /peers, /held, /view [id], /rename <이름>, /inbound <accept|hold|refuse>, /quit")
+        emit("명령: /send <세션> <메시지>, /peers, /held [clear|rm <번호>|find <문자열>], /view [id], /rename <이름>, /inbound <accept|hold|refuse>, /notify <세션>, /quit")
         emit("슬래시 없이 입력하면 모델과 대화한다.")
         return
       case "peers":
         showPeers()
         return
       case "held":
-        showHeld()
+        heldCommand(rest)
         return
       case "view":
         viewAll(rest[0])

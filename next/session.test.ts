@@ -65,6 +65,61 @@ describe("session messaging", () => {
     void a
   })
 
+  test("/held clear 는 보류 큐를 비운다", async () => {
+    const aOut: string[] = []
+    const bOut: string[] = []
+    const a = await open("alpha", aOut)
+    const b = await open("beta", bOut)
+    await a.handleLine("/send beta 하나")
+    await a.handleLine("/send beta 둘")
+    await sleep(120)
+
+    bOut.length = 0
+    await b.handleLine("/held clear")
+    expect(bOut.join("")).toContain("2건을 모두 비웠다")
+    bOut.length = 0
+    await b.handleLine("/held")
+    expect(bOut.join("")).toContain("보류 중인 메시지가 없다")
+    void a
+  })
+
+  test("/held rm <번호> 는 해당 메시지만 지운다", async () => {
+    const aOut: string[] = []
+    const bOut: string[] = []
+    const a = await open("alpha", aOut)
+    const b = await open("beta", bOut)
+    await a.handleLine("/send beta 첫째")
+    await a.handleLine("/send beta 둘째")
+    await sleep(120)
+
+    bOut.length = 0
+    await b.handleLine("/held rm 1")
+    expect(bOut.join("")).toContain("삭제: [1] alpha: 첫째")
+    bOut.length = 0
+    await b.handleLine("/held")
+    const list = bOut.join("")
+    expect(list).toContain("[1] alpha: 둘째")
+    expect(list).not.toContain("첫째")
+    void a
+  })
+
+  test("/held find 로 보류 메시지를 검색한다", async () => {
+    const aOut: string[] = []
+    const bOut: string[] = []
+    const a = await open("alpha", aOut)
+    const b = await open("beta", bOut)
+    await a.handleLine("/send beta 사과 주세요")
+    await a.handleLine("/send beta 배 주세요")
+    await sleep(120)
+
+    bOut.length = 0
+    await b.handleLine("/held find 사과")
+    const out = bOut.join("")
+    expect(out).toContain("사과")
+    expect(out).not.toContain("배 주세요")
+    void a
+  })
+
   test("accept: 받은 즉시 표시한다", async () => {
     const aOut: string[] = []
     const bOut: string[] = []

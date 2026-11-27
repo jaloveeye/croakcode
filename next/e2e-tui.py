@@ -142,6 +142,12 @@ def main():
         beta.read(0.4)
         check("beta /held 목록", "한글 메시지 전체 뷰어 확인" in beta.screen())
 
+        print("[3b] beta /held find")
+        beta.send("/held find 뷰어\r")
+        time.sleep(0.3)
+        beta.read(0.3)
+        check("beta /held find 검색", "한글 메시지 전체 뷰어 확인" in beta.screen())
+
         print("[4] beta /view 전체화면 뷰어")
         beta.send("/view\r")
         time.sleep(0.5)
