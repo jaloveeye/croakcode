@@ -12,6 +12,7 @@ import {
   grepFiles,
   listDir,
   MAX_FIND_RESULTS,
+  normalizeGlob,
   MAX_GREP_MATCHES,
   MAX_LIST_ENTRIES,
 } from "./scan"
@@ -127,6 +128,38 @@ export const SESSION_TOOLS: unknown[] = [
           replaceAll: { type: "boolean", description: "모든 일치를 바꿀지 여부(기본 false)" },
         },
         required: ["filePath", "oldString", "newString"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "glob",
+      description: "현재 디렉터리 안에서 glob 패턴에 맞는 파일 경로를 찾는다(허가 필요, 결과 수 제한).",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "예: **/*.ts" },
+        },
+        required: ["pattern"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "grep",
+      description:
+        "현재 디렉터리 안 텍스트 파일에서 문자열을 찾는다(허가 필요, 결과 수 제한). include 로 파일 패턴을 좁힐 수 있다.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "찾을 문자열" },
+          include: { type: "string", description: "선택: 파일 glob. 예: **/*.ts" },
+        },
+        required: ["pattern"],
         additionalProperties: false,
       },
     },
@@ -294,6 +327,12 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     if (call.function.name === "edit") {
       return await editTool(args.filePath, args.oldString, args.newString, args.replaceAll)
     }
+    if (call.function.name === "glob") {
+      return await globTool(args.pattern)
+    }
+    if (call.function.name === "grep") {
+      return await grepTool(args.pattern, args.include)
+    }
     return "오류: 알 수 없는 도구다"
   }
 
@@ -386,6 +425,60 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     try {
       const count = editFileBounded(cwd, filePath, oldString, newString, replaceAll === true)
       return `${count}곳을 바꿨다: ${filePath}`
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
+
+  const globTool = async (rawPattern: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "glob")) return "오류: 로컬 정책이 glob 도구를 금지한다"
+    const pattern = typeof rawPattern === "string" ? rawPattern.trim() : ""
+    if (!pattern) return "오류: pattern이 비어 있다"
+    try {
+      normalizeGlob(pattern)
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "glob", { pattern }, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const result = findFiles(cwd, pattern)
+      if (result.files.length === 0) return "일치하는 파일이 없다."
+      const body = result.files.join("\n") + (result.truncated ? `\n... (${MAX_FIND_RESULTS}개까지만 표시)` : "")
+      const clamped = clampOutput(body)
+      return clamped.text + (clamped.truncated ? "\n... (출력이 길어 잘렸다)" : "")
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
+
+  const grepTool = async (rawPattern: unknown, rawInclude: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "grep")) return "오류: 로컬 정책이 grep 도구를 금지한다"
+    const pattern = typeof rawPattern === "string" ? rawPattern.trim() : ""
+    if (!pattern) return "오류: pattern이 비어 있다"
+    if (pattern.includes("\0")) return "오류: 검색어에 NUL 문자는 허용되지 않는다"
+    if (rawInclude !== undefined && typeof rawInclude !== "string") return "오류: include는 문자열이어야 한다"
+    const include = typeof rawInclude === "string" ? rawInclude.trim() : ""
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "grep", { pattern, include }, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const result = grepFiles(cwd, pattern, include)
+      if (result.hits.length === 0) return `일치 항목이 없다. (${result.scanned}개 파일 검사)`
+      const body =
+        result.hits.map((h) => `${h.file}:${h.line}: ${h.text}`).join("\n") +
+        (result.truncated ? `\n... (${MAX_GREP_MATCHES}건까지만 표시)` : "")
+      const clamped = clampOutput(body)
+      return clamped.text + (clamped.truncated ? "\n... (출력이 길어 잘렸다)" : "")
     } catch (error) {
       return `오류: ${(error as Error).message}`
     }
