@@ -26,6 +26,7 @@ import {
   type PeerInfo,
 } from "./peers"
 import { addSub, loadHeld, loadSettings, loadSubs, saveHeld, saveSettings } from "./settings"
+import { runShell, validateShell } from "./shell"
 import type { Inbound } from "./paths"
 
 const NOTIFY_TTL_MS = 12 * 60 * 60 * 1000
@@ -160,6 +161,23 @@ export const SESSION_TOOLS: unknown[] = [
           include: { type: "string", description: "선택: 파일 glob. 예: **/*.ts" },
         },
         required: ["pattern"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "shell",
+      description:
+        "승인된 명령만 셸 없이 실행한다(허가 필요). 허용목록: bun --version, bun test, bun run test, bun run test:next, bun run test:e2e-tui, bun run build:next, npm test. 60초 제한과 출력 상한이 적용된다.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "실행 파일 이름(경로 구분자 불가)" },
+          args: { type: "array", items: { type: "string" }, description: "인자 목록(허용목록과 정확히 일치해야 함)" },
+        },
+        required: ["command"],
         additionalProperties: false,
       },
     },
@@ -333,6 +351,9 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     if (call.function.name === "grep") {
       return await grepTool(args.pattern, args.include)
     }
+    if (call.function.name === "shell") {
+      return await shellTool(args.command, args.args)
+    }
     return "오류: 알 수 없는 도구다"
   }
 
@@ -483,6 +504,37 @@ export async function startSession(options: SessionOptions): Promise<Session> {
       return `오류: ${(error as Error).message}`
     }
   }
+
+  const shellTool = async (rawCommand: unknown, rawArgs: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "shell")) return "오류: 로컬 정책이 shell 도구를 금지한다"
+    let argv: string[]
+    try {
+      argv = validateShell(rawCommand, rawArgs)
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+    const [command, ...args] = argv
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "shell", { command, args }, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const result = await runShell(cwd, command, args)
+      const status = result.timedOut ? "timeout" : `exit=${result.code}`
+      const notes = [
+        result.truncated ? "... (출력이 길어 잘렸다)" : "",
+        result.timedOut ? "... (시간 제한을 넘겨 종료했다)" : "",
+      ].filter(Boolean)
+      const body = result.output.trimEnd()
+      return [status, body || "(출력 없음)", ...notes].join("\n")
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
+
 
   const chat = async (text: string): Promise<void> => {
     inbox.setStatus("busy")
