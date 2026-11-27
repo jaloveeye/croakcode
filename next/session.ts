@@ -47,6 +47,10 @@ export type SessionOptions = {
   output: NodeJS.WritableStream
   /** 테스트용: 게이트를 주입할 수 있다. */
   gate?: Gate
+  /** 이어갈 대화 이력(재개 시). */
+  history?: Message[]
+  /** 새로 생성된 메시지를 받는다(이력 영속용). */
+  onAppend?: (message: Message) => void
   /** 지정하면 라인 REPL 대신 전체화면 TUI로 출력/입력을 처리한다. */
   tui?: Tui
 }
@@ -147,7 +151,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
   let inbound: Inbound = settings.inbound
   let gate: Gate | null = options.gate ?? null
   const lines: string[] = []
-  const history: Message[] = []
+  let history: Message[] = options.history ? [...options.history] : []
   let current: InboundMessage | null = null
 
   const emit = (line: string) => {
@@ -183,6 +187,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
   }
   const inbox: Inbox = await openInbox({ name: heldName, cwd, token })
   let held = loadHeld(heldName)
+  if (history.length > 0) emit(`이전 대화 ${history.length}개 메시지를 이어간다.`)
 
   const renderInbound = (message: InboundMessage) => {
     emit(`[${message.fromName}] ${message.text}`)
@@ -296,10 +301,20 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     syncStatus("busy")
     try {
       const user: Message = { role: "user", content: text }
+      const before = history.length
       history.push(user)
       const result = await chatTurn(getGate(), { sid: inbox.info.id, rid: `run_${randomUUID()}` }, history, SESSION_TOOLS, executeTool)
-      history.length = 0
-      history.push(...result.messages)
+      const produced = result.messages.slice(before)
+      history = result.messages
+      if (options.onAppend) {
+        for (const message of produced) {
+          try {
+            options.onAppend(message)
+          } catch {
+            // 이력 저장 실패가 대화를 막지 않는다
+          }
+        }
+      }
       emit(`(나) ${result.text}`)
     } catch (error) {
       const reason = error instanceof SafeError ? error.code : ((error as { message?: string }).message ?? "오류")

@@ -4,6 +4,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Database } from "bun:sqlite"
+import { createHistoryStore } from "./store"
+import type { Message } from "./chat"
 
 const ENTRY = join(import.meta.dir, "cli.ts")
 const README_MARKER = "CROAK_TEST_README_MARKER_7f3a"
@@ -179,6 +181,23 @@ function openSessions(workspace: string): Database {
   return new Database(join(workspace, ".data", "croakcode-next", "sessions.db"))
 }
 
+/** 이력 DB 에 대화형 세션 하나를 심는다(자식 CLI 와 같은 XDG_DATA_HOME 사용). */
+function seedHistory(workspace: string): string {
+  const prevData = process.env.XDG_DATA_HOME
+  process.env.XDG_DATA_HOME = join(workspace, ".data")
+  try {
+    const store = createHistoryStore(workspace)
+    store.persist({ role: "user", content: "안녕" } as Message)
+    store.persist({ role: "assistant", content: "반가워" } as Message)
+    store.setStatus("closed")
+    store.close()
+    return store.id
+  } finally {
+    if (prevData === undefined) delete process.env.XDG_DATA_HOME
+    else process.env.XDG_DATA_HOME = prevData
+  }
+}
+
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "croak-next-test-"))
   binPath = join(root, "croakcode-next")
@@ -284,6 +303,31 @@ describe("croakcode-next cli", () => {
     } finally {
       stopServer()
     }
+  })
+
+
+  test("resume --list 는 저장된 세션이 없으면 안내한다", async () => {
+    const workspace = makeWorkspace()
+    const result = await runCli(workspace, ["resume", "--list"])
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain("저장된 세션이 없다")
+  })
+
+  test("resume --list 는 저장된 대화형 세션을 보여준다", async () => {
+    const workspace = makeWorkspace()
+    const id = seedHistory(workspace)
+    const result = await runCli(workspace, ["resume", "--list"])
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain(id)
+    expect(result.stdout).toContain("closed")
+    expect(result.stdout).toContain("2개")
+  })
+
+  test("저장된 세션이 없으면 resume --last 는 실패한다", async () => {
+    const workspace = makeWorkspace()
+    const result = await runCli(workspace, ["resume", "--last"])
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain("저장된 세션이 없다")
   })
 
   test("mismatched filename cannot read other file", async () => {

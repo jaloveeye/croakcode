@@ -27,7 +27,7 @@
 | 기존 슬래시 명령 | `upstream/packages/opencode/src/command/index.ts` (`init`, `review` + `.croakcode/command/*.md`) |
 | 기존 TUI 기능 | `upstream/packages/opencode/src/cli/cmd/tui/routes/session/index.tsx`, `.../component/prompt/index.tsx` |
 | 기존 resume/run 옵션 | `upstream/packages/opencode/src/cli/cmd/resume.ts`, `.../run.ts` |
-| `next/` 기능 | `next/cli.ts`, `next/session.ts`, `next/chat.ts`, `next/tui.ts` |
+| `next/` 기능 | `next/cli.ts`, `next/session.ts`, `next/chat.ts`, `next/tui.ts`, `next/store.ts`, `next/scan.ts` |
 
 ## 1. CLI 명령
 
@@ -35,7 +35,7 @@
 |---|---|---|
 | (기본 TUI 실행) | `session [--name] [--tui\|--no-tui]` (자체 TUI) | △ 다른 TUI |
 | `run` | `run <filename> [prompt]` | △ read 전용 |
-| `resume`(`--last/--session/--list/--fork/--model/--agent`) | `sessions`(목록만) | ✗ 리줌/포크 없음 |
+| `resume`(`--last/--session/--list/--fork/--model/--agent`) | `resume [--last\|--session <id>\|--list]` (대화형 세션 이력만, 포크/모델/에이전트 없음) | △ |
 | `serve`, `web`, `attach` | 없음 | ✗ |
 | `export`, `import` | 없음 | ✗ |
 | `models`, `providers` | 없음 | ✗ |
@@ -45,6 +45,9 @@
 | (completion) | 없음 | ✗ |
 | — | `sessions`(세션 목록), 세션 내부 `/send`(신규) | ＋ 신규 |
 | — | (참고) standalone `send` 명령은 의도적 비활성(안내만 출력) | ✗ |
+
+`resume`은 `session`에서 저장된 대화 이력만 이어간다(`run` 이력 제외). `--list`는 인증 없이 동작하고,
+재개 시 원래 작업 디렉터리와 메시지 순서를 복원한다.
 
 ## 2. 도구(tool)
 
@@ -65,7 +68,8 @@
 | 기존 croakcode | `next/` | 상태 |
 |---|---|---|
 | SQLite/WAL 다중 세션, 마이그레이션 | 최소 `sessions.db` | △ |
-| `resume --last/--session/--list`, 포크 | `sessions` 목록만 | ✗ |
+| `resume --last/--session/--list`, 포크 | `resume --last/--session/--list`(대화형 세션), 포크 없음 | △ |
+| 세션 이력 영속 | `sessions.db`에 `kind=session` 이력 저장, 재개 시 이어서 대화 | △ 최소 |
 | 타임라인, 트리 분기 | 없음 | ✗ |
 | 압축(compact)/요약 | 없음 | ✗ |
 | undo/redo, revert | 없음 | ✗ |
@@ -114,7 +118,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **43 pass / 0 fail** | next CLI·scan·세션·TUI 단위 |
+| `bun run test:next` | **53 pass / 0 fail** | next CLI·store·scan·세션·TUI 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -125,7 +129,7 @@
 
 1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell` 등 핵심 도구 이식(정책·permit 연동 포함).
    현재 `glob`/`grep`은 사용자 명령(`/find`·`/grep`)으로만 제공되고 모델 도구로는 미노출.
-2. **세션 관리**: `resume --last/--list/--session`, 포크, 기존 세션 DB 스키마 호환.
+2. **세션 관리**: `resume --last/--list/--session` 완료(대화형 세션 한정). 포크, run 이력 재개, 기존 세션 DB 스키마 완전 호환은 남음.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
 5. **TUI 동등**: 모델/에이전트 전환, 타임라인, 압축, undo/redo, 공유/export.
