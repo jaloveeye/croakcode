@@ -14,6 +14,27 @@ const DIM = `${ESC}2m`
 const BOLD = `${ESC}1m`
 const MAX_LOG = 5000
 
+// 256색 팔레트 일부. 색상 코드는 패딩/절단이 끝난 평문 뒤에 감싼다.
+const FG = (n: number) => `${ESC}38;5;${n}m`
+const BG = (n: number) => `${ESC}48;5;${n}m`
+const C = {
+  barBg: BG(24), // 상태줄 배경(어두운 파랑)
+  barName: FG(231), // 세션 이름(흰색)
+  idle: FG(114), // idle(연두)
+  busy: FG(221), // busy(노랑)
+  barText: FG(189), // 나머지 상태 텍스트(연한 회청)
+  title: FG(81), // 뷰어 헤더(하늘색)
+  prompt: FG(114), // 입력 프롬프트 '>'
+  hint: DIM,
+}
+
+function colorEnabled(stdout: NodeJS.WriteStream): boolean {
+  if (process.env.NO_COLOR) return false
+  if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== "0") return true
+  if (process.env.TERM === "dumb") return false
+  return Boolean(stdout.isTTY)
+}
+
 export type Status = { name: string; inbound: string; activity: "idle" | "busy"; peers: number }
 
 type Viewer = { title: string; lines: string[]; scroll: number }
@@ -45,6 +66,7 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
     viewer: null as Viewer | null,
     session: null as Session | null,
     statusProvider: null as (() => Partial<Status>) | null,
+    color: colorEnabled(stdout),
     closed: false,
   }
 
@@ -59,19 +81,30 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
 
     const s = state.status
     const leftRaw = ` ${s.name}`
-    const rightRaw = `${s.activity === "busy" ? "● busy" : "○ idle"} · ${s.peers} peers · ${s.inbound} `
+    const actRaw = s.activity === "busy" ? "● busy" : "○ idle"
+    const restRaw = ` · ${s.peers} peers · ${s.inbound} `
+    const rightRaw = `${actRaw}${restRaw}`
     const gap = Math.max(0, width - displayWidth(leftRaw) - displayWidth(rightRaw))
-    rows.push(`${REVERSE}${truncate(leftRaw, width)}${" ".repeat(gap)}${rightRaw}${RESET}`)
+    if (state.color) {
+      const seg = (fg: string, text: string) => `${C.barBg}${fg}${text}${RESET}`
+      rows.push(
+        `${C.barBg}${seg(C.barName, truncate(leftRaw, width))}${" ".repeat(gap)}` +
+          `${seg(s.activity === "busy" ? C.busy : C.idle, actRaw)}${seg(C.barText, restRaw)}${RESET}`,
+      )
+    } else {
+      rows.push(`${REVERSE}${truncate(leftRaw, width)}${" ".repeat(gap)}${rightRaw}${RESET}`)
+    }
 
     if (state.viewer) {
       const v = state.viewer
       const bodyHeight = height - 3
       v.scroll = clamp(v.scroll, 0, Math.max(0, v.lines.length - bodyHeight))
-      rows.push(`${BOLD}${truncate(` ${v.title}`, width)}${RESET}`)
+      const title = truncate(` ${v.title}`, width)
+      rows.push(state.color ? `${BOLD}${C.title}${title}${RESET}` : `${BOLD}${title}${RESET}`)
       for (let i = 0; i < bodyHeight; i++) {
         rows.push(truncate(v.lines[v.scroll + i] ?? "", width))
       }
-      rows.push(`${DIM}${truncate(" j/k 스크롤 · PgUp/PgDn · q/esc 닫기", width)}${RESET}`)
+      rows.push(`${C.hint}${truncate(" j/k 스크롤 · PgUp/PgDn · q/esc 닫기", width)}${RESET}`)
     } else {
       const bodyHeight = height - 3
       const start = Math.max(0, state.log.length - bodyHeight)
@@ -79,8 +112,12 @@ export function createTui(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, 
       for (let i = 0; i < bodyHeight; i++) {
         rows.push(truncate(visible[i] ?? "", width))
       }
-      rows.push(truncate(`> ${state.input}`, width))
-      rows.push(`${DIM}${truncate(" Enter 전송 · /help 명령 · Ctrl+C 종료", width)}${RESET}`)
+      const promptText = "> "
+      const room = Math.max(0, width - displayWidth(promptText))
+      const input = truncate(state.input, room)
+      const prompt = state.color ? `${C.prompt}>${RESET} ` : promptText
+      rows.push(`${prompt}${input}`)
+      rows.push(`${C.hint}${truncate(" Enter 전송 · /help 명령 · Ctrl+C 종료", width)}${RESET}`)
     }
 
     while (rows.length < height) rows.push("")

@@ -190,3 +190,32 @@ describe("tui 상태/뷰어", () => {
     expect(screen.lastIndexOf(">")).toBeGreaterThan(-1)
   })
 })
+
+describe("tui 색상", () => {
+  const prev = { FORCE_COLOR: process.env.FORCE_COLOR, NO_COLOR: process.env.NO_COLOR }
+  afterEach(() => {
+    if (prev.FORCE_COLOR === undefined) delete process.env.FORCE_COLOR
+    else process.env.FORCE_COLOR = prev.FORCE_COLOR
+    if (prev.NO_COLOR === undefined) delete process.env.NO_COLOR
+    else process.env.NO_COLOR = prev.NO_COLOR
+  })
+
+  test("FORCE_COLOR 면 상태줄에 배경색 코드가 들어간다", async () => {
+    process.env.FORCE_COLOR = "1"
+    delete process.env.NO_COLOR
+    open = harness()
+    await sleep(30)
+    // 상태줄 배경(48;5;24)
+    expect(open.screen()).toContain("\x1b[48;5;24m")
+  })
+
+  test("NO_COLOR 면 색상 코드가 없다", async () => {
+    process.env.FORCE_COLOR = "1"
+    process.env.NO_COLOR = "1"
+    open = harness()
+    await sleep(30)
+    const screen = open.screen()
+    expect(screen).not.toContain("\x1b[48;5;24m")
+    expect(screen).not.toContain("\x1b[38;5;")
+  })
+})
