@@ -29,6 +29,8 @@ export class SessionError extends Error {
   }
 }
 
+import type { Tui } from "./tui"
+
 export type SessionOptions = {
   name: string
   cwd?: string
@@ -36,6 +38,8 @@ export type SessionOptions = {
   output: NodeJS.WritableStream
   /** 테스트용: 게이트를 주입할 수 있다. */
   gate?: Gate
+  /** 지정하면 라인 REPL 대신 전체화면 TUI로 출력/입력을 처리한다. */
+  tui?: Tui
 }
 
 
@@ -139,7 +143,24 @@ export async function startSession(options: SessionOptions): Promise<Session> {
 
   const emit = (line: string) => {
     lines.push(line)
-    options.output.write(`${line}\n`)
+    if (options.tui) options.tui.writeLine(line)
+    else options.output.write(`${line}\n`)
+  }
+
+  const syncStatus = (activity?: "idle" | "busy") => {
+    if (!options.tui) return
+    let peers = 0
+    try {
+      peers = listPeers().length
+    } catch {
+      peers = 0
+    }
+    options.tui.setStatus({
+      name: heldName,
+      inbound,
+      activity: activity ?? (inbox.info.status === "busy" ? "busy" : "idle"),
+      peers,
+    })
   }
 
   const getGate = (): Gate => {
@@ -263,6 +284,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
 
   const chat = async (text: string): Promise<void> => {
     inbox.setStatus("busy")
+    syncStatus("busy")
     try {
       const user: Message = { role: "user", content: text }
       history.push(user)
@@ -276,6 +298,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
       history.pop()
     } finally {
       inbox.setStatus("idle")
+      syncStatus("idle")
       await announceIdle()
     }
   }
@@ -306,6 +329,12 @@ export async function startSession(options: SessionOptions): Promise<Session> {
       emit("표시할 메시지가 없다.")
       return
     }
+    const picked = list[list.length - 1] as InboundMessage
+    if (options.tui) {
+      const header = `보낸이: ${picked.fromName} (${picked.from})  시각: ${new Date(picked.ts).toISOString()}`
+      options.tui.openViewer(header, picked.text)
+      return
+    }
     for (const m of list) viewMessage(m)
   }
 
@@ -325,6 +354,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     }
     inbound = value
     saveSettings({ inbound })
+    syncStatus()
     emit(`수신 규칙: ${inbound}`)
     if (inbound === "accept" && held.length > 0) {
       const queued = held.splice(0)
@@ -339,6 +369,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     stopping = true
     saveHeld(heldName, held)
     await inbox.close()
+    resolveClosed()
   }
 
   const handleLine = async (raw: string): Promise<void> => {
@@ -423,20 +454,29 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     }
   }
 
-  const rl = createInterface({ input: options.input, terminal: false })
   let resolveClosed: () => void = () => {}
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve
   })
-  const loop = (async () => {
-    for await (const line of rl) {
-      await handleLine(line)
-      if (stopping) break
-    }
-    rl.close()
-    await shutdown()
-    resolveClosed()
-  })()
+
+  let loop: Promise<void> = Promise.resolve()
+  let rl: ReturnType<typeof createInterface> | null = null
+
+  if (options.tui) {
+    // TUI가 입력을 대신 처리한다. /quit → shutdown 이 closed를 완료한다.
+    loop = closed
+  } else {
+    rl = createInterface({ input: options.input, terminal: false })
+    const lineReader = rl
+    loop = (async () => {
+      for await (const line of lineReader) {
+        await handleLine(line)
+        if (stopping) break
+      }
+      lineReader.close()
+      await shutdown()
+    })()
+  }
 
   const session: Session = {
     id: inbox.info.id,
@@ -448,7 +488,8 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     },
     // 외부 신호(SIGINT 등)로 입력을 닫아 루프를 끝낸다.
     async interrupt() {
-      rl.close()
+      if (rl) rl.close()
+      await shutdown()
       await loop
       await closed
     },
@@ -458,6 +499,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
 
   emit(`세션 시작: ${inbox.info.name} (${inbox.info.id}) 수신 규칙: ${inbound}`)
   if (held.length > 0) emit(`보류 중인 메시지 ${held.length}건이 있다. /held 로 확인하라.`)
+  syncStatus("idle")
 
   return session
 }

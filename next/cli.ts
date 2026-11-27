@@ -9,12 +9,14 @@ import { completion, type Call, type Message } from "./chat"
 import { dataDir } from "./paths"
 import { readFileBounded, SafeError, validateFilename } from "./fsafe"
 import { startSession, SessionError } from "./session"
+import { createTui } from "./tui"
 import { listPeers, PeerError } from "./peers"
 
 const USAGE = `사용법: croakcode-next <command> [args]
 
   run <filename> [prompt]   파일을 읽어 요약한다 (경로 구분자 불가)
   session [--name <이름>]    대화형 세션을 연다(다른 세션과 메시지 교환)
+    --tui / --no-tui         전체화면 TUI 강제/해제 (기본: TTY면 TUI)
   sessions                  실행 중인 세션 목록을 보여준다
 
   --help, -h  이 도움말을 출력한다 (인증 불필요)
@@ -283,23 +285,47 @@ async function run(filename: string, prompt: string): Promise<void> {
 async function commandSession(argv: string[]): Promise<void> {
   if (process.platform !== "linux") fail("platform_unsupported", "현재 Linux만 지원한다")
   let name = `session-${process.pid}`
+  let forceTui = false
+  let forceNoTui = false
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--name") {
+    const arg = argv[i]
+    if (arg === "--name") {
       name = argv[i + 1] ?? ""
       if (!name) fail("usage", "--name 뒤에 이름이 필요하다")
       i++
+    } else if (arg === "--tui") {
+      forceTui = true
+    } else if (arg === "--no-tui") {
+      forceNoTui = true
     } else {
       fail("usage", "알 수 없는 인자다. --help를 참고하라")
     }
   }
-  const session = await startSession({ name, input: process.stdin, output: process.stdout })
+
+  const useTui = forceTui || (!forceNoTui && Boolean(process.stdin.isTTY && process.stdout.isTTY))
+  if (!useTui) {
+    const session = await startSession({ name, input: process.stdin, output: process.stdout })
+    const shutdown = () => {
+      session.interrupt().finally(() => process.exit(0))
+    }
+    process.on("SIGINT", shutdown)
+    process.on("SIGTERM", shutdown)
+    // 입력이 끝나거나 /quit 이 처리될 때까지 기다린다.
+    await session.stop()
+    return
+  }
+
+  const tui = createTui(process.stdin, process.stdout, { name, inbound: "hold", activity: "idle", peers: 1 })
+  const session = await startSession({ name, input: process.stdin, output: process.stdout, tui })
+  tui.start(session)
   const shutdown = () => {
+    tui.close()
     session.interrupt().finally(() => process.exit(0))
   }
   process.on("SIGINT", shutdown)
   process.on("SIGTERM", shutdown)
-  // 입력이 끝나거나 /quit 이 처리될 때까지 기다린다.
   await session.stop()
+  tui.close()
 }
 
 function commandSessions(): void {
