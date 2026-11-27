@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { MAX_FILE_BYTES } from "./fsafe"
+import { MAX_FILE_BYTES, resolveInside } from "./fsafe"
 import {
   clampOutput,
   findFiles,
@@ -11,7 +11,6 @@ import {
   listDir,
   MAX_LIST_ENTRIES,
   normalizeGlob,
-  resolveInside,
 } from "./scan"
 
 let root = ""

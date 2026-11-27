@@ -187,9 +187,6 @@ async function readStream(response: Response): Promise<StreamResult> {
   if (state.call) {
     if (!state.call.id) throw streamError("tool call id missing")
     if (!state.call.name) throw streamError("tool call name missing")
-    if (!TOOLS.some((tool) => tool.function.name === state.call!.name)) {
-      throw streamError("unknown tool call name")
-    }
     calls.push({
       id: state.call.id,
       type: "function",
@@ -234,6 +231,15 @@ export async function completion(
   if (!response.ok) throw httpError(response.status)
 
   const result = await readStream(response)
+
+  const allowed = new Set(
+    (tools as Array<{ function?: { name?: unknown } }>)
+      .map((tool) => tool.function?.name)
+      .filter((name): name is string => typeof name === "string"),
+  )
+  for (const call of result.calls) {
+    if (!allowed.has(call.function.name)) throw streamError("unknown tool call name")
+  }
 
   if (expect === "tool") {
     if (result.finishReason !== "tool_calls") throw streamError("expected tool_calls finish")

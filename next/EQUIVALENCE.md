@@ -54,7 +54,8 @@
 | 기존 croakcode | `next/ run` | `next/ session` | 상태 |
 |---|---|---|---|
 | `read` | ✅ | ✅ | ✅ |
-| `write`, `edit`, `apply_patch` | ✗ | ✗ | ✗ |
+| `write`, `edit` | ✗ | ✅ cwd 내 상대 경로·64KB·permit | △ |
+| `apply_patch` | ✗ | ✗ | ✗ |
 | `glob`, `grep` | ✗ | △ 사용자 명령 `/find`·`/grep`만(모델 도구 아님) | △ |
 | `shell` | ✗ | ✗ | ✗ |
 | `task`(위임), `plan`, `question` | ✗ | ✗ | ✗ |
@@ -62,6 +63,10 @@
 | `webfetch`, `websearch`, `mcp-websearch` | ✗ | ✗ | ✗ |
 | `repo_clone`, `repo_overview` | ✗ | ✗ | ✗ |
 | — | — | `ListAgents`, `SendMessage`(신규) | ＋ 신규 |
+
+`write`/`edit`은 `session`에서만 제공한다. `cwd` 밖 탈출·절대 경로·비밀 경로·`.git` 등 VCS 내부·심볼릭 링크를
+거부하고, 쓰기는 64KB, 편집은 기존 `read` 상한(16KB) 파일만 다룬다. `edit`은 일치가 여러 곳이면 `replaceAll=true`가
+필요하다. 두 도구 모두 서명된 execution permit을 먼저 통과해야 실제 파일을 건드린다.
 
 ## 3. 세션 관리 / 영속
 
@@ -118,7 +123,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **53 pass / 0 fail** | next CLI·store·scan·세션·TUI 단위 |
+| `bun run test:next` | **69 pass / 0 fail** | next CLI·store·fsafe·scan·세션·TUI 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -127,8 +132,8 @@
 
 우선순위 제안(각 항목은 별도 작업):
 
-1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell` 등 핵심 도구 이식(정책·permit 연동 포함).
-   현재 `glob`/`grep`은 사용자 명령(`/find`·`/grep`)으로만 제공되고 모델 도구로는 미노출.
+1. **도구 세트**: `write`/`edit` 완료(session 한정, permit·경로/크기 제한). 남은 것: `glob`/`grep` 모델 도구,
+   `shell`, `apply_patch`. 현재 `glob`/`grep`은 사용자 명령(`/find`·`/grep`)으로만 제공.
 2. **세션 관리**: `resume --last/--list/--session` 완료(대화형 세션 한정). 포크, run 이력 재개, 기존 세션 DB 스키마 완전 호환은 남음.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
