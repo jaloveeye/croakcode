@@ -6,7 +6,15 @@ import { join } from "node:path"
 import { authorizeRead, openGate, type Gate } from "./gate"
 import { completion, type Call, type Message } from "./chat"
 import { readFileBounded, SafeError, validateFilename } from "./fsafe"
-import { createHistoryStore, createStore, latestHistory, listHistory, loadHistory } from "./store"
+import {
+  createHistoryStore,
+  createStore,
+  forkHistory,
+  importLegacyHistory,
+  latestHistory,
+  listHistory,
+  loadHistory,
+} from "./store"
 import { startSession, SessionError } from "./session"
 import { createTui } from "./tui"
 import { listPeers, PeerError } from "./peers"
@@ -16,10 +24,11 @@ const USAGE = `사용법: croakcode-next <command> [args]
   run <filename> [prompt]   파일을 읽어 요약한다 (경로 구분자 불가)
   session [--name <이름>]    대화형 세션을 연다(다른 세션과 메시지 교환)
     --tui / --no-tui         전체화면 TUI 강제/해제 (기본: TTY면 TUI)
-  resume                    저장된 대화형 세션을 이어간다(기본: --last)
+  resume                    저장된 세션을 이어간다(기본: --last)
     --last                   가장 최근 세션
     --session <id>           지정한 세션
-    --list                   저장된 세션 목록
+    --list                   저장된 세션 목록(run 이력·기존 croakcode DB 포함)
+    --fork                   새 세션으로 복제해 이어간다(원본 보존)
     --name <이름>            세션 이름 (기본: resume-<pid>)
   sessions                  실행 중인 세션 목록을 보여준다
 
@@ -303,6 +312,7 @@ async function commandResume(argv: string[]): Promise<void> {
   if (process.platform !== "linux") fail("platform_unsupported", "현재 Linux만 지원한다")
   let byLast = false
   let list = false
+  let fork = false
   let sessionId: string | null = null
   let name: string | null = null
   let forceTui = false
@@ -313,6 +323,8 @@ async function commandResume(argv: string[]): Promise<void> {
       byLast = true
     } else if (arg === "--list") {
       list = true
+    } else if (arg === "--fork") {
+      fork = true
     } else if (arg === "--session") {
       sessionId = argv[i + 1] ?? ""
       if (!sessionId) fail("usage", "--session 뒤에 세션 id가 필요하다")
@@ -331,6 +343,7 @@ async function commandResume(argv: string[]): Promise<void> {
   }
 
   if (list) {
+    if (fork) fail("usage", "--fork 와 --list 는 함께 쓸 수 없다")
     const rows = listHistory()
     if (rows.length === 0) {
       process.stdout.write("저장된 세션이 없다.\n")
@@ -348,12 +361,19 @@ async function commandResume(argv: string[]): Promise<void> {
   if (!loaded) fail("usage", sessionId ? `세션을 찾을 수 없다: ${sessionId}` : "저장된 세션이 없다")
 
   const cwd = loaded.cwd && existsSync(loaded.cwd) ? loaded.cwd : process.cwd()
-  const store = createHistoryStore(cwd, loaded.id)
+  const target = fork
+    ? forkHistory(loaded.id, cwd)
+    : loaded.source === "legacy"
+      ? (importLegacyHistory(loaded.id, cwd) ?? loaded)
+      : loaded
+  const store = createHistoryStore(cwd, target.id)
+  // run 이력의 인공 시스템 프롬프트는 대화형 세션에 물려주지 않는다.
+  const history = target.messages.filter((message) => message.role !== "system")
   try {
     await launchSession({
       name: name ?? `resume-${process.pid}`,
       cwd,
-      history: loaded.messages,
+      history,
       onAppend: (message) => store.persist(message),
       forceTui,
       forceNoTui,

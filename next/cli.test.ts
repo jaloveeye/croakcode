@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Database } from "bun:sqlite"
-import { createHistoryStore } from "./store"
+import { createHistoryStore, createStore } from "./store"
 import type { Message } from "./chat"
 
 const ENTRY = join(import.meta.dir, "cli.ts")
@@ -279,6 +279,65 @@ function openSessions(workspace: string): Database {
   return new Database(join(workspace, ".data", "croakcode-next", "sessions.db"))
 }
 
+/** 이력 DB 에 run 세션 하나를 심는다. */
+function seedRun(workspace: string): string {
+  const prevData = process.env.XDG_DATA_HOME
+  process.env.XDG_DATA_HOME = join(workspace, ".data")
+  try {
+    const store = createStore()
+    store.persist({ role: "user", content: "run 질문" } as Message)
+    store.persist({ role: "assistant", content: "run 답" } as Message)
+    store.setStatus("completed")
+    store.close()
+    return store.sessionId
+  } finally {
+    if (prevData === undefined) delete process.env.XDG_DATA_HOME
+    else process.env.XDG_DATA_HOME = prevData
+  }
+}
+
+/** 기존 croakcode 형식(croakcode.db)의 세션 하나를 심는다. */
+function seedLegacySession(workspace: string): string {
+  const dir = join(workspace, ".data", "croakcode")
+  mkdirSync(dir, { recursive: true })
+  const db = new Database(join(dir, "croakcode.db"), { create: true })
+  try {
+    db.exec(`
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY, directory TEXT, title TEXT, time_created INTEGER, time_updated INTEGER
+      );
+      CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+      CREATE TABLE part (
+        id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT
+      );
+    `)
+    const now = Date.now()
+    db.query("INSERT INTO session (id, directory, title, time_created, time_updated) VALUES (?, ?, ?, ?, ?)").run(
+      "ses_legacy_cli",
+      workspace,
+      "기존",
+      now,
+      now,
+    )
+    db.query("INSERT INTO message (id, session_id, time_created, data) VALUES (?, ?, ?, ?)").run(
+      "msg_legacy_cli",
+      "ses_legacy_cli",
+      now,
+      JSON.stringify({ role: "user" }),
+    )
+    db.query("INSERT INTO part (id, message_id, session_id, time_created, data) VALUES (?, ?, ?, ?, ?)").run(
+      "prt_legacy_cli",
+      "msg_legacy_cli",
+      "ses_legacy_cli",
+      now,
+      JSON.stringify({ type: "text", text: "기존 대화" }),
+    )
+    return "ses_legacy_cli"
+  } finally {
+    db.close()
+  }
+}
+
 /** 이력 DB 에 대화형 세션 하나를 심는다(자식 CLI 와 같은 XDG_DATA_HOME 사용). */
 function seedHistory(workspace: string): string {
   const prevData = process.env.XDG_DATA_HOME
@@ -514,6 +573,84 @@ describe("croakcode-next cli", () => {
     const result = await runCli(workspace, ["resume", "--last"])
     expect(result.code).not.toBe(0)
     expect(result.stderr).toContain("저장된 세션이 없다")
+  })
+
+  test("resume --list 와 재개는 run 이력도 포함한다", async () => {
+    const workspace = makeWorkspace()
+    const id = seedRun(workspace)
+    const listed = await runCli(workspace, ["resume", "--list"])
+    expect(listed.code).toBe(0)
+    expect(listed.stdout).toContain(id)
+
+    const resumed = await runCli(workspace, ["resume", "--session", id, "--no-tui"], { input: "/quit\n" })
+    expect(resumed.code).toBe(0)
+    const db = openSessions(workspace)
+    try {
+      const row = db.query("SELECT status, kind FROM sessions WHERE id = ?").get(id) as {
+        status: string
+        kind: string
+      }
+      expect(row).toEqual({ status: "closed", kind: "run" })
+    } finally {
+      db.close()
+    }
+  })
+
+  test("resume --fork 는 새 세션에 이력을 복제하고 원본을 보존한다", async () => {
+    const workspace = makeWorkspace()
+    const id = seedHistory(workspace)
+    const result = await runCli(workspace, ["resume", "--session", id, "--fork", "--no-tui"], { input: "/quit\n" })
+    expect(result.code).toBe(0)
+
+    const db = openSessions(workspace)
+    try {
+      const forked = db.query("SELECT id FROM sessions WHERE parent_id = ?").all(id) as Array<{ id: string }>
+      expect(forked).toHaveLength(1)
+      const forkedId = forked[0]?.id as string
+      expect(forkedId).not.toBe(id)
+      const count = (sessionId: string) =>
+        (db.query("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?").get(sessionId) as { n: number }).n
+      expect(count(id)).toBe(2)
+      expect(count(forkedId)).toBe(2)
+      const original = db.query("SELECT status, parent_id FROM sessions WHERE id = ?").get(id) as {
+        status: string
+        parent_id: string | null
+      }
+      expect(original).toEqual({ status: "closed", parent_id: null })
+    } finally {
+      db.close()
+    }
+  })
+
+  test("resume 은 기존 croakcode DB 세션을 가져와 이어간다", async () => {
+    const workspace = makeWorkspace()
+    const id = seedLegacySession(workspace)
+    const listed = await runCli(workspace, ["resume", "--list"])
+    expect(listed.code).toBe(0)
+    expect(listed.stdout).toContain(id)
+
+    const resumed = await runCli(workspace, ["resume", "--session", id, "--no-tui"], { input: "/quit\n" })
+    expect(resumed.code).toBe(0)
+    const db = openSessions(workspace)
+    try {
+      const row = db.query("SELECT status, kind FROM sessions WHERE id = ?").get(id) as {
+        status: string
+        kind: string
+      }
+      expect(row).toEqual({ status: "closed", kind: "session" })
+      const count = (db.query("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?").get(id) as { n: number }).n
+      expect(count).toBe(1)
+    } finally {
+      db.close()
+    }
+
+    const legacy = new Database(join(workspace, ".data", "croakcode", "croakcode.db"), { readonly: true })
+    try {
+      const count = (legacy.query("SELECT COUNT(*) AS n FROM message").get() as { n: number }).n
+      expect(count).toBe(1)
+    } finally {
+      legacy.close()
+    }
   })
 
 

@@ -20,7 +20,7 @@
 
 ## 독립 CLI 시제품
 
-Linux와 Bun에서만 동작하는 시제품입니다. 루트에서 `bun run build:next`로 빌드하고 `./dist/croakcode-next`를 실행합니다. 예: `./dist/croakcode-next run NOTES.md "핵심을 세 줄로 요약해 줘"` (대상은 16 KiB 이하). `--help`와 `bun run test:next`도 있습니다. 프로젝트 디렉터리에서 절대 경로로 실행하면 선택한 최상위 일반 UTF-8 파일 하나(16 KiB 이하, 심볼릭 링크 차단)를 읽습니다. 기존 croakcode `/login`으로 만든 유효 세션(서명 키·게이트 설정, `CROAK_CONFIG_DIR` 또는 `~/.config/croak`)이 필요하고, dev-safe·서명 permit·기본 croak 모델로 읽습니다. 토큰 자동 갱신은 아직 없습니다. 세션 DB는 `XDG_DATA_HOME/croakcode-next/sessions.db` 또는 `~/.local/share/croakcode-next/sessions.db`입니다.
+Linux와 Bun에서만 동작하는 시제품입니다. 루트에서 `bun run build:next`로 빌드하고 `./dist/croakcode-next`를 실행합니다. 예: `./dist/croakcode-next run NOTES.md "핵심을 세 줄로 요약해 줘"` (대상은 16 KiB 이하). `--help`와 `bun run test:next`도 있습니다. 프로젝트 디렉터리에서 절대 경로로 실행하면 선택한 최상위 일반 UTF-8 파일 하나(16 KiB 이하, 심볼릭 링크 차단)를 읽습니다. 기존 croakcode `/login`으로 만든 유효 세션(서명 키·게이트 설정, `CROAK_CONFIG_DIR` 또는 `~/.config/croak`)이 필요하고, dev-safe·서명 permit·기본 croak 모델로 읽습니다. 토큰 자동 갱신은 아직 없습니다. 세션 DB는 `XDG_DATA_HOME/croakcode-next/sessions.db` 또는 `~/.local/share/croakcode-next/sessions.db`입니다. `resume`은 `session`·`run` 이력을 이어가고 `--fork`로 원본을 보존한 채 복제할 수 있으며, 기존 croakcode의 `croakcode.db`/`croakcode-local.db` 세션도 목록에 합쳐 읽습니다.
 
 ## 요구 사항
 
