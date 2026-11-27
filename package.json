@@ -1,4 +1,7 @@
 { "name": "croakcode", "private": true, "type": "module",
   "workspaces": ["contracts", "control"],
   "devDependencies": { "@croakcode/contracts": "workspace:*", "@croakcode/control": "workspace:*" },
-  "scripts": { "test": "node --test 'tests/*.test.mjs'", "test:bun": "bun test tests" } }
+  "scripts": { "test": "node --test 'tests/*.test.mjs'", "test:bun": "bun test tests",
+    "build:next": "bun build --compile ./next/cli.ts --outfile ./dist/croakcode-next",
+    "test:next": "bun test ./next/cli.test.ts ./next/session.test.ts ./next/tui.test.ts",
+    "test:e2e-tui": "python3 next/e2e-tui.py --bin ./dist/croakcode-next" } }

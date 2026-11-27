@@ -1279,12 +1279,32 @@ for (const available of [true, false]) {
         yield* llm.tool("read", { filePath: path.join(dir, "permit.txt") })
         yield* llm.text("done")
         yield* user(chat.id, "hello")
+        const { read } = yield* (yield* ToolRegistry.Service).named()
+        let readCalls = 0
+        const originalRead = read.execute
+        read.execute = (args, ctx) => {
+          readCalls++
+          return originalRead(args, ctx)
+        }
+        yield* Effect.addFinalizer(() => Effect.sync(() => void (read.execute = originalRead)))
         yield* withFakeGate(available, prompt.loop({ sessionID: chat.id }))
+        expect(readCalls).toBe(available ? 1 : 0)
         const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
         const assistant = msgs.find((m) => m.info.role === "assistant" && m.parts.some((p) => p.type === "tool"))
         const sent = (yield* llm.inputs).map((input) => JSON.stringify(input))
         if (available) {
-          completedTool(assistant!.parts)
+          const part = completedTool(assistant!.parts)!
+          expect(part.tool).toBe("read")
+          expect(part.state.output).toContain("PERMIT_FILE_CONTENT")
+          const inputs = yield* llm.inputs
+          expect(inputs).toHaveLength(2)
+          expect(inputs[1].messages).toContainEqual(
+            expect.objectContaining({
+              role: "tool",
+              tool_call_id: part.callID,
+              content: part.state.output,
+            }),
+          )
           expect(sent.some((body) => body.includes("PERMIT_FILE_CONTENT"))).toBe(true)
         } else {
           const tool = errorTool(assistant!.parts)
