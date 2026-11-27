@@ -12,6 +12,15 @@ const README_MARKER = "CROAK_TEST_README_MARKER_7f3a"
 const OTHER_MARKER = "CROAK_TEST_OTHER_MARKER_91bc"
 const KOREAN_REPLY = "요약: 테스트용 README 파일입니다."
 const SECRET_FILENAME = "." + "env"
+const PATCHED_FILE = "PATCHED.md"
+const PATCH_TEXT = `*** Begin Patch
+*** Add File: ${PATCHED_FILE}
++patched by tool
+*** End Patch`
+const ESCAPE_PATCH_TEXT = `*** Begin Patch
+*** Add File: ../ESCAPED.md
++x
+*** End Patch`
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex")
 
@@ -71,6 +80,8 @@ type Mode =
   | "grep"
   | "shell"
   | "shellDenied"
+  | "applyPatch"
+  | "applyPatchEscape"
 
 let lastPermit = { tool: "", argsHash: "", calls: 0 }
 
@@ -101,7 +112,11 @@ function startServer(mode: Mode): void {
                       ? "shell"
                       : mode === "shellDenied"
                         ? "shellDenied"
-                        : "read"
+                        : mode === "applyPatch"
+                          ? "applyPatch"
+                          : mode === "applyPatchEscape"
+                            ? "applyPatchEscape"
+                            : "read"
         if (!hasTool) {
           const id = `call_${randomUUID()}`
           state.toolCallId = id
@@ -119,6 +134,12 @@ function startServer(mode: Mode): void {
           }
           if (scenario === "shellDenied") {
             return sse(toolCallEvents(id, "shell", { command: "rm", args: ["-rf", "/"] }))
+          }
+          if (scenario === "applyPatch") {
+            return sse(toolCallEvents(id, "apply_patch", { patchText: PATCH_TEXT }))
+          }
+          if (scenario === "applyPatchEscape") {
+            return sse(toolCallEvents(id, "apply_patch", { patchText: ESCAPE_PATCH_TEXT }))
           }
           return sse(toolCallEvents(id, "read", { filePath: "README.md" }))
         }
@@ -139,6 +160,10 @@ function startServer(mode: Mode): void {
           ok = content.startsWith("exit=0") && /\d+\.\d+\.\d+/.test(content)
         } else if (scenario === "shellDenied") {
           ok = content.includes("허용되지 않은 명령")
+        } else if (scenario === "applyPatch") {
+          ok = content.includes("패치를 적용했다") && content.includes("추가 1")
+        } else if (scenario === "applyPatchEscape") {
+          ok = content.includes("밖은 허용되지 않는다")
         } else {
           const expected =
             scenario === "write" ? "파일을 썼다" : scenario === "writeEnv" ? "오류" : scenario === "edit" ? "곳을 바꿨다" : README_MARKER
@@ -432,6 +457,36 @@ describe("croakcode-next cli", () => {
       expect(result.code).toBe(0)
       expect(result.stdout).toContain(KOREAN_REPLY)
       expect(lastPermit.calls).toBe(0)
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("apply_patch 도구는 여러 파일 패치를 permit 후 적용한다", async () => {
+    startServer("applyPatch")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "패치 적용해줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.tool).toBe("apply_patch")
+      expect(lastPermit.argsHash).toBe(sha256Hex(JSON.stringify({ patchText: PATCH_TEXT })))
+      expect(readFileSync(join(workspace, PATCHED_FILE), "utf8")).toBe("patched by tool\n")
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("apply_patch 는 cwd 밖 경로를 거부하고 파일을 만들지 않는다", async () => {
+    startServer("applyPatchEscape")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "패치 적용해줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.tool).toBe("apply_patch")
+      expect(existsSync(join(root, "ESCAPED.md"))).toBe(false)
+      expect(existsSync(join(workspace, PATCHED_FILE))).toBe(false)
     } finally {
       stopServer()
     }

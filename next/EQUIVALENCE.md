@@ -55,7 +55,7 @@
 |---|---|---|---|
 | `read` | ✅ | ✅ | ✅ |
 | `write`, `edit` | ✗ | ✅ cwd 내 상대 경로·64KB·permit | △ |
-| `apply_patch` | ✗ | ✗ | ✗ |
+| `apply_patch` | ✗ | ✅ upstream `*** Begin Patch` 형식·다중 파일·permit | △ |
 | `glob`, `grep` | ✗ | ✅ 모델 도구 + 사용자 명령 `/find`·`/grep` | △ |
 | `shell` | ✗ | ✅ argv 허용목록·60초·출력 16KB·permit | △ |
 | `task`(위임), `plan`, `question` | ✗ | ✗ | ✗ |
@@ -76,6 +76,13 @@
 `bun run test`, `bun run test:next`, `bun run test:e2e-tui`, `bun run build:next`, `npm test`와 **정확히 일치**하는
 명령만 허용한다. cwd는 세션 디렉터리로 고정하고 60초 후 종료, stdout/stderr 각각 16KB 상한, `PATH`·`HOME`·`TMPDIR`·
 `LANG`·`LC_ALL`만 자식에게 전달한다. 실행 전 서명된 permit을 받고, 허용목록 밖 명령은 permit 요청조차 하지 않는다.
+
+`apply_patch`는 upstream과 같은 `*** Begin Patch` … `*** End Patch` 형식만 받는다. `*** Add File:`,
+`*** Update File:`(+`*** Move to:`), `*** Delete File:`를 지원하고, 수정 hunk는 `@@` 컨텍스트와 `+`/`-`/공백
+접두사 줄로 구성한다. 컨텍스트는 정확 일치 → trailing 공백 무시 → 양끝 공백 무시 → 유니코드 구두점 정규화 순으로
+찾고, `*** End of File`은 파일 끝부터 먼저 맞춘다. 모든 hunk의 경로·컨텍스트·크기를 먼저 검증하고 하나라도 실패하면
+파일을 전혀 건드리지 않는다(검증 후 적용). 경로는 `write`와 같은 cwd 내부·비밀 경로·VCS 내부·심볼릭 링크 제한을
+따르고, 추가/수정 결과는 64KB, 기존 파일 읽기는 16KB로 제한한다. 실행 전 `patchText` 해시로 서명된 permit을 받는다.
 
 ## 3. 세션 관리 / 영속
 
@@ -132,7 +139,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **81 pass / 0 fail** | next CLI·store·fsafe·scan·shell·세션·TUI 단위 |
+| `bun run test:next` | **98 pass / 0 fail** | next CLI·store·fsafe·scan·shell·patch·세션·TUI 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -141,8 +148,8 @@
 
 우선순위 제안(각 항목은 별도 작업):
 
-1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell` 완료(session 한정, permit·경로/크기/결과/명령 제한).
-   남은 것: `apply_patch`.
+1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell`/`apply_patch` 완료(session 한정, permit·경로/크기/결과/명령 제한).
+   `apply_patch`는 upstream 형식과 컨텍스트 탐색을 따르며, 이동/삭제도 지원한다.
 2. **세션 관리**: `resume --last/--list/--session` 완료(대화형 세션 한정). 포크, run 이력 재개, 기존 세션 DB 스키마 완전 호환은 남음.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.

@@ -27,6 +27,7 @@ import {
 } from "./peers"
 import { addSub, loadHeld, loadSettings, loadSubs, saveHeld, saveSettings } from "./settings"
 import { runShell, validateShell } from "./shell"
+import { applyPatch, parsePatch } from "./patch"
 import type { Inbound } from "./paths"
 
 const NOTIFY_TTL_MS = 12 * 60 * 60 * 1000
@@ -178,6 +179,26 @@ export const SESSION_TOOLS: unknown[] = [
           args: { type: "array", items: { type: "string" }, description: "인자 목록(허용목록과 정확히 일치해야 함)" },
         },
         required: ["command"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "apply_patch",
+      description:
+        "여러 파일을 한 번에 패치한다(허가 필요). upstream 형식: *** Begin Patch ... *** End Patch 안에 *** Add File:, *** Update File:(+ *** Move to:), *** Delete File: 를 쓰고, 내용 줄은 '+'/'-'/' ' 접두사를 붙인다. 수정 hunk는 '@@ 컨텍스트'로 시작한다.",
+      parameters: {
+        type: "object",
+        properties: {
+          patchText: {
+            type: "string",
+            description:
+              "*** Begin Patch\\n*** Update File: a.txt\\n@@ 컨텍스트\\n-옛 줄\\n+새 줄\\n*** End Patch 형식의 전체 패치",
+          },
+        },
+        required: ["patchText"],
         additionalProperties: false,
       },
     },
@@ -353,6 +374,9 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     }
     if (call.function.name === "shell") {
       return await shellTool(args.command, args.args)
+    }
+    if (call.function.name === "apply_patch") {
+      return await applyPatchTool(args.patchText)
     }
     return "오류: 알 수 없는 도구다"
   }
@@ -535,6 +559,29 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     }
   }
 
+
+  const applyPatchTool = async (rawPatch: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "apply_patch")) return "오류: 로컬 정책이 apply_patch 도구를 금지한다"
+    if (typeof rawPatch !== "string" || rawPatch.trim().length === 0) return "오류: patchText가 비어 있다"
+    try {
+      parsePatch(rawPatch)
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "apply_patch", { patchText: rawPatch }, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const result = applyPatch(cwd, rawPatch)
+      return `패치를 적용했다: 추가 ${result.added.length}, 수정 ${result.modified.length}, 삭제 ${result.deleted.length}, 이동 ${result.moved.length}`
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
 
   const chat = async (text: string): Promise<void> => {
     inbox.setStatus("busy")

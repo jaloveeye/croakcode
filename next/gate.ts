@@ -319,7 +319,7 @@ function verifyPermit(
   return payload
 }
 
-export type PermitTool = "read" | "write" | "edit" | "glob" | "grep" | "shell"
+export type PermitTool = "read" | "write" | "edit" | "glob" | "grep" | "shell" | "apply_patch"
 
 const STRING_ARGS: Record<PermitTool, readonly string[]> = {
   read: ["filePath"],
@@ -328,6 +328,7 @@ const STRING_ARGS: Record<PermitTool, readonly string[]> = {
   glob: ["pattern"],
   grep: ["pattern", "include"],
   shell: ["command"],
+  apply_patch: ["patchText"],
 }
 
 function permitArgsError(): never {
@@ -361,6 +362,7 @@ function validatePermitArgs(tool: PermitTool, args: Record<string, unknown>): vo
       permitArgsError()
     }
   }
+  if (tool === "apply_patch" && (args.patchText as string).trim().length === 0) permitArgsError()
 }
 
 /**
