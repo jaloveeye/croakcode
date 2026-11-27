@@ -170,6 +170,30 @@ export function editFileBounded(
   return matches
 }
 
+/** 삭제 대상 경로를 검증한다(존재·일반 파일·비심볼릭 링크·cwd 내부·비밀/VCS 경로). */
+export function validateDeleteTarget(cwd: string, rawPath: string): string {
+  const abs = validateWriteTarget(cwd, rawPath, "")
+  let stat: ReturnType<typeof lstatSync>
+  try {
+    stat = lstatSync(abs)
+  } catch {
+    fail("delete_failed", "삭제할 파일이 없다")
+  }
+  if (stat.isSymbolicLink()) fail("delete_failed", "심볼릭 링크는 삭제할 수 없다")
+  if (!stat.isFile()) fail("delete_failed", "일반 파일이 아니다")
+  return abs
+}
+
+/** cwd 안의 텍스트 파일을 삭제한다. 검증에 실패하면 아무것도 지우지 않는다. */
+export function deleteFileBounded(cwd: string, rawPath: string): void {
+  const abs = validateDeleteTarget(cwd, rawPath)
+  try {
+    unlinkSync(abs)
+  } catch {
+    fail("delete_failed", "파일을 삭제할 수 없다")
+  }
+}
+
 export function validateFilename(raw: string): string {
   if (!raw) fail("filename_invalid", "파일 이름이 비어 있다")
   if (raw.includes("/") || raw.includes("\\")) fail("filename_invalid", "경로 구분자는 허용되지 않는다")
