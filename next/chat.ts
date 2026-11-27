@@ -205,15 +205,21 @@ export async function completion(
   ids: { sid: string; rid: string },
   messages: Message[],
   first: boolean,
+  options?: { tools?: unknown[]; toolChoice?: unknown; expect?: "tool" | "stop" | "any" },
 ): Promise<{ text: string; calls: Call[] }> {
+  const tools = options?.tools ?? TOOLS
+  const toolChoice = options?.toolChoice ?? TOOL_CHOICE
+  const expect = options?.expect ?? (first ? "tool" : "stop")
   const body: Record<string, unknown> = {
     model: MODEL,
     stream: true,
     messages,
   }
-  if (first) {
-    body.tools = TOOLS
-    body.tool_choice = TOOL_CHOICE
+  if (expect === "tool") {
+    body.tools = tools
+    body.tool_choice = toolChoice
+  } else if (tools.length > 0) {
+    body.tools = tools
   }
 
   let response: Response
@@ -229,14 +235,45 @@ export async function completion(
 
   const result = await readStream(response)
 
-  if (first) {
+  if (expect === "tool") {
     if (result.finishReason !== "tool_calls") throw streamError("expected tool_calls finish")
     if (result.calls.length === 0) throw streamError("missing tool call")
-  } else {
+  } else if (expect === "stop") {
     if (result.finishReason !== "stop") throw streamError("expected stop finish")
     if (result.calls.length > 0) throw streamError("unexpected tool call")
     if (result.text.trim().length === 0) throw streamError("empty response text")
   }
 
   return { text: result.text, calls: result.calls }
+}
+
+/** 세션 모드용: 도구를 여러 번 호출할 수 있는 한 턴. execute는 도구 이름별 실행기다. */
+export async function chatTurn(
+  gate: ReturnType<typeof openGate>,
+  ids: { sid: string; rid: string },
+  messages: Message[],
+  tools: unknown[],
+  execute: (call: Call) => Promise<string>,
+  maxRounds = 8,
+): Promise<{ text: string; messages: Message[] }> {
+  const history = [...messages]
+  for (let round = 0; round < maxRounds; round++) {
+    const result = await completion(gate, ids, history, round === 0, {
+      tools,
+      toolChoice: "auto",
+      expect: "any",
+    })
+    const assistant: Message = {
+      role: "assistant",
+      content: result.text.length > 0 ? result.text : null,
+      tool_calls: result.calls.length > 0 ? result.calls : undefined,
+    }
+    history.push(assistant)
+    if (result.calls.length === 0) return { text: result.text, messages: history }
+    for (const call of result.calls) {
+      const toolMessage: Message = { role: "tool", content: await execute(call), tool_call_id: call.id }
+      history.push(toolMessage)
+    }
+  }
+  return { text: "도구 호출이 너무 많아 턴을 종료했다.", messages: history }
 }

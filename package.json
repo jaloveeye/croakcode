@@ -3,4 +3,4 @@
   "devDependencies": { "@croakcode/contracts": "workspace:*", "@croakcode/control": "workspace:*" },
   "scripts": { "test": "node --test 'tests/*.test.mjs'", "test:bun": "bun test tests",
     "build:next": "bun build --compile ./next/cli.ts --outfile ./dist/croakcode-next",
-    "test:next": "bun test ./next/cli.test.ts" } }
+    "test:next": "bun test ./next/cli.test.ts ./next/session.test.ts" } }

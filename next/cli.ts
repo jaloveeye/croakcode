@@ -1,30 +1,32 @@
 #!/usr/bin/env bun
 import { randomUUID } from "node:crypto"
-import { constants as fsConstants, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync } from "node:fs"
+import { mkdirSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, join } from "node:path"
+import { join } from "node:path"
 import { Database } from "bun:sqlite"
 import { authorizeRead, openGate, type Gate } from "./gate"
 import { completion, type Call, type Message } from "./chat"
+import { dataDir } from "./paths"
+import { readFileBounded, SafeError, validateFilename } from "./fsafe"
+import { startSession, SessionError } from "./session"
+import { listPeers, PeerError } from "./peers"
 
-const USAGE = `사용법: croakcode-next run <filename> [prompt]
+const USAGE = `사용법: croakcode-next <command> [args]
 
-  <filename>  현재 디렉터리의 최상위 짧은 텍스트 파일 하나 (경로 구분자 불가)
-  [prompt]    선택 사항. 기본값은 한국어 요약 요청
+  run <filename> [prompt]   파일을 읽어 요약한다 (경로 구분자 불가)
+  session [--name <이름>]    대화형 세션을 연다(다른 세션과 메시지 교환)
+  sessions                  실행 중인 세션 목록을 보여준다
 
   --help, -h  이 도움말을 출력한다 (인증 불필요)
+
+세션 안에서는 /help 로 명령 목록을 볼 수 있다.
 
 Linux 전용 프로토타입이다.`
 
 const DEFAULT_PROMPT = "이 파일의 내용을 한국어로 요약해 주세요."
 const UNRUN_RESULT = "[croak] 이 도구 호출은 실행되지 않았다."
-const MAX_FILE_BYTES = 16 * 1024
-const READ_LIMIT = MAX_FILE_BYTES + 1
 const MAX_PROMPT_BYTES = 8 * 1024
 const BUSY_TIMEOUT_MS = 5_000
-
-const DENY_DIRS = [".ssh", ".aws", ".gnupg", ".config/croak"]
-const DENY_FILES = [".env", "*.env", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "id_ecdsa*"]
 
 class CliError extends Error {
   code: string
@@ -38,50 +40,12 @@ function fail(code: string, message: string): never {
   throw new CliError(code, message)
 }
 
-function globToRegex(glob: string): RegExp {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&")
-  return new RegExp("^" + escaped.replace(/\*/g, ".*") + "$")
-}
-
-const FILE_RES = DENY_FILES.map((glob) => [glob, globToRegex(glob)] as const)
-
-function deniedPath(value: string): string | null {
-  const segs = value.trim().replace(/\\/g, "/").split("/").filter(Boolean)
-  for (const dir of DENY_DIRS) {
-    const parts = dir.split("/")
-    for (let i = 0; i + parts.length <= segs.length; i++) {
-      if (parts.every((p, j) => segs[i + j] === p)) return dir
-    }
-  }
-  const base = segs.at(-1) ?? ""
-  for (const [glob, re] of FILE_RES) if (re.test(base)) return glob
-  return null
-}
-
-function validateFilename(raw: string): string {
-  if (!raw) fail("filename_invalid", "파일 이름이 비어 있다")
-  if (raw.includes("/") || raw.includes("\\")) fail("filename_invalid", "경로 구분자는 허용되지 않는다")
-  if (raw === "." || raw === "..") fail("filename_invalid", "상대 경로 표기는 허용되지 않는다")
-  if (raw.includes("\0")) fail("filename_invalid", "NUL 문자는 허용되지 않는다")
-  if (basename(raw) !== raw) fail("filename_invalid", "최상위 파일 이름만 허용된다")
-  const denied = deniedPath(raw)
-  if (denied) fail("filename_denied", `비밀 파일 이름은 허용되지 않는다 (${denied})`)
-  const cwdDenied = deniedPath(join(process.cwd(), raw))
-  if (cwdDenied) fail("filename_denied", `비밀 경로 세그먼트는 허용되지 않는다 (${cwdDenied})`)
-  return raw
-}
-
 function validatePrompt(raw: string | undefined): string {
   if (raw === undefined) return DEFAULT_PROMPT
   const trimmed = raw.trim()
   if (!trimmed) return DEFAULT_PROMPT
   if (Buffer.byteLength(trimmed, "utf8") > MAX_PROMPT_BYTES) fail("prompt_too_large", "프롬프트가 너무 크다")
   return trimmed
-}
-
-function dataDir(): string {
-  const base = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
-  return join(base, "croakcode-next")
 }
 
 function openDb(): Database {
@@ -211,38 +175,12 @@ function validateCall(calls: Call[], filename: string): Call {
   return call
 }
 
-function readFileBounded(filename: string): string {
-  let fd: number
+function readFileBoundedForRun(filename: string): string {
   try {
-    fd = openSync(filename, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK)
-  } catch {
-    fail("read_failed", "파일을 열 수 없다")
-  }
-  try {
-    const stat = fstatSync(fd)
-    if (!stat.isFile()) fail("read_failed", "일반 파일이 아니다")
-    if (stat.size > MAX_FILE_BYTES) fail("read_failed", "파일이 너무 크다")
-    const buffer = Buffer.alloc(READ_LIMIT)
-    let total = 0
-    while (total < READ_LIMIT) {
-      const n = readSync(fd, buffer, total, READ_LIMIT - total, total)
-      if (n <= 0) break
-      total += n
-    }
-    if (total > MAX_FILE_BYTES) fail("read_failed", "파일이 너무 크다")
-    const bytes = buffer.subarray(0, total)
-    if (bytes.includes(0)) fail("read_failed", "NUL 문자가 포함되어 있다")
-    try {
-      return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
-    } catch {
-      fail("read_failed", "UTF-8로 해석할 수 없다")
-    }
-  } finally {
-    try {
-      closeSync(fd)
-    } catch {
-      // 닫기 실패는 무시한다
-    }
+    return readFileBounded(filename)
+  } catch (error) {
+    if (error instanceof SafeError) fail(error.code, error.message)
+    throw error
   }
 }
 
@@ -257,6 +195,7 @@ function firstUserMessage(filename: string, prompt: string): string {
 
 function safeErrorReason(error: unknown): string {
   if (error instanceof CliError) return `${error.code}: ${error.message}`
+  if (error instanceof SessionError || error instanceof PeerError) return `${error.code}: ${error.message}`
   const code = (error as { code?: unknown } | null)?.code
   if (typeof code === "string") {
     if (code === "gate_unavailable" || code === "gate_denied" || code === "login_required") {
@@ -314,7 +253,7 @@ async function run(filename: string, prompt: string): Promise<void> {
       call = validateCall(first.calls, filename)
       checkPolicy(sid)
       await authorizeRead(gate, { sid, rid, pid }, { filePath: filename }, store.claim)
-      toolContent = readFileBounded(filename)
+      toolContent = readFileBoundedForRun(filename)
     } catch (error) {
       failRun(error, first.calls[0]?.id ?? "")
     }
@@ -341,28 +280,80 @@ async function run(filename: string, prompt: string): Promise<void> {
   }
 }
 
-function main(argv: string[]): void {
+async function commandSession(argv: string[]): Promise<void> {
+  if (process.platform !== "linux") fail("platform_unsupported", "현재 Linux만 지원한다")
+  let name = `session-${process.pid}`
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--name") {
+      name = argv[i + 1] ?? ""
+      if (!name) fail("usage", "--name 뒤에 이름이 필요하다")
+      i++
+    } else {
+      fail("usage", "알 수 없는 인자다. --help를 참고하라")
+    }
+  }
+  const session = await startSession({ name, input: process.stdin, output: process.stdout })
+  const shutdown = () => {
+    session.interrupt().finally(() => process.exit(0))
+  }
+  process.on("SIGINT", shutdown)
+  process.on("SIGTERM", shutdown)
+  // 입력이 끝나거나 /quit 이 처리될 때까지 기다린다.
+  await session.stop()
+}
+
+function commandSessions(): void {
+  const peers = listPeers().map((p) => p.info)
+  if (peers.length === 0) {
+    process.stdout.write("실행 중인 세션이 없다.\n")
+    return
+  }
+  for (const p of peers) {
+    process.stdout.write(`${p.name}\t${p.status}\t${p.id}\t${p.cwd}\n`)
+  }
+}
+
+async function commandSend(): Promise<void> {
+  fail("usage", "메시지 보내기는 세션 안에서 /send 로 수행한다. 세션을 열려면 session 명령을 사용하라")
+}
+
+function main(argv: string[]): void | Promise<void> {
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
     process.stdout.write(USAGE + "\n")
     return
   }
   const [command, ...rest] = argv
-  if (command !== "run") fail("usage", "알 수 없는 명령이다. --help를 참고하라")
-  if (rest.length === 0) fail("usage", "파일 이름이 필요하다")
-  if (rest.length > 2) fail("usage", "인자가 너무 많다")
-  const filename = validateFilename(rest[0] as string)
-  const prompt = validatePrompt(rest[1])
-  run(filename, prompt).catch((error: unknown) => {
-    const reason = safeErrorReason(error)
-    process.stderr.write(`croakcode-next: ${reason}\n`)
-    process.exitCode = 1
-  })
+  switch (command) {
+    case "run": {
+      if (rest.length === 0) fail("usage", "파일 이름이 필요하다")
+      if (rest.length > 2) fail("usage", "인자가 너무 많다")
+      const filename = validateFilename(rest[0] as string)
+      const prompt = validatePrompt(rest[1])
+      return run(filename, prompt)
+    }
+    case "session":
+      return commandSession(rest)
+    case "sessions":
+      commandSessions()
+      return
+    case "send":
+      return commandSend()
+    default:
+      fail("usage", "알 수 없는 명령이다. --help를 참고하라")
+  }
 }
 
 if (import.meta.main) {
   process.umask(0o077)
   try {
-    main(process.argv.slice(2))
+    const result = main(process.argv.slice(2))
+    if (result instanceof Promise) {
+      result.catch((error: unknown) => {
+        const reason = safeErrorReason(error)
+        process.stderr.write(`croakcode-next: ${reason}\n`)
+        process.exitCode = 1
+      })
+    }
   } catch (error) {
     const reason = safeErrorReason(error)
     process.stderr.write(`croakcode-next: ${reason}\n`)
