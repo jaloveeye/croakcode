@@ -62,6 +62,10 @@ scripts/install-croakcode.sh --gate https://<게이트 주소>:8443
 | `~/.config/croak/croakcode.env` | 게이트 주소와 CA 인증서 경로입니다. 권한은 600입니다 |
 | `~/.local/bin/croakcode` | 현재 폴더를 프로젝트로 열어 TUI를 시작합니다 |
 
+`/agents`에서 역할을 선택할 수 있습니다. `orchestrator`는 주 에이전트로 사용하며, 나머지 추가 역할에는 권한이 허용되면 `task`로 위임할 수 있습니다. 역할별 책임과 제한은 [`docs/AGENT_ROLES.md`](docs/AGENT_ROLES.md)에 정리되어 있습니다.
+
+릴리스 설치본은 이 역할을 포함한 새 버전이 게이트에 배포된 뒤 `croakcode upgrade`를 실행하면 역할 설정도 함께 갱신됩니다. croakcode를 다시 실행해 `/agents`에서 확인하세요.
+
 설치한 뒤에는 프로젝트 폴더에서 `croakcode`를 실행하고 `/login`으로 로그인합니다. 이전 세션은 이렇게 이어서 씁니다. `croakcode resume --last`는 이 폴더의 가장 최근 세션을 엽니다. `croakcode resume --list`는 이 폴더의 세션 목록을 보여 줍니다. `croakcode resume`만 쓰면 고르는 창이 뜨고, `croakcode -s <세션 ID>`는 그 세션을 엽니다. 폴더를 앞에 주면(`croakcode resume ~/문서 --list`) 그 폴더를 기준으로 합니다. CA 인증서는 기본으로 `~/.config/croak/ca/ca.crt`를 쓰고, 다른 경로는 `--ca`로 지정합니다.
 
 실행 허가는 따로 설정하지 않습니다. 로그인하면 게이트가 그 계정 등급이 허가를 요구하는지와 허가를 확인할 공개키를 알려 줍니다. croakcode는 그에 따라 도구를 실행하기 전에 게이트의 허가를 받습니다. 설치 스크립트의 `--permit-key <공개키>`와 `--no-permits`는 시험이나 수동 설정용입니다. 이 값은 로그인 값보다 먼저 적용됩니다.
