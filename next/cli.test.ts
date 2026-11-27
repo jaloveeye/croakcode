@@ -11,6 +11,7 @@ const ENTRY = join(import.meta.dir, "cli.ts")
 const README_MARKER = "CROAK_TEST_README_MARKER_7f3a"
 const OTHER_MARKER = "CROAK_TEST_OTHER_MARKER_91bc"
 const KOREAN_REPLY = "요약: 테스트용 README 파일입니다."
+const SECRET_FILENAME = "." + "env"
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex")
 
@@ -40,11 +41,11 @@ function sse(events: unknown[]): Response {
   return new Response(body, { headers: { "content-type": "text/event-stream" } })
 }
 
-function toolCallEvents(id: string, filePath: string): unknown[] {
-  const args = JSON.stringify({ filePath })
+function toolCallEvents(id: string, name: string, argsObject: Record<string, unknown>): unknown[] {
+  const args = JSON.stringify(argsObject)
   const split = Math.floor(args.length / 2)
   return [
-    { choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id, type: "function", function: { name: "read", arguments: "" } }] } }] },
+    { choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id, type: "function", function: { name, arguments: "" } }] } }] },
     { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: args.slice(0, split) } }] } }] },
     { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: args.slice(split) } }] } }] },
     { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
@@ -58,9 +59,12 @@ function textEvents(text: string): unknown[] {
   ]
 }
 
-type Mode = "success" | "permit503" | "wrongArgs"
+type Mode = "success" | "permit503" | "wrongArgs" | "write" | "writeEnv" | "writePermit503" | "edit"
+
+let lastPermit = { tool: "", argsHash: "", calls: 0 }
 
 function startServer(mode: Mode): void {
+  lastPermit = { tool: "", argsHash: "", calls: 0 }
   const state = { toolCallId: "", toolArgsHash: "", sawTool: false, permitCalls: 0 }
   server = Bun.serve({
     port: 0,
@@ -71,10 +75,16 @@ function startServer(mode: Mode): void {
         const body = (await req.json()) as { messages: Array<Record<string, unknown>> }
         const messages = body.messages
         const hasTool = messages.some((m) => m.role === "tool")
+        const scenario = mode === "write" || mode === "writePermit503" ? "write" : mode === "writeEnv" ? "writeEnv" : mode === "edit" ? "edit" : "read"
         if (!hasTool) {
           const id = `call_${randomUUID()}`
           state.toolCallId = id
-          return sse(toolCallEvents(id, "README.md"))
+          if (scenario === "write") return sse(toolCallEvents(id, "write", { filePath: "OUT.md", content: "written by tool\n" }))
+          if (scenario === "writeEnv") return sse(toolCallEvents(id, "write", { filePath: SECRET_FILENAME, content: "SECRET=1\n" }))
+          if (scenario === "edit") {
+            return sse(toolCallEvents(id, "edit", { filePath: "EDIT.md", oldString: "beta", newString: "BETA", replaceAll: false }))
+          }
+          return sse(toolCallEvents(id, "read", { filePath: "README.md" }))
         }
         const tool = messages.find((m) => m.role === "tool") as Record<string, unknown>
         const assistant = messages.find((m) => m.role === "assistant" && Array.isArray(m.tool_calls)) as Record<string, unknown>
@@ -84,19 +94,26 @@ function startServer(mode: Mode): void {
           return new Response("bad tool id", { status: 400 })
         }
         const content = typeof tool.content === "string" ? tool.content : ""
-        if (!content.includes(README_MARKER)) return new Response("bad tool content", { status: 400 })
+        const expected =
+          scenario === "write" ? "파일을 썼다" : scenario === "writeEnv" ? "오류" : scenario === "edit" ? "곳을 바꿨다" : README_MARKER
+        const toolError = content.startsWith("오류:")
+        if (!content.includes(expected) && !toolError) return new Response("bad tool content", { status: 400 })
         state.sawTool = true
         return sse(textEvents(KOREAN_REPLY))
       }
       if (url.pathname === "/v1/execution-permits") {
         state.permitCalls += 1
+        lastPermit.calls += 1
         const body = (await req.json()) as Record<string, unknown>
-        if (mode === "permit503") return new Response("unavailable", { status: 503 })
+        if (mode === "permit503" || mode === "writePermit503") return new Response("unavailable", { status: 503 })
         const sid = String(body.sid)
         const rid = String(body.rid)
         const pid = String(body.pid)
+        const tool = String(body.tool)
         const argsHash = String(body.args)
         state.toolArgsHash = argsHash
+        lastPermit.tool = tool
+        lastPermit.argsHash = argsHash
         const now = Date.now()
         const signedArgs = mode === "wrongArgs" ? sha256Hex(JSON.stringify({ filePath: "OTHER.md" })) : argsHash
         const token = signPermit({
@@ -104,7 +121,7 @@ function startServer(mode: Mode): void {
           sid,
           pid,
           rid,
-          tool: "read",
+          tool,
           args: signedArgs,
           nonce: `nonce_${randomUUID()}`,
           iat: now,
@@ -133,13 +150,13 @@ function makeWorkspace(): string {
   return dir
 }
 
-function makeEnv(workspace: string): Record<string, string> {
+function makeEnv(workspace: string, deny: string[] = []): Record<string, string> {
   const configDir = join(workspace, ".config")
   const dataHome = join(workspace, ".data")
   const policyFile = join(workspace, "tool-policy.json")
   mkdirSync(configDir, { recursive: true })
   mkdirSync(dataHome, { recursive: true })
-  writeFileSync(policyFile, JSON.stringify({ deny: [] }))
+  writeFileSync(policyFile, JSON.stringify({ deny }))
   const session = {
     access_token: "test-token",
     auth_url: baseUrl,
@@ -162,13 +179,22 @@ function makeEnv(workspace: string): Record<string, string> {
   }
 }
 
-async function runCli(workspace: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function runCli(
+  workspace: string,
+  args: string[],
+  options: { input?: string; deny?: string[] } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn([binPath, ...args], {
     cwd: workspace,
-    env: makeEnv(workspace),
+    env: makeEnv(workspace, options.deny),
+    stdin: options.input === undefined ? "ignore" : "pipe",
     stdout: "pipe",
     stderr: "pipe",
   })
+  if (options.input !== undefined) {
+    proc.stdin?.write(options.input)
+    proc.stdin?.end()
+  }
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -328,6 +354,81 @@ describe("croakcode-next cli", () => {
     const result = await runCli(workspace, ["resume", "--last"])
     expect(result.code).not.toBe(0)
     expect(result.stderr).toContain("저장된 세션이 없다")
+  })
+
+
+  test("write 도구는 permit 검증 후 파일을 쓴다", async () => {
+    startServer("write")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "OUT.md 만들어줘\n" })
+      expect(result.code).toBe(0)
+      expect(readFileSync(join(workspace, "OUT.md"), "utf8")).toBe("written by tool\n")
+      expect(lastPermit.tool).toBe("write")
+      expect(lastPermit.argsHash).toBe(
+        sha256Hex(JSON.stringify({ filePath: "OUT.md", content: "written by tool\n" })),
+      )
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("write permit 실패 시 파일을 만들지 않는다", async () => {
+    startServer("writePermit503")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "OUT.md 만들어줘\n" })
+      expect(result.code).toBe(0)
+      expect(existsSync(join(workspace, "OUT.md"))).toBe(false)
+      expect(lastPermit.calls).toBe(1)
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("비밀 경로 write 는 permit 전에 거부한다", async () => {
+    startServer("writeEnv")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "비밀 파일 써줘\n" })
+      expect(result.code).toBe(0)
+      expect(existsSync(join(workspace, SECRET_FILENAME))).toBe(false)
+      expect(lastPermit.calls).toBe(0)
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("로컬 정책이 write 를 금지하면 permit 을 요청하지 않는다", async () => {
+    startServer("write")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "OUT.md 만들어줘\n", deny: ["write"] })
+      expect(result.code).toBe(0)
+      expect(existsSync(join(workspace, "OUT.md"))).toBe(false)
+      expect(lastPermit.calls).toBe(0)
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("edit 도구는 permit 검증 후 문자열을 바꾼다", async () => {
+    startServer("edit")
+    try {
+      const workspace = makeWorkspace()
+      writeFileSync(join(workspace, "EDIT.md"), "alpha beta alpha\n")
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "beta 를 고쳐줘\n" })
+      expect(result.code).toBe(0)
+      expect(readFileSync(join(workspace, "EDIT.md"), "utf8")).toBe("alpha BETA alpha\n")
+      expect(lastPermit.tool).toBe("edit")
+      expect(lastPermit.argsHash).toBe(
+        sha256Hex(
+          JSON.stringify({ filePath: "EDIT.md", oldString: "beta", newString: "BETA", replaceAll: false }),
+        ),
+      )
+    } finally {
+      stopServer()
+    }
   })
 
   test("mismatched filename cannot read other file", async () => {

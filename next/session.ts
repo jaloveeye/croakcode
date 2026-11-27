@@ -3,9 +3,9 @@ import { createInterface } from "node:readline"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { existsSync, readFileSync } from "node:fs"
-import { authorizeRead, openGate, type Gate } from "./gate"
+import { authorizeTool, openGate, type Gate } from "./gate"
 import { chatTurn, type Call, type Message } from "./chat"
-import { readFileBounded, SafeError, validateFilename } from "./fsafe"
+import { editFileBounded, readFileBounded, SafeError, validateFilename, validateWriteTarget, writeFileBounded } from "./fsafe"
 import {
   clampOutput,
   findFiles,
@@ -95,6 +95,42 @@ export const SESSION_TOOLS: unknown[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "write",
+      description:
+        "현재 디렉터리 안의 텍스트 파일을 새로 쓰거나 덮어쓴다(허가 필요). 상위 디렉터리가 있어야 하고, 비밀 경로·VCS 내부·심볼릭 링크는 거부된다.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "현재 디렉터리 기준 상대 경로" },
+          content: { type: "string", description: "저장할 전체 내용" },
+        },
+        required: ["filePath", "content"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "edit",
+      description:
+        "현재 디렉터리 안의 텍스트 파일에서 oldString을 newString으로 바꾼다(허가 필요). 일치가 여러 곳이면 replaceAll=true가 필요하다.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "현재 디렉터리 기준 상대 경로" },
+          oldString: { type: "string", description: "찾을 문자열(비어 있으면 안 됨)" },
+          newString: { type: "string", description: "바꿀 문자열" },
+          replaceAll: { type: "boolean", description: "모든 일치를 바꿀지 여부(기본 false)" },
+        },
+        required: ["filePath", "oldString", "newString"],
+        additionalProperties: false,
+      },
+    },
+  },
 ]
 
 function normalizeName(raw: string): string {
@@ -105,7 +141,7 @@ function normalizeName(raw: string): string {
   return name
 }
 
-function hasPolicyDenyRead(sid: string): boolean {
+function hasPolicyDeny(sid: string, tool: string): boolean {
   if (process.env.CROAKCODE_ADMIN_POLICY_FILE) return true
   const file =
     process.env.CROAK_TOOL_POLICY_FILE ||
@@ -128,7 +164,7 @@ function hasPolicyDenyRead(sid: string): boolean {
     const list = sessions[key]
     if (Array.isArray(list)) patterns.push(...list)
   }
-  return patterns.some((p) => p === "*" || p === "read")
+  return patterns.some((p) => p === "*" || p === tool)
 }
 
 export type Session = {
@@ -252,6 +288,12 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     if (call.function.name === "read") {
       return await readTool(String(args.filePath ?? ""))
     }
+    if (call.function.name === "write") {
+      return await writeTool(args.filePath, args.content)
+    }
+    if (call.function.name === "edit") {
+      return await editTool(args.filePath, args.oldString, args.newString, args.replaceAll)
+    }
     return "오류: 알 수 없는 도구다"
   }
 
@@ -276,7 +318,7 @@ export async function startSession(options: SessionOptions): Promise<Session> {
   }
 
   const readTool = async (filePath: string): Promise<string> => {
-    if (hasPolicyDenyRead(inbox.info.id)) return "오류: 로컬 정책이 read 도구를 금지한다"
+    if (hasPolicyDeny(inbox.info.id, "read")) return "오류: 로컬 정책이 read 도구를 금지한다"
     try {
       validateFilename(filePath)
     } catch (error) {
@@ -285,12 +327,65 @@ export async function startSession(options: SessionOptions): Promise<Session> {
     const rid = `run_${randomUUID()}`
     const pid = `apr_${randomUUID()}`
     try {
-      await authorizeRead(getGate(), { sid: inbox.info.id, rid, pid }, { filePath }, () => true)
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "read", { filePath }, () => true)
     } catch (error) {
       return `오류: 허가 실패: ${(error as Error).message}`
     }
     try {
       return readFileBounded(filePath)
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
+
+  const writeTool = async (rawPath: unknown, content: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "write")) return "오류: 로컬 정책이 write 도구를 금지한다"
+    const filePath = typeof rawPath === "string" ? rawPath.trim() : ""
+    if (!filePath) return "오류: filePath가 비어 있다"
+    if (typeof content !== "string") return "오류: content가 문자열이 아니다"
+    try {
+      validateWriteTarget(cwd, filePath, content)
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "write", { filePath, content }, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const bytes = writeFileBounded(cwd, filePath, content)
+      return `파일을 썼다: ${filePath} (${bytes} bytes)`
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+  }
+
+  const editTool = async (rawPath: unknown, oldString: unknown, newString: unknown, replaceAll: unknown): Promise<string> => {
+    if (hasPolicyDeny(inbox.info.id, "edit")) return "오류: 로컬 정책이 edit 도구를 금지한다"
+    const filePath = typeof rawPath === "string" ? rawPath.trim() : ""
+    if (!filePath) return "오류: filePath가 비어 있다"
+    if (typeof oldString !== "string" || oldString.length === 0) return "오류: oldString이 비어 있거나 문자열이 아니다"
+    if (typeof newString !== "string") return "오류: newString이 문자열이 아니다"
+    if (replaceAll !== undefined && typeof replaceAll !== "boolean") return "오류: replaceAll은 boolean이어야 한다"
+    try {
+      validateWriteTarget(cwd, filePath, "")
+    } catch (error) {
+      return `오류: ${(error as Error).message}`
+    }
+    const rid = `run_${randomUUID()}`
+    const pid = `apr_${randomUUID()}`
+    const args = { filePath, oldString, newString, replaceAll: replaceAll === true }
+    try {
+      await authorizeTool(getGate(), { sid: inbox.info.id, rid, pid }, "edit", args, () => true)
+    } catch (error) {
+      return `오류: 허가 실패: ${(error as Error).message}`
+    }
+    try {
+      const count = editFileBounded(cwd, filePath, oldString, newString, replaceAll === true)
+      return `${count}곳을 바꿨다: ${filePath}`
     } catch (error) {
       return `오류: ${(error as Error).message}`
     }

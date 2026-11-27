@@ -319,22 +319,55 @@ function verifyPermit(
   return payload
 }
 
-export async function authorizeRead(
+export type PermitTool = "read" | "write" | "edit"
+
+const STRING_ARGS: Record<PermitTool, readonly string[]> = {
+  read: ["filePath"],
+  write: ["filePath", "content"],
+  edit: ["filePath", "oldString", "newString"],
+}
+
+function permitArgsError(): never {
+  throw new Error("permit_malformed")
+}
+
+/** 도구별 인자 모양을 엄격히 검사한다(추가 필드·누락·타입 불일치 거부). */
+function validatePermitArgs(tool: PermitTool, args: Record<string, unknown>): void {
+  if (!args || typeof args !== "object" || Array.isArray(args)) permitArgsError()
+  const allowed = new Set<string>([...STRING_ARGS[tool], ...(tool === "edit" ? ["replaceAll"] : [])])
+  for (const key of Object.keys(args)) if (!allowed.has(key)) permitArgsError()
+  for (const key of STRING_ARGS[tool]) {
+    if (typeof args[key] !== "string") permitArgsError()
+  }
+  if (tool === "read" && (args.filePath as string).length === 0) permitArgsError()
+  if (tool === "write") {
+    if ((args.filePath as string).length === 0) permitArgsError()
+  }
+  if (tool === "edit") {
+    if ((args.filePath as string).length === 0 || (args.oldString as string).length === 0) permitArgsError()
+    if (typeof args.replaceAll !== "boolean") permitArgsError()
+  }
+}
+
+/**
+ * 도구 실행 허가를 게이트에 요청하고 서명된 permit을 검증한다.
+ * args 는 도구별로 정해진 키만 포함해야 하며, 그대로 해시되어 서명 대상이 된다.
+ */
+export async function authorizeTool(
   gate: Gate,
   ids: { sid: string; rid: string; pid: string },
-  args: { filePath: string },
+  tool: PermitTool,
+  args: Record<string, unknown>,
   claim: (nonce: string, exp: number) => boolean,
 ): Promise<void> {
-  if (!args || typeof args !== "object" || !isString(args.filePath)) throw new Error("permit_malformed")
-  const keys = Object.keys(args)
-  if (keys.length !== 1 || keys[0] !== "filePath") throw new Error("permit_malformed")
+  validatePermitArgs(tool, args)
 
   const argsHash = sha256Hex(JSON.stringify(args))
   const body = {
     sid: ids.sid,
     rid: ids.rid,
     pid: ids.pid,
-    tool: "read",
+    tool,
     args: argsHash,
     rev: 0,
   }
@@ -357,5 +390,14 @@ export async function authorizeRead(
   const token = (data as Record<string, unknown>).token
   if (!isString(token)) throw new Error("permit_malformed")
 
-  verifyPermit(token, { sid: ids.sid, pid: ids.pid, rid: ids.rid, tool: "read", args: argsHash }, gate.publicKey, claim)
+  verifyPermit(token, { sid: ids.sid, pid: ids.pid, rid: ids.rid, tool, args: argsHash }, gate.publicKey, claim)
+}
+
+export async function authorizeRead(
+  gate: Gate,
+  ids: { sid: string; rid: string; pid: string },
+  args: { filePath: string },
+  claim: (nonce: string, exp: number) => boolean,
+): Promise<void> {
+  await authorizeTool(gate, ids, "read", args, claim)
 }

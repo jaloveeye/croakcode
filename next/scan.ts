@@ -1,6 +1,6 @@
 import { readdirSync } from "node:fs"
-import { isAbsolute, join, relative, resolve, sep } from "node:path"
-import { deniedPath, readFileBounded, SafeError } from "./fsafe"
+import { join } from "node:path"
+import { deniedPath, readFileBounded, resolveInside, SafeError } from "./fsafe"
 
 /** 한 번의 탐색 출력 상한(바이트). */
 export const MAX_OUTPUT_BYTES = 16 * 1024
@@ -18,26 +18,6 @@ export type GrepResult = { hits: GrepHit[]; scanned: number; truncated: boolean 
 
 function fail(code: string, message: string): never {
   throw new SafeError(code, message)
-}
-
-function toPosix(value: string): string {
-  return sep === "/" ? value : value.split(sep).join("/")
-}
-
-/** cwd 밖으로 나가거나 비밀 경로 세그먼트를 건드리면 실패한다. */
-export function resolveInside(cwd: string, raw: string): string {
-  const value = (raw ?? "").trim()
-  if (value.includes("\0")) fail("path_invalid", "NUL 문자는 허용되지 않는다")
-  const rel = value === "" ? "." : value
-  if (isAbsolute(rel)) fail("path_invalid", "절대 경로는 허용되지 않는다")
-  const abs = resolve(cwd, rel)
-  const fromCwd = relative(cwd, abs)
-  if (fromCwd === ".." || fromCwd.startsWith(`..${sep}`) || isAbsolute(fromCwd)) {
-    fail("path_invalid", "현재 디렉터리 밖은 허용되지 않는다")
-  }
-  const denied = deniedPath(toPosix(fromCwd) || ".")
-  if (denied) fail("path_denied", `비밀 경로는 허용되지 않는다 (${denied})`)
-  return abs
 }
 
 export function normalizeGlob(glob: string): string {
