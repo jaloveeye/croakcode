@@ -52,7 +52,7 @@
 |---|---|---|---|
 | `read` | ✅ | ✅ | ✅ |
 | `write`, `edit`, `apply_patch` | ✗ | ✗ | ✗ |
-| `glob`, `grep` | ✗ | ✗ | ✗ |
+| `glob`, `grep` | ✗ | △ 사용자 명령 `/find`·`/grep`만(모델 도구 아님) | △ |
 | `shell` | ✗ | ✗ | ✗ |
 | `task`(위임), `plan`, `question` | ✗ | ✗ | ✗ |
 | `todo`, `lsp`, `skill` | ✗ | ✗ | ✗ |
@@ -105,13 +105,17 @@
 |---|---|---|
 | `init`, `review` (+ 사용자 `.croakcode/command/*.md`) | 없음 | ✗ |
 | — | `/send /peers /held /view /rename /inbound /notify /help /quit` | ＋ 신규 |
+| — | `/ls [디렉터리] /find <glob> /grep <검색어> [include-glob]` — 사용자가 직접 실행하는 읽기 전용 탐색 | ＋ 신규 |
+
+탐색 명령은 모델 도구·permit 경로를 타지 않는다. 대신 cwd 밖 탈출·절대 경로·비밀 경로(`.env`, `.ssh` 등)를
+거부하고, 심볼릭 링크를 건너뛰며, 목록/검색 건수와 출력 바이트를 상한으로 자른다(`next/scan.ts`).
 
 ## 검증 근거
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **29 pass / 0 fail** | next CLI·세션·TUI 단위 |
-| `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·quit) |
+| `bun run test:next` | **43 pass / 0 fail** | next CLI·scan·세션·TUI 단위 |
+| `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
 
@@ -120,6 +124,7 @@
 우선순위 제안(각 항목은 별도 작업):
 
 1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell` 등 핵심 도구 이식(정책·permit 연동 포함).
+   현재 `glob`/`grep`은 사용자 명령(`/find`·`/grep`)으로만 제공되고 모델 도구로는 미노출.
 2. **세션 관리**: `resume --last/--list/--session`, 포크, 기존 세션 DB 스키마 호환.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
