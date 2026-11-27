@@ -35,7 +35,7 @@
 |---|---|---|
 | (기본 TUI 실행) | `session [--name] [--tui\|--no-tui]` (자체 TUI) | △ 다른 TUI |
 | `run` | `run <filename> [prompt]` | △ read 전용 |
-| `resume`(`--last/--session/--list/--fork/--model/--agent`) | `resume [--last\|--session <id>\|--list]` (대화형 세션 이력만, 포크/모델/에이전트 없음) | △ |
+| `resume`(`--last/--session/--list/--fork/--model/--agent`) | `resume [--last\|--session <id>\|--list\|--fork]` (run·기존 croakcode DB 이력 포함, 모델/에이전트 없음) | △ |
 | `serve`, `web`, `attach` | 없음 | ✗ |
 | `export`, `import` | 없음 | ✗ |
 | `models`, `providers` | 없음 | ✗ |
@@ -46,7 +46,9 @@
 | — | `sessions`(세션 목록), 세션 내부 `/send`(신규) | ＋ 신규 |
 | — | (참고) standalone `send` 명령은 의도적 비활성(안내만 출력) | ✗ |
 
-`resume`은 `session`에서 저장된 대화 이력만 이어간다(`run` 이력 제외). `--list`는 인증 없이 동작하고,
+`resume`은 `session`과 `run`에서 저장된 대화 이력을 모두 이어간다. `--fork`는 원본을 바꾸지 않고 새 세션에
+메시지를 복제하며, `parent_id`로 원본을 기록한다. 기존 croakcode의 `croakcode.db`(설치본) 또는 `croakcode-local.db`(소스 실행)의
+`session`/`message`/`part`도 목록에 합쳐 읽고, 재개할 때 next DB로 가져온 뒤 원본은 그대로 둔다. `--list`는 인증 없이 동작하고,
 재개 시 원래 작업 디렉터리와 메시지 순서를 복원한다.
 
 ## 2. 도구(tool)
@@ -88,9 +90,9 @@
 
 | 기존 croakcode | `next/` | 상태 |
 |---|---|---|
-| SQLite/WAL 다중 세션, 마이그레이션 | 최소 `sessions.db` | △ |
-| `resume --last/--session/--list`, 포크 | `resume --last/--session/--list`(대화형 세션), 포크 없음 | △ |
-| 세션 이력 영속 | `sessions.db`에 `kind=session` 이력 저장, 재개 시 이어서 대화 | △ 최소 |
+| SQLite/WAL 다중 세션, 마이그레이션 | `sessions.db`(WAL, 컬럼 마이그레이션, 기존 `croakcode.db` 읽기·가져오기) | △ 부분 |
+| `resume --last/--session/--list`, 포크 | `resume --last/--session/--list/--fork`(run 이력 포함) | △ |
+| 세션 이력 영속 | `sessions.db`에 `kind=session/run` 이력 저장, 포크 시 새 id로 복제·`parent_id` 기록 | △ 최소 |
 | 타임라인, 트리 분기 | 없음 | ✗ |
 | 압축(compact)/요약 | 없음 | ✗ |
 | undo/redo, revert | 없음 | ✗ |
@@ -139,7 +141,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **98 pass / 0 fail** | next CLI·store·fsafe·scan·shell·patch·세션·TUI 단위 |
+| `bun run test:next` | **105 pass / 0 fail** | next CLI·store·fsafe·scan·shell·patch·세션·TUI 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -150,7 +152,8 @@
 
 1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell`/`apply_patch` 완료(session 한정, permit·경로/크기/결과/명령 제한).
    `apply_patch`는 upstream 형식과 컨텍스트 탐색을 따르며, 이동/삭제도 지원한다.
-2. **세션 관리**: `resume --last/--list/--session` 완료(대화형 세션 한정). 포크, run 이력 재개, 기존 세션 DB 스키마 완전 호환은 남음.
+2. **세션 관리**: `resume --last/--list/--session/--fork` 완료. run 이력 재개와 기존 croakcode DB
+   (`session`/`message`/`part`) 읽기·가져오기 포함. 기존 DB로의 쓰기(양방향 호환)와 나머지 테이블은 남음.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
 5. **TUI 동등**: 모델/에이전트 전환, 타임라인, 압축, undo/redo, 공유/export.
