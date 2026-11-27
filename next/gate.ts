@@ -1,7 +1,7 @@
 import { createHash, createPublicKey, verify as verifySignature, type KeyObject } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
 import { join } from "node:path"
+import { accessToken, configDir, load as loadAuthSession, type AuthSession } from "./auth"
 
 const CLIENT_VERSION = "0.1.0"
 const AGENT = "dev-safe"
@@ -27,20 +27,16 @@ export type Gate = {
   publicKey: KeyObject
 }
 
-type Session = {
+type Session = AuthSession & {
   access_token: string
   auth_url: string
-  access_expires_at: string
+  access_expires_at?: string
   session_expires_at: string
   execution_permits?: { required?: unknown; public_key?: unknown; url?: unknown }
 }
 
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0
 const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v)
-
-function configDir(): string {
-  return process.env.CROAK_CONFIG_DIR || join(homedir(), ".config", "croak")
-}
 
 function readEnvFile(path: string): Record<string, string> {
   const out: Record<string, string> = {}
@@ -100,27 +96,18 @@ function parseOrigin(raw: string): URL {
 }
 
 function loadSession(): Session {
-  const path = join(configDir(), "session.json")
-  if (!existsSync(path)) throw loginNeeded("session.json not found")
-  let raw: unknown
-  try {
-    raw = JSON.parse(readFileSync(path, "utf8"))
-  } catch {
-    throw loginNeeded("session.json is not valid JSON")
-  }
-  if (!raw || typeof raw !== "object") throw loginNeeded("session.json is malformed")
-  const s = raw as Record<string, unknown>
-  if (!isString(s.access_token)) throw loginNeeded("access_token missing")
+  const s = loadAuthSession() as Record<string, unknown> | null
+  if (!s) throw loginNeeded("session.json not found or malformed")
   if (!isString(s.auth_url)) throw loginNeeded("auth_url missing")
-  if (!isString(s.access_expires_at)) throw loginNeeded("access_expires_at missing")
   if (!isString(s.session_expires_at)) throw loginNeeded("session_expires_at missing")
-  const now = Date.now()
-  const accessExp = Date.parse(s.access_expires_at)
   const sessionExp = Date.parse(s.session_expires_at)
-  if (!Number.isFinite(accessExp)) throw loginNeeded("access_expires_at is not a valid date")
   if (!Number.isFinite(sessionExp)) throw loginNeeded("session_expires_at is not a valid date")
-  if (accessExp <= now) throw loginNeeded("access token expired")
-  if (sessionExp <= now) throw loginNeeded("session expired")
+  if (sessionExp <= Date.now()) throw loginNeeded("session expired")
+  // access token은 refresh token이 있으면 요청 시점에 자동 갱신한다.
+  const accessExp = typeof s.access_expires_at === "string" ? Date.parse(s.access_expires_at) : Number.NaN
+  if (!(Number.isFinite(accessExp) && accessExp > Date.now()) && !isString(s.refresh_token)) {
+    throw loginNeeded("access token expired")
+  }
   return s as unknown as Session
 }
 
@@ -220,10 +207,18 @@ export function openGate(): Gate {
 
   const post = async (route: string, body: unknown, identity: Identity, timeoutMs: number): Promise<Response> => {
     const url = routeUrl(origin, route)
+    // 요청마다 토큰을 읽어 만료가 가까우면 갱신한다(장시간 세션 대응).
+    let token: string | null
+    try {
+      token = await accessToken()
+    } catch (error) {
+      throw loginNeeded((error as Error)?.message ?? "access token unavailable")
+    }
+    if (!token) throw loginNeeded("session expired")
     const init: RequestInit & { tls?: { ca?: string } } = {
       method: "POST",
       headers: {
-        authorization: `Bearer ${session.access_token}`,
+        authorization: `Bearer ${token}`,
         "content-type": "application/json",
         "x-croak-session": identity.sid,
         "x-croak-agent": AGENT,
