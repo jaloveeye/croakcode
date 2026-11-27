@@ -319,7 +319,7 @@ function verifyPermit(
   return payload
 }
 
-export type PermitTool = "read" | "write" | "edit" | "glob" | "grep"
+export type PermitTool = "read" | "write" | "edit" | "glob" | "grep" | "shell"
 
 const STRING_ARGS: Record<PermitTool, readonly string[]> = {
   read: ["filePath"],
@@ -327,6 +327,7 @@ const STRING_ARGS: Record<PermitTool, readonly string[]> = {
   edit: ["filePath", "oldString", "newString"],
   glob: ["pattern"],
   grep: ["pattern", "include"],
+  shell: ["command"],
 }
 
 function permitArgsError(): never {
@@ -336,7 +337,11 @@ function permitArgsError(): never {
 /** 도구별 인자 모양을 엄격히 검사한다(추가 필드·누락·타입 불일치 거부). */
 function validatePermitArgs(tool: PermitTool, args: Record<string, unknown>): void {
   if (!args || typeof args !== "object" || Array.isArray(args)) permitArgsError()
-  const allowed = new Set<string>([...STRING_ARGS[tool], ...(tool === "edit" ? ["replaceAll"] : [])])
+  const allowed = new Set<string>([
+    ...STRING_ARGS[tool],
+    ...(tool === "edit" ? ["replaceAll"] : []),
+    ...(tool === "shell" ? ["args"] : []),
+  ])
   for (const key of Object.keys(args)) if (!allowed.has(key)) permitArgsError()
   for (const key of STRING_ARGS[tool]) {
     if (typeof args[key] !== "string") permitArgsError()
@@ -350,6 +355,12 @@ function validatePermitArgs(tool: PermitTool, args: Record<string, unknown>): vo
     if (typeof args.replaceAll !== "boolean") permitArgsError()
   }
   if ((tool === "glob" || tool === "grep") && (args.pattern as string).length === 0) permitArgsError()
+  if (tool === "shell") {
+    if ((args.command as string).length === 0) permitArgsError()
+    if (!Array.isArray(args.args) || !(args.args as unknown[]).every((arg) => typeof arg === "string")) {
+      permitArgsError()
+    }
+  }
 }
 
 /**

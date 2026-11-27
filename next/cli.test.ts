@@ -59,7 +59,18 @@ function textEvents(text: string): unknown[] {
   ]
 }
 
-type Mode = "success" | "permit503" | "wrongArgs" | "write" | "writeEnv" | "writePermit503" | "edit" | "glob" | "grep"
+type Mode =
+  | "success"
+  | "permit503"
+  | "wrongArgs"
+  | "write"
+  | "writeEnv"
+  | "writePermit503"
+  | "edit"
+  | "glob"
+  | "grep"
+  | "shell"
+  | "shellDenied"
 
 let lastPermit = { tool: "", argsHash: "", calls: 0 }
 
@@ -86,7 +97,11 @@ function startServer(mode: Mode): void {
                   ? "glob"
                   : mode === "grep"
                     ? "grep"
-                    : "read"
+                    : mode === "shell"
+                      ? "shell"
+                      : mode === "shellDenied"
+                        ? "shellDenied"
+                        : "read"
         if (!hasTool) {
           const id = `call_${randomUUID()}`
           state.toolCallId = id
@@ -98,6 +113,12 @@ function startServer(mode: Mode): void {
           if (scenario === "glob") return sse(toolCallEvents(id, "glob", { pattern: "**/*.md" }))
           if (scenario === "grep") {
             return sse(toolCallEvents(id, "grep", { pattern: "CROAK_TEST", include: "README*.md" }))
+          }
+          if (scenario === "shell") {
+            return sse(toolCallEvents(id, "shell", { command: "bun", args: ["--version"] }))
+          }
+          if (scenario === "shellDenied") {
+            return sse(toolCallEvents(id, "shell", { command: "rm", args: ["-rf", "/"] }))
           }
           return sse(toolCallEvents(id, "read", { filePath: "README.md" }))
         }
@@ -114,6 +135,10 @@ function startServer(mode: Mode): void {
           ok = content.includes("README.md") && content.includes("OTHER.md")
         } else if (scenario === "grep") {
           ok = content.includes("README.md") && !content.includes("OTHER.md") && content.includes("CROAK_TEST")
+        } else if (scenario === "shell") {
+          ok = content.startsWith("exit=0") && /\d+\.\d+\.\d+/.test(content)
+        } else if (scenario === "shellDenied") {
+          ok = content.includes("허용되지 않은 명령")
         } else {
           const expected =
             scenario === "write" ? "파일을 썼다" : scenario === "writeEnv" ? "오류" : scenario === "edit" ? "곳을 바꿨다" : README_MARKER
@@ -380,6 +405,33 @@ describe("croakcode-next cli", () => {
       expect(lastPermit.argsHash).toBe(
         sha256Hex(JSON.stringify({ pattern: "CROAK_TEST", include: "README*.md" })),
       )
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("shell 도구는 허용목록 명령을 permit 후 실행한다", async () => {
+    startServer("shell")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "버전 확인해줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.tool).toBe("shell")
+      expect(lastPermit.argsHash).toBe(sha256Hex(JSON.stringify({ command: "bun", args: ["--version"] })))
+    } finally {
+      stopServer()
+    }
+  })
+
+  test("shell 도구는 허용목록 밖 명령을 permit 없이 거부한다", async () => {
+    startServer("shellDenied")
+    try {
+      const workspace = makeWorkspace()
+      const result = await runCli(workspace, ["session", "--no-tui"], { input: "지워줘\n" })
+      expect(result.code).toBe(0)
+      expect(result.stdout).toContain(KOREAN_REPLY)
+      expect(lastPermit.calls).toBe(0)
     } finally {
       stopServer()
     }

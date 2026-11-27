@@ -57,7 +57,7 @@
 | `write`, `edit` | ✗ | ✅ cwd 내 상대 경로·64KB·permit | △ |
 | `apply_patch` | ✗ | ✗ | ✗ |
 | `glob`, `grep` | ✗ | ✅ 모델 도구 + 사용자 명령 `/find`·`/grep` | △ |
-| `shell` | ✗ | ✗ | ✗ |
+| `shell` | ✗ | ✅ argv 허용목록·60초·출력 16KB·permit | △ |
 | `task`(위임), `plan`, `question` | ✗ | ✗ | ✗ |
 | `todo`, `lsp`, `skill` | ✗ | ✗ | ✗ |
 | `webfetch`, `websearch`, `mcp-websearch` | ✗ | ✗ | ✗ |
@@ -71,6 +71,11 @@
 `glob`/`grep`도 `session`에서만 모델 도구로 노출한다. 기존 탐색기와 같은 cwd 한정·비밀 경로/심볼릭 링크 제외·결과 수
 상한을 그대로 따르고, permit의 `pattern`(및 `grep`의 `include`)으로 서명 검증한다. `grep`은 대소문자를 구분하지 않는
 부분 문자열 검색이며 파일당 16KB까지만 읽는다.
+
+`shell`도 `session`에서만 제공한다. 셸을 거치지 않고 argv로 실행하며, `bun --version`, `bun test`,
+`bun run test`, `bun run test:next`, `bun run test:e2e-tui`, `bun run build:next`, `npm test`와 **정확히 일치**하는
+명령만 허용한다. cwd는 세션 디렉터리로 고정하고 60초 후 종료, stdout/stderr 각각 16KB 상한, `PATH`·`HOME`·`TMPDIR`·
+`LANG`·`LC_ALL`만 자식에게 전달한다. 실행 전 서명된 permit을 받고, 허용목록 밖 명령은 permit 요청조차 하지 않는다.
 
 ## 3. 세션 관리 / 영속
 
@@ -127,7 +132,7 @@
 
 | 명령 | 결과 | 범위 |
 |---|---|---|
-| `bun run test:next` | **71 pass / 0 fail** | next CLI·store·fsafe·scan·세션·TUI 단위 |
+| `bun run test:next` | **81 pass / 0 fail** | next CLI·store·fsafe·scan·shell·세션·TUI 단위 |
 | `bun run test:e2e-tui` | **통과** | 두 세션 PTY(전송·수신·held·view·`/ls`·`/find`·`/grep`·quit) |
 | `bun run test` | **179 pass / 0 fail** | 기존 루트 통합/E2E(회귀 없음) |
 | `scripts/phase1-headless-check.sh` | PASS | 헤드리스 기동 |
@@ -136,8 +141,8 @@
 
 우선순위 제안(각 항목은 별도 작업):
 
-1. **도구 세트**: `write`/`edit`/`glob`/`grep` 완료(session 한정, permit·경로/크기/결과 제한).
-   남은 것: `shell`, `apply_patch`.
+1. **도구 세트**: `write`/`edit`/`glob`/`grep`/`shell` 완료(session 한정, permit·경로/크기/결과/명령 제한).
+   남은 것: `apply_patch`.
 2. **세션 관리**: `resume --last/--list/--session` 완료(대화형 세션 한정). 포크, run 이력 재개, 기존 세션 DB 스키마 완전 호환은 남음.
 3. **인증/거버넌스**: `/login`, 토큰 갱신, 다단 정책, 게이트 연동 완성.
 4. **에이전트/위임**: 역할 선택, `task` 위임, (장기) Phase 4 위임 런타임.
