@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { startSession, type Session } from "./session"
+import type { Gate } from "./gate"
+import type { Message } from "./chat"
 
 let root = ""
 const opened: Session[] = []
@@ -198,5 +200,50 @@ describe("session messaging", () => {
     await sleep(100)
     expect(bOut.join("")).toContain("(보류 1) alpha: 새이름으로")
     void a
+  })
+})
+
+
+function sse(events: unknown[]): Response {
+  const body = events.map((event) => `data: ${JSON.stringify(event)}\r\n\r\n`).join("") + "data: [DONE]\r\n\r\n"
+  return new Response(body, { headers: { "content-type": "text/event-stream" } })
+}
+
+function textGate(reply: string): Gate {
+  return {
+    publicKey: null as unknown as Gate["publicKey"],
+    async post(route) {
+      if (route !== "/v1/chat/completions") throw new Error(`unexpected route: ${route}`)
+      return sse([
+        { choices: [{ index: 0, delta: { role: "assistant", content: reply } }] },
+        { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+      ])
+    },
+  }
+}
+
+describe("session history", () => {
+  test("이전 이력을 이어가고 새 메시지만 onAppend 로 넘긴다", async () => {
+    const out: string[] = []
+    const appended: Message[] = []
+    const session = await startSession({
+      name: "history",
+      input: new PassThrough() as unknown as NodeJS.ReadableStream,
+      output: output(out),
+      cwd: root,
+      gate: textGate("응답"),
+      history: [
+        { role: "user", content: "이전 질문" },
+        { role: "assistant", content: "이전 응답" },
+      ],
+      onAppend: (message) => appended.push(message),
+    })
+    opened.push(session)
+
+    await session.handleLine("새 질문")
+
+    expect(out.join("")).toContain("이전 대화 2개 메시지를 이어간다")
+    expect(appended.map((m) => m.content)).toEqual(["새 질문", "응답"])
+    expect(appended.map((m) => m.role)).toEqual(["user", "assistant"])
   })
 })

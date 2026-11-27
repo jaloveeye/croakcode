@@ -1,13 +1,12 @@
 #!/usr/bin/env bun
 import { randomUUID } from "node:crypto"
-import { mkdirSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { Database } from "bun:sqlite"
 import { authorizeRead, openGate, type Gate } from "./gate"
 import { completion, type Call, type Message } from "./chat"
-import { dataDir } from "./paths"
 import { readFileBounded, SafeError, validateFilename } from "./fsafe"
+import { createHistoryStore, createStore, latestHistory, listHistory, loadHistory } from "./store"
 import { startSession, SessionError } from "./session"
 import { createTui } from "./tui"
 import { listPeers, PeerError } from "./peers"
@@ -17,6 +16,11 @@ const USAGE = `사용법: croakcode-next <command> [args]
   run <filename> [prompt]   파일을 읽어 요약한다 (경로 구분자 불가)
   session [--name <이름>]    대화형 세션을 연다(다른 세션과 메시지 교환)
     --tui / --no-tui         전체화면 TUI 강제/해제 (기본: TTY면 TUI)
+  resume                    저장된 대화형 세션을 이어간다(기본: --last)
+    --last                   가장 최근 세션
+    --session <id>           지정한 세션
+    --list                   저장된 세션 목록
+    --name <이름>            세션 이름 (기본: resume-<pid>)
   sessions                  실행 중인 세션 목록을 보여준다
 
   --help, -h  이 도움말을 출력한다 (인증 불필요)
@@ -28,7 +32,6 @@ Linux 전용 프로토타입이다.`
 const DEFAULT_PROMPT = "이 파일의 내용을 한국어로 요약해 주세요."
 const UNRUN_RESULT = "[croak] 이 도구 호출은 실행되지 않았다."
 const MAX_PROMPT_BYTES = 8 * 1024
-const BUSY_TIMEOUT_MS = 5_000
 
 class CliError extends Error {
   code: string
@@ -48,61 +51,6 @@ function validatePrompt(raw: string | undefined): string {
   if (!trimmed) return DEFAULT_PROMPT
   if (Buffer.byteLength(trimmed, "utf8") > MAX_PROMPT_BYTES) fail("prompt_too_large", "프롬프트가 너무 크다")
   return trimmed
-}
-
-function openDb(): Database {
-  const dir = dataDir()
-  mkdirSync(dir, { recursive: true, mode: 0o700 })
-  const db = new Database(join(dir, "sessions.db"), { create: true })
-  db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`)
-  db.exec("PRAGMA journal_mode = WAL")
-  db.exec("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, status TEXT NOT NULL, error TEXT)")
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS messages (session_id TEXT NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (session_id, seq))",
-  )
-  db.exec("CREATE TABLE IF NOT EXISTS nonces (nonce TEXT PRIMARY KEY, exp INTEGER NOT NULL)")
-  return db
-}
-
-type Store = {
-  sessionId: string
-  persist(body: Message): void
-  setStatus(status: "running" | "completed" | "error", error?: string | null): void
-  claim(nonce: string, exp: number): boolean
-  close(): void
-}
-
-function createStore(): Store {
-  const db = openDb()
-  const sessionId = `ses_${randomUUID()}`
-  db.query("INSERT INTO sessions (id, status, error) VALUES (?, 'running', NULL)").run(sessionId)
-  let seq = 0
-  const insert = db.query("INSERT INTO messages (session_id, seq, body) VALUES (?, ?, ?)")
-  const status = db.query("UPDATE sessions SET status = ?, error = ? WHERE id = ?")
-  const nonce = db.query("INSERT OR IGNORE INTO nonces (nonce, exp) VALUES (?, ?)")
-  const prune = db.query("DELETE FROM nonces WHERE exp < ?")
-  return {
-    sessionId,
-    persist(body: Message) {
-      insert.run(sessionId, seq, JSON.stringify(body))
-      seq += 1
-    },
-    setStatus(next, error = null) {
-      status.run(next, error, sessionId)
-    },
-    claim(value: string, exp: number) {
-      prune.run(Date.now() - 30_000)
-      const result = nonce.run(value, exp)
-      return result.changes === 1
-    },
-    close() {
-      try {
-        db.close()
-      } catch {
-        // 닫기 실패는 무시한다
-      }
-    },
-  }
 }
 
 function trimPatterns(value: unknown): string[] | null {
@@ -302,9 +250,30 @@ async function commandSession(argv: string[]): Promise<void> {
     }
   }
 
-  const useTui = forceTui || (!forceNoTui && Boolean(process.stdin.isTTY && process.stdout.isTTY))
+  await launchSession({ name, forceTui, forceNoTui })
+}
+
+type LaunchOptions = {
+  name: string
+  cwd?: string
+  history?: Message[]
+  onAppend?: (message: Message) => void
+  forceTui: boolean
+  forceNoTui: boolean
+}
+
+async function launchSession(options: LaunchOptions): Promise<void> {
+  const useTui = options.forceTui || (!options.forceNoTui && Boolean(process.stdin.isTTY && process.stdout.isTTY))
+  const common = {
+    name: options.name,
+    cwd: options.cwd,
+    history: options.history,
+    onAppend: options.onAppend,
+    input: process.stdin,
+    output: process.stdout,
+  }
   if (!useTui) {
-    const session = await startSession({ name, input: process.stdin, output: process.stdout })
+    const session = await startSession(common)
     const shutdown = () => {
       session.interrupt().finally(() => process.exit(0))
     }
@@ -315,10 +284,10 @@ async function commandSession(argv: string[]): Promise<void> {
     return
   }
 
-  const tui = createTui(process.stdin, process.stdout, { name, inbound: "hold", activity: "idle", peers: 1 })
+  const tui = createTui(process.stdin, process.stdout, { name: options.name, inbound: "hold", activity: "idle", peers: 1 })
   // 상태줄의 피어 수는 주기적으로 레지스트리에서 다시 센다.
   tui.setStatusProvider(() => ({ peers: Math.max(1, listPeers().length) }))
-  const session = await startSession({ name, input: process.stdin, output: process.stdout, tui })
+  const session = await startSession({ ...common, tui })
   tui.start(session)
   const shutdown = () => {
     tui.close()
@@ -328,6 +297,74 @@ async function commandSession(argv: string[]): Promise<void> {
   process.on("SIGTERM", shutdown)
   await session.stop()
   tui.close()
+}
+
+async function commandResume(argv: string[]): Promise<void> {
+  if (process.platform !== "linux") fail("platform_unsupported", "현재 Linux만 지원한다")
+  let byLast = false
+  let list = false
+  let sessionId: string | null = null
+  let name: string | null = null
+  let forceTui = false
+  let forceNoTui = false
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === "--last") {
+      byLast = true
+    } else if (arg === "--list") {
+      list = true
+    } else if (arg === "--session") {
+      sessionId = argv[i + 1] ?? ""
+      if (!sessionId) fail("usage", "--session 뒤에 세션 id가 필요하다")
+      i++
+    } else if (arg === "--name") {
+      name = argv[i + 1] ?? ""
+      if (!name) fail("usage", "--name 뒤에 이름이 필요하다")
+      i++
+    } else if (arg === "--tui") {
+      forceTui = true
+    } else if (arg === "--no-tui") {
+      forceNoTui = true
+    } else {
+      fail("usage", "알 수 없는 인자다. --help를 참고하라")
+    }
+  }
+
+  if (list) {
+    const rows = listHistory()
+    if (rows.length === 0) {
+      process.stdout.write("저장된 세션이 없다.\n")
+      return
+    }
+    for (const row of rows) {
+      const when = new Date(row.updatedAt || row.createdAt).toISOString()
+      process.stdout.write(`${row.id}\t${row.status}\t${when}\t${row.messages}개\t${row.cwd || "-"}\n`)
+    }
+    return
+  }
+
+  if (byLast && sessionId) fail("usage", "--last 와 --session 은 함께 쓸 수 없다")
+  const loaded = sessionId ? loadHistory(sessionId) : latestHistory()
+  if (!loaded) fail("usage", sessionId ? `세션을 찾을 수 없다: ${sessionId}` : "저장된 세션이 없다")
+
+  const cwd = loaded.cwd && existsSync(loaded.cwd) ? loaded.cwd : process.cwd()
+  const store = createHistoryStore(cwd, loaded.id)
+  try {
+    await launchSession({
+      name: name ?? `resume-${process.pid}`,
+      cwd,
+      history: loaded.messages,
+      onAppend: (message) => store.persist(message),
+      forceTui,
+      forceNoTui,
+    })
+    store.setStatus("closed")
+  } catch (error) {
+    store.setStatus("error")
+    throw error
+  } finally {
+    store.close()
+  }
 }
 
 function commandSessions(): void {
@@ -361,6 +398,8 @@ function main(argv: string[]): void | Promise<void> {
     }
     case "session":
       return commandSession(rest)
+    case "resume":
+      return commandResume(rest)
     case "sessions":
       commandSessions()
       return
